@@ -22,12 +22,13 @@ func TestPromptsList(t *testing.T) {
 		t.Fatalf("unmarshal result: %v", err)
 	}
 
-	if len(result.Prompts) != 3 {
-		t.Fatalf("expected 3 prompts, got %d", len(result.Prompts))
+	if len(result.Prompts) != 4 {
+		t.Fatalf("expected 4 prompts, got %d", len(result.Prompts))
 	}
 
 	expected := map[string]bool{
 		"plan-trip":           false,
+		"where-should-i-go":  false,
 		"find-cheapest-dates": false,
 		"compare-hotels":     false,
 	}

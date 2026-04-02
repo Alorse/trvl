@@ -35,6 +35,15 @@ func registerPrompts(s *Server) {
 				{Name: "priorities", Description: "Comma-separated priorities: price, rating, location (e.g., price,rating)", Required: false},
 			},
 		},
+		{
+			Name:        "where-should-i-go",
+			Description: "Discover the best travel destinations from your city within a budget",
+			Arguments: []PromptArgument{
+				{Name: "origin", Description: "Departure airport IATA code (e.g., HEL, JFK)", Required: true},
+				{Name: "month", Description: "Travel month (e.g., july-2026 or 2026-07)", Required: false},
+				{Name: "budget", Description: "Maximum flight budget in local currency (e.g., 500)", Required: false},
+			},
+		},
 	}
 }
 
@@ -47,6 +56,8 @@ func getPrompt(name string, args map[string]any) (*PromptsGetResult, error) {
 		return promptFindCheapestDates(args)
 	case "compare-hotels":
 		return promptCompareHotels(args)
+	case "where-should-i-go":
+		return promptWhereShouldIGo(args)
 	default:
 		return nil, fmt.Errorf("unknown prompt: %s", name)
 	}
@@ -189,6 +200,64 @@ Follow these steps:
 
 	return &PromptsGetResult{
 		Description: fmt.Sprintf("Hotel comparison: %s, %s to %s", location, checkIn, checkOut),
+		Messages: []PromptMessage{
+			{
+				Role:    "user",
+				Content: ContentBlock{Type: "text", Text: prompt},
+			},
+		},
+	}, nil
+}
+
+func promptWhereShouldIGo(args map[string]any) (*PromptsGetResult, error) {
+	origin := argOr(args, "origin", "")
+	month := argOr(args, "month", "")
+	budget := argOr(args, "budget", "")
+
+	if origin == "" {
+		return nil, fmt.Errorf("origin is required")
+	}
+
+	budgetLine := ""
+	if budget != "" {
+		budgetLine = fmt.Sprintf("\n\nMy flight budget is %s (local currency). Filter out destinations that exceed this budget.", budget)
+	}
+
+	monthLine := ""
+	if month != "" {
+		monthLine = fmt.Sprintf(" in %s", month)
+	}
+
+	prompt := fmt.Sprintf(`I want to travel from %s%s but I'm not sure where to go.%s
+
+Follow these steps:
+
+1. **Explore destinations**: Use explore_destinations with origin=%s to discover available destinations and their prices. Note the cheapest 10-15 options.
+
+2. **Filter and rank**: From the results:
+   - Filter by budget if specified
+   - Group by region (Europe, Asia, Americas, etc.)
+   - Highlight the top 3 cheapest destinations
+   - Highlight any surprisingly affordable long-haul options
+
+3. **Get destination details**: For the top 3 cheapest destinations, search for actual flights using search_flights to confirm availability and show specific options.
+
+4. **Present recommendations**: Create a summary with:
+   - A ranked list of top destinations with prices, airlines, and stop counts
+   - A "Best value" pick (cheapest with good connectivity)
+   - A "Hidden gem" pick (surprisingly affordable or interesting destination)
+   - A "Premium pick" (best destination if budget allows)
+
+5. **Next steps**: Suggest searching hotels at the top pick, or checking flexible dates with search_dates for the recommended destination.`,
+		origin, monthLine, budgetLine, origin)
+
+	desc := fmt.Sprintf("Destination discovery from %s", origin)
+	if month != "" {
+		desc += " in " + month
+	}
+
+	return &PromptsGetResult{
+		Description: desc,
 		Messages: []PromptMessage{
 			{
 				Role:    "user",

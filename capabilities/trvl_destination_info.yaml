@@ -1,0 +1,143 @@
+fulcrum: "1.0"
+name: trvl_destination_info
+description: >-
+  Get comprehensive travel intelligence for any city: 7-day weather forecast,
+  country info (capital, languages, currencies, region), public holidays during
+  travel dates, safety advisory (1-5 scale), and currency exchange rates vs EUR.
+  All data from free APIs (Open-Meteo, REST Countries, Nager.Date,
+  travel-advisory.info, ExchangeRate-API). No API keys required.
+
+schema:
+  input:
+    type: object
+    properties:
+      location:
+        type: string
+        description: City or location name (e.g., Tokyo, Barcelona, New York)
+      travel_dates:
+        type: string
+        description: "Optional travel date range as YYYY-MM-DD,YYYY-MM-DD (e.g., 2026-06-15,2026-06-18)"
+    required: [location]
+  output:
+    type: object
+    properties:
+      location:
+        type: string
+      country:
+        type: object
+        properties:
+          name:
+            type: string
+          code:
+            type: string
+          capital:
+            type: string
+          languages:
+            type: array
+            items:
+              type: string
+          currencies:
+            type: array
+            items:
+              type: string
+          region:
+            type: string
+      weather:
+        type: object
+        properties:
+          current:
+            type: object
+            properties:
+              date:
+                type: string
+              temp_high_c:
+                type: number
+              temp_low_c:
+                type: number
+              precipitation_mm:
+                type: number
+              description:
+                type: string
+          forecast:
+            type: array
+            items:
+              type: object
+              properties:
+                date:
+                  type: string
+                temp_high_c:
+                  type: number
+                temp_low_c:
+                  type: number
+                precipitation_mm:
+                  type: number
+                description:
+                  type: string
+      holidays:
+        type: array
+        items:
+          type: object
+          properties:
+            date:
+              type: string
+            name:
+              type: string
+            type:
+              type: string
+      safety:
+        type: object
+        properties:
+          level:
+            type: number
+          advisory:
+            type: string
+          source:
+            type: string
+          last_updated:
+            type: string
+      currency:
+        type: object
+        properties:
+          local_currency:
+            type: string
+          exchange_rate:
+            type: number
+          base_currency:
+            type: string
+      timezone:
+        type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 15
+    config:
+      command: trvl
+      args:
+        - destination
+        - "{location}"
+        - "--dates"
+        - "{travel_dates}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 3600
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, destination, weather, country, holidays, safety, currency, exchange-rate, free, no-api-key, forecast, advisory, timezone]
+  cost_category: free
+  execution_time: medium
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Aggregates 5 free APIs in parallel: Open-Meteo (weather), REST Countries
+    (country info), Nager.Date (public holidays), travel-advisory.info (safety),
+    and ExchangeRate-API (currency vs EUR). Graceful degradation if any single
+    source fails. No API keys required.

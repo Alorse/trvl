@@ -23,8 +23,11 @@ import (
 
 // Endpoint constants for Google Travel APIs.
 const (
-	FlightsURL = "https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetShoppingResults"
-	HotelsURL  = "https://www.google.com/_/TravelFrontendUi/data/batchexecute"
+	FlightsURL          = "https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetShoppingResults"
+	ExploreURL          = "https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetExploreDestinations"
+	CalendarGraphURL    = "https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetCalendarGraph"
+	CalendarGridURL     = "https://www.google.com/_/FlightsFrontendUi/data/travel.frontend.flights.FlightsFrontendService/GetCalendarGrid"
+	HotelsURL           = "https://www.google.com/_/TravelFrontendUi/data/batchexecute"
 )
 
 // chromeUA is a recent Chrome User-Agent string.
@@ -262,6 +265,21 @@ func (c *Client) SearchFlights(ctx context.Context, encodedFilters string) (int,
 // and returns the raw response body.
 func (c *Client) BatchExecute(ctx context.Context, encodedPayload string) (int, []byte, error) {
 	return c.PostForm(ctx, HotelsURL, "f.req="+encodedPayload)
+}
+
+// PostExplore posts an encoded payload to the GetExploreDestinations endpoint.
+func (c *Client) PostExplore(ctx context.Context, encodedPayload string) (int, []byte, error) {
+	return c.PostForm(ctx, ExploreURL, "f.req="+encodedPayload)
+}
+
+// PostCalendarGraph posts an encoded payload to the GetCalendarGraph endpoint.
+func (c *Client) PostCalendarGraph(ctx context.Context, encodedPayload string) (int, []byte, error) {
+	return c.PostForm(ctx, CalendarGraphURL, "f.req="+encodedPayload)
+}
+
+// PostCalendarGrid posts an encoded payload to the GetCalendarGrid endpoint.
+func (c *Client) PostCalendarGrid(ctx context.Context, encodedPayload string) (int, []byte, error) {
+	return c.PostForm(ctx, CalendarGridURL, "f.req="+encodedPayload)
 }
 
 // ErrBlocked is returned when Google responds with 403 Forbidden.

@@ -1,0 +1,89 @@
+fulcrum: "1.0"
+name: trvl_explore_destinations
+description: >-
+  Explore cheapest flight destinations from an airport via Google Flights
+  (reverse-engineered API, no key required). Returns a list of destinations
+  sorted by price with airline, stops, and airport information.
+  Useful for budget-conscious travel planning when the destination is flexible.
+
+schema:
+  input:
+    type: object
+    properties:
+      origin:
+        type: string
+        description: Departure airport IATA code (e.g., HEL, JFK, NRT)
+      start_date:
+        type: string
+        description: Departure date in YYYY-MM-DD format (default 7 days from now)
+      end_date:
+        type: string
+        description: Return date in YYYY-MM-DD format (omit for one-way)
+      trip_type:
+        type: string
+        description: "Trip type: round-trip or one-way (default: round-trip)"
+      max_stops:
+        type: integer
+        description: "Maximum stops: -1 for any, 0 for nonstop (default: -1)"
+    required: [origin]
+  output:
+    type: object
+    properties:
+      success:
+        type: boolean
+      count:
+        type: integer
+      destinations:
+        type: array
+        items:
+          type: object
+          properties:
+            city_id:
+              type: string
+            city_name:
+              type: string
+            country:
+              type: string
+            airport_code:
+              type: string
+            price:
+              type: number
+            airline_name:
+              type: string
+            airline_code:
+              type: string
+            stops:
+              type: integer
+      error:
+        type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 30
+    config:
+      command: trvl
+      args:
+        - explore
+        - "{origin}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 300
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, flights, google-flights, free, no-api-key, explore, destinations, budget, cheapest, discover]
+  cost_category: free
+  execution_time: medium
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Uses Google's internal GetExploreDestinations API with Chrome TLS fingerprint impersonation.
+    No API key required. Free and unlimited (subject to Google rate limits).
