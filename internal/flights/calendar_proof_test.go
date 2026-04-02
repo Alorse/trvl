@@ -13,11 +13,12 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 )
 
-// encodeCalendarGraphPayload builds the f.req body for GetCalendarGraph.
+// encodeProofCalendarGraphPayload builds the f.req body for GetCalendarGraph
+// using raw IATA codes (no city code resolution) for proof testing.
 //
-// Uses the [[],<settings>] prefix format (proven to get 200 from the endpoint)
-// with gflights-style calendar settings.
-func encodeCalendarGraphPayload(src, dst, rangeStart, rangeEnd string, tripLengthDays int) string {
+// This uses the [null,] prefix (matching gflights' getPriceGraphReqData) and
+// wraps segments in an array at position 13 of the settings.
+func encodeProofCalendarGraphPayload(src, dst, rangeStart, rangeEnd string, tripLengthDays int) string {
 	tripType := 2 // one-way
 	if tripLengthDays > 0 {
 		tripType = 1 // round-trip
@@ -26,12 +27,12 @@ func encodeCalendarGraphPayload(src, dst, rangeStart, rangeEnd string, tripLengt
 	serSrc := fmt.Sprintf(`[\"%s\",0]`, src)
 	serDst := fmt.Sprintf(`[\"%s\",0]`, dst)
 
-	// Calendar settings with segments (gflights getCalendarRawData format)
-	rawData := fmt.Sprintf(`null,null,[null,null,%d,null,[],%d,[1,0,0,0],null,null,null,null,null,null,`,
+	// Calendar settings -- rawData opens settings + segments, does NOT close them.
+	rawData := fmt.Sprintf(`[null,null,%d,null,[],%d,[1,0,0,0],null,null,null,null,null,null,[`,
 		tripType, 1) // class=1 economy
 
 	// Outbound segment
-	rawData += fmt.Sprintf(`[[[[%s]],[[%s]],null,0,null,null,\"%s\",null,null,null,null,null,null,null,3]`,
+	rawData += fmt.Sprintf(`[[[%s]],[[%s]],null,0,null,null,\"%s\",null,null,null,null,null,null,null,3]`,
 		serSrc, serDst, rangeStart)
 
 	// Return segment (for round-trip)
@@ -40,10 +41,9 @@ func encodeCalendarGraphPayload(src, dst, rangeStart, rangeEnd string, tripLengt
 			serDst, serSrc, rangeEnd)
 	}
 
-	rawData += `]]`
+	// rawData left unclosed -- suffix handles closing brackets.
 
-	// Wrap with explore-style [[],] prefix which gets 200 from the endpoint
-	prefix := `[null,"[[],`
+	prefix := `[null,"[null,`
 
 	var suffix string
 	if tripLengthDays > 0 {
@@ -77,7 +77,7 @@ func TestCalendarGraph(t *testing.T) {
 	rangeEnd := "2026-06-30"
 
 	// One-way test
-	encoded := encodeCalendarGraphPayload("HEL", "NRT", rangeStart, rangeEnd, 0)
+	encoded := encodeProofCalendarGraphPayload("HEL", "NRT", rangeStart, rangeEnd, 0)
 
 	t.Logf("Encoded calendar graph payload length: %d chars", len(encoded))
 
@@ -125,6 +125,67 @@ func TestCalendarGraph(t *testing.T) {
 	}
 }
 
+// TestCalendarGraphWithCityResolution tests CalendarGraph with H028ib city code
+// resolution -- the full pipeline that SearchCalendar uses.
+func TestCalendarGraphWithCityResolution(t *testing.T) {
+	c := batchexec.NewClient()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Resolve IATA codes to Google city codes via H028ib.
+	srcCode, err := batchexec.ResolveCityCode(ctx, c, "HEL")
+	if err != nil {
+		t.Fatalf("ResolveCityCode(HEL): %v", err)
+	}
+	t.Logf("HEL -> %s", srcCode)
+
+	dstCode, err := batchexec.ResolveCityCode(ctx, c, "BCN")
+	if err != nil {
+		t.Fatalf("ResolveCityCode(BCN): %v", err)
+	}
+	t.Logf("BCN -> %s", dstCode)
+
+	// Build the CalendarGraph payload with resolved city codes.
+	opts := CalendarOptions{
+		FromDate: "2026-07-01",
+		ToDate:   "2026-07-31",
+		Adults:   1,
+	}
+	encoded := encodeCalendarGraphPayload(srcCode, "HEL", dstCode, "BCN", opts)
+	t.Logf("Encoded payload length: %d chars", len(encoded))
+
+	status, body, err := c.PostCalendarGraph(ctx, encoded)
+	if err != nil {
+		t.Fatalf("CalendarGraph request failed: %v", err)
+	}
+	t.Logf("Status: %d, Body length: %d", status, len(body))
+
+	if status == 403 {
+		t.Skip("Google returned 403 (rate limited)")
+	}
+
+	if len(body) < 200 {
+		t.Logf("Small response (likely [3] error): %s", string(body))
+		t.Log("City codes resolved but CalendarGraph still returns error.")
+		t.Log("This may indicate the format needs further investigation.")
+	} else {
+		t.Logf("Got substantive response (%d bytes) -- CalendarGraph works with city codes!", len(body))
+		dates, err := parseCalendarGraphResponse(body)
+		if err != nil {
+			t.Logf("Parse error: %v", err)
+		} else {
+			t.Logf("Parsed %d date-price entries", len(dates))
+			for i, d := range dates {
+				if i >= 5 {
+					t.Logf("... and %d more", len(dates)-5)
+					break
+				}
+				t.Logf("  %s: %.0f %s", d.Date, d.Price, d.Currency)
+			}
+		}
+	}
+}
+
 // TestCalendarGraphRoundTrip tests the round-trip variant.
 func TestCalendarGraphRoundTrip(t *testing.T) {
 	c := batchexec.NewClient()
@@ -135,7 +196,7 @@ func TestCalendarGraphRoundTrip(t *testing.T) {
 	rangeEnd := "2026-06-30"
 	tripLength := 7
 
-	encoded := encodeCalendarGraphPayload("HEL", "NRT", rangeStart, rangeEnd, tripLength)
+	encoded := encodeProofCalendarGraphPayload("HEL", "NRT", rangeStart, rangeEnd, tripLength)
 	status, body, err := c.PostCalendarGraph(ctx, encoded)
 	if err != nil {
 		t.Fatalf("request failed: %v", err)

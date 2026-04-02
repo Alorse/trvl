@@ -8,6 +8,7 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"github.com/MikkoParkkola/trvl/internal/trip"
 )
 
 // --- Tool definition ---
@@ -173,6 +174,126 @@ func destinationSummary(info *models.DestinationInfo) string {
 	if len(info.Holidays) > 0 {
 		parts = append(parts, fmt.Sprintf("%d public holidays during travel dates", len(info.Holidays)))
 	}
+
+	return strings.Join(parts, ". ") + "."
+}
+
+// --- Trip Cost tool ---
+
+func tripCostTool() ToolDef {
+	return ToolDef{
+		Name:        "calculate_trip_cost",
+		Title:       "Calculate Trip Cost",
+		Description: "Estimate total trip cost including outbound flight, return flight, and hotel accommodation. Flights are priced per person; hotels are per room.",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"origin":      {Type: "string", Description: "Departure airport IATA code (e.g., HEL, JFK)"},
+				"destination": {Type: "string", Description: "Destination airport IATA code (e.g., BCN, LHR)"},
+				"depart_date": {Type: "string", Description: "Departure date in YYYY-MM-DD format"},
+				"return_date": {Type: "string", Description: "Return date in YYYY-MM-DD format"},
+				"guests":      {Type: "integer", Description: "Number of guests (default: 1). Flights multiply by guests; hotel is per room."},
+				"currency":    {Type: "string", Description: "Currency code for totals (default: EUR)"},
+			},
+			Required: []string{"origin", "destination", "depart_date", "return_date"},
+		},
+		OutputSchema: tripCostOutputSchema(),
+		Annotations: &ToolAnnotations{
+			Title:          "Calculate Trip Cost",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  true,
+		},
+	}
+}
+
+func tripCostOutputSchema() interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"success":    map[string]interface{}{"type": "boolean"},
+			"flights":    map[string]interface{}{"type": "object"},
+			"hotels":     map[string]interface{}{"type": "object"},
+			"total":      map[string]interface{}{"type": "number"},
+			"currency":   map[string]interface{}{"type": "string"},
+			"per_person": map[string]interface{}{"type": "number"},
+			"per_day":    map[string]interface{}{"type": "number"},
+			"nights":     map[string]interface{}{"type": "integer"},
+			"error":      map[string]interface{}{"type": "string"},
+		},
+		"required": []string{"success", "total", "currency"},
+	}
+}
+
+func handleTripCost(args map[string]any, elicit ElicitFunc) ([]ContentBlock, interface{}, error) {
+	origin := strings.ToUpper(argString(args, "origin"))
+	dest := strings.ToUpper(argString(args, "destination"))
+	departDate := argString(args, "depart_date")
+	returnDate := argString(args, "return_date")
+	guests := argInt(args, "guests", 1)
+	currency := argString(args, "currency")
+
+	if origin == "" || dest == "" {
+		return nil, nil, fmt.Errorf("origin and destination are required")
+	}
+	if departDate == "" || returnDate == "" {
+		return nil, nil, fmt.Errorf("depart_date and return_date are required")
+	}
+
+	if err := models.ValidateIATA(origin); err != nil {
+		return nil, nil, fmt.Errorf("invalid origin: %w", err)
+	}
+	if err := models.ValidateIATA(dest); err != nil {
+		return nil, nil, fmt.Errorf("invalid destination: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	result, err := trip.CalculateTripCost(ctx, trip.TripCostInput{
+		Origin:      origin,
+		Destination: dest,
+		DepartDate:  departDate,
+		ReturnDate:  returnDate,
+		Guests:      guests,
+		Currency:    currency,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	summary := tripCostSummary(result, origin, dest, guests)
+	content, err := buildAnnotatedContentBlocks(summary, result)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return content, result, nil
+}
+
+func tripCostSummary(result *trip.TripCostResult, origin, dest string, guests int) string {
+	if !result.Success {
+		if result.Error != "" {
+			return fmt.Sprintf("Trip cost estimation %s to %s failed: %s", origin, dest, result.Error)
+		}
+		return fmt.Sprintf("Could not estimate trip cost from %s to %s.", origin, dest)
+	}
+
+	parts := []string{
+		fmt.Sprintf("Trip %s -> %s: %d nights, %d guest(s)", origin, dest, result.Nights, guests),
+	}
+
+	if result.Flights.Outbound > 0 {
+		parts = append(parts, fmt.Sprintf("Flights: %s %.0f outbound + %.0f return",
+			result.Flights.Currency, result.Flights.Outbound, result.Flights.Return))
+	}
+	if result.Hotels.PerNight > 0 {
+		parts = append(parts, fmt.Sprintf("Hotel: %s %.0f/night (%s)",
+			result.Hotels.Currency, result.Hotels.PerNight, result.Hotels.Name))
+	}
+
+	parts = append(parts, fmt.Sprintf("Total: %s %.0f (%.0f/person, %.0f/day)",
+		result.Currency, result.Total, result.PerPerson, result.PerDay))
 
 	return strings.Join(parts, ". ") + "."
 }

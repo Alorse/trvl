@@ -1,0 +1,110 @@
+fulcrum: "1.0"
+name: trvl_trip_cost
+description: >-
+  Estimate total trip cost including cheapest outbound flight, return flight,
+  and hotel accommodation. Returns per-person and per-day breakdowns.
+  Flights are priced per person; hotels are per room.
+  Uses Google Flights and Google Hotels (reverse-engineered APIs, no key required).
+
+schema:
+  input:
+    type: object
+    properties:
+      origin:
+        type: string
+        description: Departure airport IATA code (e.g., HEL, JFK)
+      destination:
+        type: string
+        description: Destination airport IATA code (e.g., BCN, LHR)
+      depart_date:
+        type: string
+        description: Departure date in YYYY-MM-DD format
+      return_date:
+        type: string
+        description: Return date in YYYY-MM-DD format
+      guests:
+        type: integer
+        description: "Number of guests (default: 1). Flights multiply by guests; hotel is per room."
+      currency:
+        type: string
+        description: "Currency code for totals (default: EUR)"
+    required: [origin, destination, depart_date, return_date]
+  output:
+    type: object
+    properties:
+      success:
+        type: boolean
+      flights:
+        type: object
+        properties:
+          outbound:
+            type: number
+          return:
+            type: number
+          currency:
+            type: string
+          outbound_stops:
+            type: integer
+          return_stops:
+            type: integer
+      hotels:
+        type: object
+        properties:
+          per_night:
+            type: number
+          total:
+            type: number
+          currency:
+            type: string
+          name:
+            type: string
+      total:
+        type: number
+        description: Total trip cost (flights x guests + hotel)
+      currency:
+        type: string
+      per_person:
+        type: number
+      per_day:
+        type: number
+      nights:
+        type: integer
+      error:
+        type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 60
+    config:
+      command: trvl
+      args:
+        - trip-cost
+        - "{origin}"
+        - "{destination}"
+        - "--depart"
+        - "{depart_date}"
+        - "--return"
+        - "{return_date}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 300
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, flights, hotels, trip-cost, budget, estimate, google-flights, google-hotels, free, no-api-key]
+  cost_category: free
+  execution_time: long
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Combines Google Flights and Google Hotels searches to estimate total trip cost.
+    Uses Google's internal batchexecute API with Chrome TLS fingerprint impersonation.
+    No API key required. Free and unlimited (subject to Google rate limits).

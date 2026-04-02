@@ -127,20 +127,26 @@ func searchCalendarFallback(ctx context.Context, origin, dest string, opts Calen
 // encodeCalendarGraphPayload builds the f.req body for GetCalendarGraph
 // using resolved Google city codes.
 //
-// City codes are passed with flag 5 (city), airport codes with flag 0 (airport).
-// We include both the city code and the airport code for maximum compatibility.
+// The payload format matches gflights' getCalendarRawData + getPriceGraphReqData:
+//   - City codes use flag 5 (city), airport codes use flag 0 (airport)
+//   - Segments are wrapped in a JSON array at position 13 of the settings
+//   - The outer envelope is [null, "[null, <rawData>], ..., [dateRange], ...]"]
 func encodeCalendarGraphPayload(srcCityCode, srcAirport, dstCityCode, dstAirport string, opts CalendarOptions) string {
 	tripType := 2 // one-way
 	if opts.RoundTrip && opts.TripLength > 0 {
 		tripType = 1 // round-trip
 	}
 
-	// Build source location: city code with flag 5, airport with flag 0
-	serSrc := fmt.Sprintf(`[\"%s\",5],[\"%s\",0]`, srcCityCode, srcAirport)
-	serDst := fmt.Sprintf(`[\"%s\",5],[\"%s\",0]`, dstCityCode, dstAirport)
+	// Build source/dest locations: airport code with flag 0, city code with flag 5.
+	// gflights serialises airports first, then cities.
+	serSrc := fmt.Sprintf(`[\"%s\",0],[\"%s\",5]`, srcAirport, srcCityCode)
+	serDst := fmt.Sprintf(`[\"%s\",0],[\"%s\",5]`, dstAirport, dstCityCode)
 
-	// Build the raw data in gflights format.
-	rawData := fmt.Sprintf(`[null,null,%d,null,[],%d,[%d,0,0,0],null,null,null,null,null,null,`,
+	// Build the raw data matching gflights' getCalendarRawData.
+	// The rawData opens the settings array and segments array but does NOT close
+	// them -- the suffix provides the closing brackets along with additional
+	// settings elements (null,null,null,1) and the date range wrapper.
+	rawData := fmt.Sprintf(`[null,null,%d,null,[],%d,[%d,0,0,0],null,null,null,null,null,null,[`,
 		tripType, 1, opts.Adults) // class=1 economy
 
 	// Outbound segment
@@ -153,7 +159,10 @@ func encodeCalendarGraphPayload(srcCityCode, srcAirport, dstCityCode, dstAirport
 			serDst, serSrc, opts.ToDate)
 	}
 
-	rawData += `]`
+	// NOTE: rawData is intentionally left unclosed. The suffix closes:
+	//   ] -> segments array
+	//   ,null,null,null,1] -> additional settings elements + close settings array
+	//   ,["fromDate","toDate"]] -> date range + close outer array
 
 	prefix := `[null,"[null,`
 

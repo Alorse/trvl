@@ -13,12 +13,14 @@ func registerTools(s *Server) {
 		searchHotelsTool(),
 		hotelPricesTool(),
 		destinationInfoTool(),
+		tripCostTool(),
 	}
 	s.handlers["search_flights"] = handleSearchFlights
 	s.handlers["search_dates"] = handleSearchDates
 	s.handlers["search_hotels"] = handleSearchHotels
 	s.handlers["hotel_prices"] = handleHotelPrices
 	s.handlers["destination_info"] = handleDestinationInfo
+	s.handlers["calculate_trip_cost"] = handleTripCost
 }
 
 // --- Suggestion types ---

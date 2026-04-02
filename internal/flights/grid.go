@@ -138,12 +138,17 @@ func sortedKeys(m map[string]bool) []string {
 
 // encodePriceGridPayload builds the f.req body for GetCalendarGrid
 // using resolved Google city codes.
+//
+// Matches gflights' getPriceGridReqData format: segments wrapped in array,
+// airport codes with flag 0 before city codes with flag 5.
 func encodePriceGridPayload(srcCityCode, srcAirport, dstCityCode, dstAirport string, opts GridOptions) string {
-	serSrc := fmt.Sprintf(`[\"%s\",5],[\"%s\",0]`, srcCityCode, srcAirport)
-	serDst := fmt.Sprintf(`[\"%s\",5],[\"%s\",0]`, dstCityCode, dstAirport)
+	// Airport code with flag 0, city code with flag 5.
+	serSrc := fmt.Sprintf(`[\"%s\",0],[\"%s\",5]`, srcAirport, srcCityCode)
+	serDst := fmt.Sprintf(`[\"%s\",0],[\"%s\",5]`, dstAirport, dstCityCode)
 
-	// Grid is always round-trip.
-	rawData := fmt.Sprintf(`[null,null,%d,null,[],%d,[%d,0,0,0],null,null,null,null,null,null,`,
+	// Grid is always round-trip. rawData opens settings + segments arrays,
+	// does NOT close them (suffix handles closing with additional elements).
+	rawData := fmt.Sprintf(`[null,null,%d,null,[],%d,[%d,0,0,0],null,null,null,null,null,null,[`,
 		1, 1, opts.Adults) // tripType=1 (round-trip), class=1 (economy)
 
 	// Outbound segment
@@ -154,7 +159,9 @@ func encodePriceGridPayload(srcCityCode, srcAirport, dstCityCode, dstAirport str
 	rawData += fmt.Sprintf(`,[[[%s]],[[%s]],null,0,null,null,\"%s\",null,null,null,null,null,null,null,1]`,
 		serDst, serSrc, opts.ReturnFrom)
 
-	rawData += `]`
+	// NOTE: rawData left unclosed. Suffix provides:
+	//   ] -> close segments, ,null,null,null,1] -> close settings,
+	//   ,["depFrom","depTo"],["retFrom","retTo"]] -> date ranges + close outer
 
 	prefix := `[null,"[null,`
 	suffix := fmt.Sprintf(`],null,null,null,1],[\"%s\",\"%s\"],[\"%s\",\"%s\"]]"]`,

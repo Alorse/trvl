@@ -13,30 +13,29 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 )
 
-// encodeCalendarGridPayload builds the f.req body for GetCalendarGrid.
+// encodeProofCalendarGridPayload builds the f.req body for GetCalendarGrid
+// using raw IATA codes (no city code resolution) for proof testing.
 //
-// Uses the same [[],<settings>] prefix format as the calendar graph
-// with departure and return date ranges appended.
-func encodeCalendarGridPayload(src, dst, depStart, depEnd, retStart, retEnd string) string {
+// Uses [null,] prefix and wraps segments in an array (gflights format).
+func encodeProofCalendarGridPayload(src, dst, depStart, depEnd, retStart, retEnd string) string {
 	serSrc := fmt.Sprintf(`[\"%s\",0]`, src)
 	serDst := fmt.Sprintf(`[\"%s\",0]`, dst)
 
-	// Always round trip for grid
-	rawData := fmt.Sprintf(`null,null,[null,null,%d,null,[],%d,[1,0,0,0],null,null,null,null,null,null,`,
+	// Always round trip for grid. rawData opens settings + segments, unclosed.
+	rawData := fmt.Sprintf(`[null,null,%d,null,[],%d,[1,0,0,0],null,null,null,null,null,null,[`,
 		1, 1) // tripType=1, class=1
 
 	// Outbound segment
-	rawData += fmt.Sprintf(`[[[[%s]],[[%s]],null,0,null,null,\"%s\",null,null,null,null,null,null,null,3]`,
+	rawData += fmt.Sprintf(`[[[%s]],[[%s]],null,0,null,null,\"%s\",null,null,null,null,null,null,null,3]`,
 		serSrc, serDst, depStart)
 
 	// Return segment
 	rawData += fmt.Sprintf(`,[[[%s]],[[%s]],null,0,null,null,\"%s\",null,null,null,null,null,null,null,1]`,
 		serDst, serSrc, retStart)
 
-	rawData += `]]`
+	// rawData left unclosed -- suffix handles closing brackets.
 
-	// Grid envelope with departure and return date ranges
-	prefix := `[null,"[[],`
+	prefix := `[null,"[null,`
 	suffix := fmt.Sprintf(`],null,null,null,1],[\"%s\",\"%s\"],[\"%s\",\"%s\"]]"]`,
 		depStart, depEnd, retStart, retEnd)
 
@@ -60,7 +59,7 @@ func TestCalendarGrid(t *testing.T) {
 	retStart := "2026-07-08"
 	retEnd := "2026-07-14"
 
-	encoded := encodeCalendarGridPayload("HEL", "BCN", depStart, depEnd, retStart, retEnd)
+	encoded := encodeProofCalendarGridPayload("HEL", "BCN", depStart, depEnd, retStart, retEnd)
 
 	t.Logf("Encoded calendar grid payload length: %d chars", len(encoded))
 
