@@ -327,6 +327,104 @@ func hotelSummary(result *models.HotelSearchResult, location string) string {
 	return summary
 }
 
+// --- Hotel reviews ---
+
+func hotelReviewsTool() ToolDef {
+	return ToolDef{
+		Name:        "hotel_reviews",
+		Title:       "Hotel Reviews",
+		Description: "Get guest reviews for a specific hotel from Google Hotels. Returns review text, ratings, authors, and dates, plus aggregate statistics.",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"hotel_id": {Type: "string", Description: "Google Hotels property ID (from search_hotels results)"},
+				"limit":    {Type: "integer", Description: "Maximum number of reviews to return (default: 10)"},
+				"sort":     {Type: "string", Description: "Sort order: newest, highest, lowest (default: newest)"},
+			},
+			Required: []string{"hotel_id"},
+		},
+		OutputSchema: hotelReviewsOutputSchema(),
+		Annotations: &ToolAnnotations{
+			Title:          "Hotel Reviews",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  true,
+		},
+	}
+}
+
+func hotelReviewsOutputSchema() interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"success":  map[string]interface{}{"type": "boolean"},
+			"hotel_id": map[string]interface{}{"type": "string"},
+			"name":     map[string]interface{}{"type": "string"},
+			"summary": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"average_rating":   map[string]interface{}{"type": "number"},
+					"total_reviews":    map[string]interface{}{"type": "integer"},
+					"rating_breakdown": map[string]interface{}{"type": "object"},
+				},
+			},
+			"reviews": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"rating": map[string]interface{}{"type": "number"},
+						"text":   map[string]interface{}{"type": "string"},
+						"author": map[string]interface{}{"type": "string"},
+						"date":   map[string]interface{}{"type": "string"},
+					},
+				},
+			},
+			"count": map[string]interface{}{"type": "integer"},
+			"error": map[string]interface{}{"type": "string"},
+		},
+		"required": []string{"success"},
+	}
+}
+
+func handleHotelReviews(args map[string]any, elicit ElicitFunc) ([]ContentBlock, interface{}, error) {
+	hotelID := argString(args, "hotel_id")
+	if hotelID == "" {
+		return nil, nil, fmt.Errorf("hotel_id is required")
+	}
+
+	opts := hotels.ReviewOptions{
+		Limit: argInt(args, "limit", 10),
+		Sort:  argString(args, "sort"),
+	}
+	if opts.Sort == "" {
+		opts.Sort = "newest"
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := hotels.GetHotelReviews(ctx, hotelID, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	summary := fmt.Sprintf("Found %d reviews for hotel %s.", result.Count, hotelID)
+	if result.Name != "" {
+		summary = fmt.Sprintf("Found %d reviews for %s.", result.Count, result.Name)
+	}
+	if result.Summary.AverageRating > 0 {
+		summary += fmt.Sprintf(" Average rating: %.1f/5 (%d total).",
+			result.Summary.AverageRating, result.Summary.TotalReviews)
+	}
+
+	content, err := buildAnnotatedContentBlocks(summary, result)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return content, result, nil
+}
+
 // --- Suggestion builders ---
 
 func hotelSuggestions(result *models.HotelSearchResult, opts hotels.HotelSearchOptions) []Suggestion {
@@ -354,6 +452,18 @@ func hotelSuggestions(result *models.HotelSearchResult, opts hotels.HotelSearchO
 				Params:      map[string]any{"hotel_id": h.HotelID, "check_in": opts.CheckIn, "check_out": opts.CheckOut},
 			})
 			break // Only suggest the top one.
+		}
+	}
+
+	// If a hotel has many reviews, suggest reading them.
+	for _, h := range result.Hotels {
+		if h.ReviewCount >= 100 && h.HotelID != "" {
+			suggestions = append(suggestions, Suggestion{
+				Action:      "hotel_reviews",
+				Description: fmt.Sprintf("Read guest reviews for %s (%d reviews)", h.Name, h.ReviewCount),
+				Params:      map[string]any{"hotel_id": h.HotelID},
+			})
+			break
 		}
 	}
 

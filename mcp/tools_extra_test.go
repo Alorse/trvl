@@ -241,7 +241,7 @@ func TestToolRegistration_AllTools(t *testing.T) {
 	s := NewServer()
 	expectedTools := []string{
 		"search_flights", "search_dates", "search_hotels", "hotel_prices",
-		"destination_info", "calculate_trip_cost",
+		"hotel_reviews", "destination_info", "calculate_trip_cost",
 		"weekend_getaway", "suggest_dates", "optimize_multi_city",
 	}
 

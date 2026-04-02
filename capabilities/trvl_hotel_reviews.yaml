@@ -1,0 +1,94 @@
+fulcrum: "1.0"
+name: trvl_hotel_reviews
+description: >-
+  Get guest reviews for a specific hotel via Google Hotels (reverse-engineered
+  API, no key required). Returns review text, ratings, authors, dates, and
+  aggregate statistics (average rating, total count, rating breakdown).
+  Use hotel_id from search_hotels results.
+  Inspired by fli (github.com/punitarani/fli), extended to hotel reviews.
+
+schema:
+  input:
+    type: object
+    properties:
+      hotel_id:
+        type: string
+        description: Google Hotels property ID (from trvl_search_hotels results)
+      limit:
+        type: integer
+        description: Maximum number of reviews to return (default 10)
+      sort:
+        type: string
+        description: "Sort order: newest, highest, lowest (default: newest)"
+    required: [hotel_id]
+  output:
+    type: object
+    properties:
+      success:
+        type: boolean
+      hotel_id:
+        type: string
+      name:
+        type: string
+      summary:
+        type: object
+        properties:
+          average_rating:
+            type: number
+          total_reviews:
+            type: integer
+          rating_breakdown:
+            type: object
+      reviews:
+        type: array
+        items:
+          type: object
+          properties:
+            rating:
+              type: number
+            text:
+              type: string
+            author:
+              type: string
+            date:
+              type: string
+      count:
+        type: integer
+      error:
+        type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 30
+    config:
+      command: trvl
+      args:
+        - reviews
+        - "{hotel_id}"
+        - "--limit"
+        - "{limit}"
+        - "--sort"
+        - "{sort}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 300
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, hotels, google-hotels, reviews, ratings, free, no-api-key, guest-reviews, hotel-ratings]
+  cost_category: free
+  execution_time: medium
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Inspired by fli (github.com/punitarani/fli) by Punit Arani.
+    Uses rpcid ocp93e for hotel reviews, with page scraping fallback.
+    No API key required.

@@ -61,8 +61,8 @@ func TestHTTPHandler_POST_ToolsList(t *testing.T) {
 	var result ToolsListResult
 	json.Unmarshal(resultJSON, &result)
 
-	if len(result.Tools) != 9 {
-		t.Errorf("expected 9 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 10 {
+		t.Errorf("expected 10 tools, got %d", len(result.Tools))
 	}
 }
 
@@ -369,7 +369,7 @@ func TestAllToolHandlers(t *testing.T) {
 }
 
 func TestAllToolHandlers_NilArgs(t *testing.T) {
-	tools := []string{"search_flights", "search_dates", "search_hotels", "hotel_prices"}
+	tools := []string{"search_flights", "search_dates", "search_hotels", "hotel_prices", "hotel_reviews"}
 	s := NewServer()
 
 	for _, name := range tools {
@@ -526,11 +526,11 @@ func TestNewServer(t *testing.T) {
 	if s == nil {
 		t.Fatal("NewServer returned nil")
 	}
-	if len(s.tools) != 9 {
-		t.Errorf("expected 9 tools, got %d", len(s.tools))
+	if len(s.tools) != 10 {
+		t.Errorf("expected 10 tools, got %d", len(s.tools))
 	}
-	if len(s.handlers) != 9 {
-		t.Errorf("expected 9 handlers, got %d", len(s.handlers))
+	if len(s.handlers) != 10 {
+		t.Errorf("expected 10 handlers, got %d", len(s.handlers))
 	}
 }
 

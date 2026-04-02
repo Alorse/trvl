@@ -170,3 +170,15 @@ func BuildHotelPricePayload(hotelID string, checkIn, checkOut [3]int, currency s
 		hotelID, currency)
 	return EncodeBatchExecute("yY52ce", args)
 }
+
+// BuildHotelReviewPayload constructs a batchexecute payload for hotel reviews.
+//
+// rpcid "ocp93e" fetches guest reviews for a specific hotel ID.
+// The limit controls how many reviews to request.
+func BuildHotelReviewPayload(hotelID string, limit int) string {
+	if limit <= 0 {
+		limit = 10
+	}
+	args := fmt.Sprintf(`[%q,null,null,null,null,%d]`, hotelID, limit)
+	return EncodeBatchExecute("ocp93e", args)
+}

@@ -104,12 +104,13 @@ func TestValidateDate_Today(t *testing.T) {
 }
 
 func TestValidateDate_PastDate(t *testing.T) {
-	past := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	// Use -2 days to avoid midnight boundary issues with UTC truncation
+	past := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
 	err := ValidateDate(past)
 	if err == nil {
 		t.Errorf("expected error for past date %q", past)
 	}
-	if !strings.Contains(err.Error(), "in the past") {
+	if err != nil && !strings.Contains(err.Error(), "in the past") {
 		t.Errorf("error message = %q, want to contain 'in the past'", err.Error())
 	}
 }

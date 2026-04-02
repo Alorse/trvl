@@ -13,6 +13,7 @@ func registerTools(s *Server) {
 		searchDatesTool(),
 		searchHotelsTool(),
 		hotelPricesTool(),
+		hotelReviewsTool(),
 		destinationInfoTool(),
 		tripCostTool(),
 		weekendGetawayTool(),
@@ -23,6 +24,7 @@ func registerTools(s *Server) {
 	s.handlers["search_dates"] = handleSearchDates
 	s.handlers["search_hotels"] = handleSearchHotels
 	s.handlers["hotel_prices"] = handleHotelPrices
+	s.handlers["hotel_reviews"] = handleHotelReviews
 	s.handlers["destination_info"] = handleDestinationInfo
 	s.handlers["calculate_trip_cost"] = handleTripCost
 	s.handlers["weekend_getaway"] = handleWeekendGetaway
