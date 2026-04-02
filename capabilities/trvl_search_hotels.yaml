@@ -1,0 +1,107 @@
+fulcrum: "1.0"
+name: trvl_search_hotels
+description: >-
+  Search hotels via Google Hotels (reverse-engineered API, no key required).
+  Returns real-time pricing, ratings, star levels, addresses, coordinates,
+  and amenities for a given location and dates. Novel capability -- no
+  equivalent open-source tool exists for Google Hotels.
+  Inspired by fli (github.com/punitarani/fli), extended to hotels.
+
+schema:
+  input:
+    type: object
+    properties:
+      location:
+        type: string
+        description: Location name or address (e.g., Helsinki, Tokyo, Manhattan New York)
+      check_in:
+        type: string
+        description: Check-in date in YYYY-MM-DD format
+      check_out:
+        type: string
+        description: Check-out date in YYYY-MM-DD format
+      guests:
+        type: integer
+        description: Number of guests (default 2)
+      stars:
+        type: integer
+        description: Minimum star rating 1-5 (default no filter)
+      sort:
+        type: string
+        description: "Sort order: relevance, price, rating, or distance (default: relevance)"
+    required: [location, check_in, check_out]
+  output:
+    type: object
+    properties:
+      success:
+        type: boolean
+      count:
+        type: integer
+      hotels:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            hotel_id:
+              type: string
+            rating:
+              type: number
+            review_count:
+              type: integer
+            stars:
+              type: integer
+            price:
+              type: number
+            currency:
+              type: string
+            address:
+              type: string
+            lat:
+              type: number
+            lon:
+              type: number
+            amenities:
+              type: array
+              items:
+                type: string
+      error:
+        type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 30
+    config:
+      command: trvl
+      args:
+        - hotels
+        - "{location}"
+        - "--checkin"
+        - "{check_in}"
+        - "--checkout"
+        - "{check_out}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 300
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, hotels, google-hotels, accommodation, free, no-api-key]
+  cost_category: free
+  execution_time: medium
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Inspired by fli (github.com/punitarani/fli) by Punit Arani.
+    Extends the reverse-engineered batchexecute approach from flights to hotels.
+    Uses rpcid AtySUc for hotel search. No equivalent open-source tool exists.
+    No API key required.

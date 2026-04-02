@@ -1,0 +1,124 @@
+fulcrum: "1.0"
+name: trvl_search_flights
+description: >-
+  Search flights via Google Flights (reverse-engineered API, no key required).
+  Returns real-time pricing, durations, stops, and detailed leg information
+  including airlines, flight numbers, and departure/arrival times.
+  Inspired by fli (github.com/punitarani/fli), reimplemented in Go.
+
+schema:
+  input:
+    type: object
+    properties:
+      origin:
+        type: string
+        description: Departure airport IATA code (e.g., HEL, JFK, NRT)
+      destination:
+        type: string
+        description: Arrival airport IATA code (e.g., NRT, LAX, CDG)
+      departure_date:
+        type: string
+        description: Departure date in YYYY-MM-DD format
+      return_date:
+        type: string
+        description: Return date in YYYY-MM-DD format for round-trip (omit for one-way)
+      cabin_class:
+        type: string
+        description: "Cabin class: economy, premium_economy, business, or first (default: economy)"
+      max_stops:
+        type: string
+        description: "Maximum stops: any, nonstop, one_stop, or two_plus (default: any)"
+      sort_by:
+        type: string
+        description: "Sort order: cheapest, duration, departure, or arrival (default: cheapest)"
+    required: [origin, destination, departure_date]
+  output:
+    type: object
+    properties:
+      success:
+        type: boolean
+      count:
+        type: integer
+      trip_type:
+        type: string
+      flights:
+        type: array
+        items:
+          type: object
+          properties:
+            price:
+              type: number
+            currency:
+              type: string
+            duration:
+              type: integer
+              description: Total flight duration in minutes
+            stops:
+              type: integer
+            legs:
+              type: array
+              items:
+                type: object
+                properties:
+                  departure_airport:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      name:
+                        type: string
+                  arrival_airport:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      name:
+                        type: string
+                  departure_time:
+                    type: string
+                  arrival_time:
+                    type: string
+                  duration:
+                    type: integer
+                  airline:
+                    type: string
+                  airline_code:
+                    type: string
+                  flight_number:
+                    type: string
+      error:
+        type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 30
+    config:
+      command: trvl
+      args:
+        - flights
+        - "{origin}"
+        - "{destination}"
+        - "{departure_date}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 300
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, flights, google-flights, free, no-api-key]
+  cost_category: free
+  execution_time: medium
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Inspired by fli (github.com/punitarani/fli) by Punit Arani.
+    Uses Google's internal batchexecute API with Chrome TLS fingerprint impersonation.
+    No API key required. Free and unlimited (subject to Google rate limits).

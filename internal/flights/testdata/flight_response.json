@@ -1,0 +1,128 @@
+[
+  [
+    null,
+    null,
+    [
+      [
+        [
+          [
+            [
+              null,
+              "HEL",
+              "Helsinki Airport",
+              "NRT",
+              "Narita International Airport",
+              [2026, 6, 15, 10, 30],
+              [2026, 6, 16, 7, 15],
+              780,
+              "Finnair",
+              "AY",
+              "AY 79",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ],
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          780
+        ],
+        [null, 523, null, "EUR"]
+      ],
+      [
+        [
+          [
+            [
+              null,
+              "HEL",
+              "Helsinki Airport",
+              "FRA",
+              "Frankfurt Airport",
+              [2026, 6, 15, 8, 0],
+              [2026, 6, 15, 10, 30],
+              150,
+              "Lufthansa",
+              "LH",
+              "LH 853",
+              null,
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              null,
+              "FRA",
+              "Frankfurt Airport",
+              "NRT",
+              "Narita International Airport",
+              [2026, 6, 15, 13, 45],
+              [2026, 6, 16, 8, 30],
+              705,
+              "Lufthansa",
+              "LH",
+              "LH 710",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ],
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          1470
+        ],
+        [null, 487, null, "EUR"]
+      ],
+      [
+        [
+          [
+            [
+              null,
+              "HEL",
+              "Helsinki Airport",
+              "NRT",
+              "Narita International Airport",
+              [2026, 6, 15, 23, 55],
+              [2026, 6, 16, 17, 30],
+              815,
+              "Japan Airlines",
+              "JL",
+              "JL 414",
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          ],
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          815
+        ],
+        [null, 612, null, "EUR"]
+      ]
+    ]
+  ]
+]

@@ -1,0 +1,85 @@
+fulcrum: "1.0"
+name: trvl_hotel_prices
+description: >-
+  Get prices from multiple booking providers for a specific hotel via Google
+  Hotels (reverse-engineered API, no key required). Compares prices across
+  providers like Booking.com, Hotels.com, Expedia, and the hotel's direct
+  website. Use hotel_id from search_hotels results.
+  Inspired by fli (github.com/punitarani/fli), extended to hotels.
+
+schema:
+  input:
+    type: object
+    properties:
+      hotel_id:
+        type: string
+        description: Google Hotels property ID (from trvl_search_hotels results)
+      check_in:
+        type: string
+        description: Check-in date in YYYY-MM-DD format
+      check_out:
+        type: string
+        description: Check-out date in YYYY-MM-DD format
+    required: [hotel_id, check_in, check_out]
+  output:
+    type: object
+    properties:
+      success:
+        type: boolean
+      hotel_id:
+        type: string
+      name:
+        type: string
+      check_in:
+        type: string
+      check_out:
+        type: string
+      providers:
+        type: array
+        items:
+          type: object
+          properties:
+            provider:
+              type: string
+            price:
+              type: number
+            currency:
+              type: string
+      error:
+        type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 30
+    config:
+      command: trvl
+      args:
+        - prices
+        - "{hotel_id}"
+        - "--checkin"
+        - "{check_in}"
+        - "--checkout"
+        - "{check_out}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 180
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, hotels, google-hotels, prices, comparison, free, no-api-key]
+  cost_category: free
+  execution_time: medium
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Inspired by fli (github.com/punitarani/fli) by Punit Arani.
+    Uses rpcid yY52ce for hotel price lookup. Shorter TTL (180s) since hotel
+    prices are more volatile. No API key required.
