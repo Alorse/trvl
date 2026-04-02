@@ -199,6 +199,14 @@ func tryParseFormat1(dest []any) *models.ExploreDestination {
 	}
 
 	if d.AirportCode != "" && d.Price > 0 {
+		// Enrich city name from airport lookup if not already set.
+		if d.CityName == "" {
+			d.CityName = models.LookupAirportName(d.AirportCode)
+			// Only use if it's different from the code itself.
+			if d.CityName == d.AirportCode {
+				d.CityName = ""
+			}
+		}
 		return &d
 	}
 	return nil

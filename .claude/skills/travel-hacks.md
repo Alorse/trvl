@@ -152,6 +152,31 @@ For European travel, a train to a cheaper departure city can save more than the 
 2. If a city 2-3h by train has significantly cheaper flights, recommend the combo
 3. Reference: Helsinki→Tampere (2h, €15), Paris→Brussels (1.5h, €30), London→Paris (2.5h, €50)
 
+## Strategy 11: Airline Service & Loyalty Awareness
+
+When comparing flights, price alone doesn't tell the full story. Factor in:
+
+**Luggage allowances vary massively:**
+- **Full-service** (Finnair, Lufthansa, BA, SAS): Usually 23kg checked bag + 8kg cabin included
+- **Low-cost** (Ryanair, Wizzair, easyJet): Cabin bag only. Checked bag = +€20-50/direction. Priority boarding for overhead cabin bag = +€6-10. Total extras can add €40-100 round-trip.
+- **Norwegian**: Large cabin bag included on most fares, checked bag extra (~€15-30)
+- **Turkish Airlines**: 23kg checked included even on economy, generous cabin allowance
+
+**When to flag**: If the user mentions luggage or is comparing low-cost vs full-service, add the luggage cost to the comparison: "Ryanair is €73 + €46 bags = €119 total vs Finnair at €113 all-in."
+
+**Frequent flyer status benefits** (ask if the user has status):
+- **Star Alliance Gold** (Finnair Plus, SAS EuroBonus, etc.): lounge access, priority boarding, extra baggage, same-day flight changes on some airlines
+- **oneworld Sapphire/Emerald** (Finnair, BA, Iberia): lounge, priority, extra bag
+- **SkyTeam Elite Plus** (KLM, AF): lounge, priority, extra bag
+- Status affects the TRUE cost — a slightly more expensive flight on your status airline saves lounge fees (€30-50), bags, and seat selection
+
+**Ask about**: "Do you have frequent flyer status with any airline/alliance? That might affect which flights give best value."
+
+**Fare class awareness:**
+- Business class one-ways are often only 20-30% more than economy on short-haul (1-2h) but include lounge, bags, seat, flexibility
+- Premium economy on long-haul (8h+) is often 40-60% more than economy but includes: 2x baggage, better seat pitch, better food, lounge on some airlines
+- Light/basic economy fares (Lufthansa Light, BA Basic): NO cabin bag overhead, NO seat selection, NO changes. Only viable for day trips with a small backpack.
+
 ## When Planning Any Trip, ALWAYS:
 
 1. **Check nearby airports** (Strategy 1)

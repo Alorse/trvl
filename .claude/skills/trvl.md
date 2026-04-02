@@ -43,12 +43,12 @@ Do NOT immediately search. First understand what the user needs. Ask about anyth
 - Budget range? (helps filter and prioritize)
 - Any schedule constraints? (must arrive by X, meeting on date Y, etc.)
 
-**Nice to have (ask for complex trips):**
-- Cabin class preference? (economy default, but ask for long-haul)
+**Nice to have (ask based on context):**
+- Cabin class preference? (economy default, but ask for long-haul >6h)
 - Hotel preferences? (stars, location, type — hotel vs apartment)
 - Nonstop preference or OK with connections?
-- Any loyalty programs? (affects airline preference)
-- Luggage needs? (affects low-cost carrier viability)
+- Frequent flyer status? (Star Alliance Gold/oneworld/SkyTeam — affects airline preference and true cost via lounge access, extra bags, priority)
+- Luggage needs? (critical for low-cost carrier comparison — Ryanair+bags can cost more than Finnair all-in)
 
 **For multi-city / complex trips:**
 - What cities need to be visited?

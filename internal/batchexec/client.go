@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/cache"
 	utls "github.com/refraction-networking/utls"
 	"golang.org/x/time/rate"
 )
@@ -39,11 +40,21 @@ const (
 	defaultBaseBackoff = 1 * time.Second
 )
 
+// Cache TTL constants for different endpoint types.
+const (
+	FlightCacheTTL      = 5 * time.Minute
+	HotelCacheTTL       = 10 * time.Minute
+	DestinationCacheTTL = 1 * time.Hour
+)
+
 // Client wraps an http.Client with Chrome TLS fingerprint impersonation via utls.
-// It includes a token bucket rate limiter and retry with exponential backoff.
+// It includes a token bucket rate limiter, retry with exponential backoff,
+// and an in-memory response cache.
 type Client struct {
-	http    *http.Client
-	limiter *rate.Limiter
+	http     *http.Client
+	limiter  *rate.Limiter
+	cache    *cache.Cache
+	noCache  bool
 }
 
 // NewClient creates a Client that impersonates Chrome's TLS fingerprint.
@@ -70,7 +81,29 @@ func NewClient() *Client {
 			Timeout:   20 * time.Second,
 		},
 		limiter: rate.NewLimiter(rate.Limit(10), 1),
+		cache:   cache.New(),
 	}
+}
+
+// SetNoCache disables the response cache for this client.
+func (c *Client) SetNoCache(disable bool) {
+	c.noCache = disable
+}
+
+// getCached returns a cached response if available and caching is enabled.
+func (c *Client) getCached(endpoint, payload string) ([]byte, bool) {
+	if c.noCache || c.cache == nil {
+		return nil, false
+	}
+	return c.cache.Get(cache.Key(endpoint, payload))
+}
+
+// setCached stores a response in the cache with the appropriate TTL.
+func (c *Client) setCached(endpoint, payload string, data []byte, ttl time.Duration) {
+	if c.noCache || c.cache == nil {
+		return
+	}
+	c.cache.Set(cache.Key(endpoint, payload), data, ttl)
 }
 
 // SetRateLimit changes the rate limiter to allow rps requests per second.
@@ -262,45 +295,95 @@ func backoffSleep(ctx context.Context, attempt int) error {
 // SearchFlights posts an encoded flight search payload to the Flights endpoint
 // and returns the raw response body.
 //
+// Results are cached for 5 minutes. Use SetNoCache(true) to bypass.
+//
 // Coverage exclusion: thin wrapper around doWithRetry with endpoint-specific URL.
 // doWithRetry is thoroughly tested (client_test.go, client_extra_test.go).
 // Covered by integration proof tests.
 func (c *Client) SearchFlights(ctx context.Context, encodedFilters string) (int, []byte, error) {
-	return c.PostForm(ctx, FlightsURL, "f.req="+encodedFilters)
+	payload := "f.req=" + encodedFilters
+	if data, ok := c.getCached(FlightsURL, payload); ok {
+		return 200, data, nil
+	}
+	status, body, err := c.PostForm(ctx, FlightsURL, payload)
+	if err == nil && status == 200 {
+		c.setCached(FlightsURL, payload, body, FlightCacheTTL)
+	}
+	return status, body, err
 }
 
 // BatchExecute posts an encoded batchexecute payload to the Hotels/Travel endpoint
 // and returns the raw response body.
 //
+// Results are cached for 10 minutes. Use SetNoCache(true) to bypass.
+//
 // Coverage exclusion: thin wrapper around doWithRetry with endpoint-specific URL.
 // doWithRetry is thoroughly tested (client_test.go, client_extra_test.go).
 // Covered by integration proof tests.
 func (c *Client) BatchExecute(ctx context.Context, encodedPayload string) (int, []byte, error) {
-	return c.PostForm(ctx, HotelsURL, "f.req="+encodedPayload)
+	payload := "f.req=" + encodedPayload
+	if data, ok := c.getCached(HotelsURL, payload); ok {
+		return 200, data, nil
+	}
+	status, body, err := c.PostForm(ctx, HotelsURL, payload)
+	if err == nil && status == 200 {
+		c.setCached(HotelsURL, payload, body, HotelCacheTTL)
+	}
+	return status, body, err
 }
 
 // PostExplore posts an encoded payload to the GetExploreDestinations endpoint.
 //
+// Results are cached for 1 hour. Use SetNoCache(true) to bypass.
+//
 // Coverage exclusion: thin wrapper around PostForm with endpoint-specific URL.
 // PostForm and doWithRetry are thoroughly tested. Covered by integration proof tests.
 func (c *Client) PostExplore(ctx context.Context, encodedPayload string) (int, []byte, error) {
-	return c.PostForm(ctx, ExploreURL, "f.req="+encodedPayload)
+	payload := "f.req=" + encodedPayload
+	if data, ok := c.getCached(ExploreURL, payload); ok {
+		return 200, data, nil
+	}
+	status, body, err := c.PostForm(ctx, ExploreURL, payload)
+	if err == nil && status == 200 {
+		c.setCached(ExploreURL, payload, body, DestinationCacheTTL)
+	}
+	return status, body, err
 }
 
 // PostCalendarGraph posts an encoded payload to the GetCalendarGraph endpoint.
 //
+// Results are cached for 5 minutes. Use SetNoCache(true) to bypass.
+//
 // Coverage exclusion: thin wrapper around PostForm with endpoint-specific URL.
 // PostForm and doWithRetry are thoroughly tested. Covered by integration proof tests.
 func (c *Client) PostCalendarGraph(ctx context.Context, encodedPayload string) (int, []byte, error) {
-	return c.PostForm(ctx, CalendarGraphURL, "f.req="+encodedPayload)
+	payload := "f.req=" + encodedPayload
+	if data, ok := c.getCached(CalendarGraphURL, payload); ok {
+		return 200, data, nil
+	}
+	status, body, err := c.PostForm(ctx, CalendarGraphURL, payload)
+	if err == nil && status == 200 {
+		c.setCached(CalendarGraphURL, payload, body, FlightCacheTTL)
+	}
+	return status, body, err
 }
 
 // PostCalendarGrid posts an encoded payload to the GetCalendarGrid endpoint.
 //
+// Results are cached for 5 minutes. Use SetNoCache(true) to bypass.
+//
 // Coverage exclusion: thin wrapper around PostForm with endpoint-specific URL.
 // PostForm and doWithRetry are thoroughly tested. Covered by integration proof tests.
 func (c *Client) PostCalendarGrid(ctx context.Context, encodedPayload string) (int, []byte, error) {
-	return c.PostForm(ctx, CalendarGridURL, "f.req="+encodedPayload)
+	payload := "f.req=" + encodedPayload
+	if data, ok := c.getCached(CalendarGridURL, payload); ok {
+		return 200, data, nil
+	}
+	status, body, err := c.PostForm(ctx, CalendarGridURL, payload)
+	if err == nil && status == 200 {
+		c.setCached(CalendarGridURL, payload, body, FlightCacheTTL)
+	}
+	return status, body, err
 }
 
 // ErrBlocked is returned when Google responds with 403 Forbidden.

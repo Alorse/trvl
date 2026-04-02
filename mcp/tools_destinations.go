@@ -178,6 +178,92 @@ func destinationSummary(info *models.DestinationInfo) string {
 	return strings.Join(parts, ". ") + "."
 }
 
+// --- Weekend Getaway tool ---
+
+func weekendGetawayTool() ToolDef {
+	return ToolDef{
+		Name:        "weekend_getaway",
+		Title:       "Weekend Getaway Finder",
+		Description: "Find cheap weekend getaway destinations from an airport. Returns top 10 cheapest destinations ranked by total estimated cost (round-trip flight + estimated hotel).",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"origin":     {Type: "string", Description: "Departure airport IATA code (e.g., HEL, JFK)"},
+				"month":      {Type: "string", Description: "Month to search (e.g., july-2026, 2026-07)"},
+				"max_budget": {Type: "number", Description: "Maximum total budget in EUR (0 = no limit)"},
+				"nights":     {Type: "integer", Description: "Number of nights (default: 2)"},
+			},
+			Required: []string{"origin", "month"},
+		},
+		Annotations: &ToolAnnotations{
+			Title:          "Weekend Getaway Finder",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  true,
+		},
+	}
+}
+
+func handleWeekendGetaway(args map[string]any, elicit ElicitFunc) ([]ContentBlock, interface{}, error) {
+	origin := strings.ToUpper(argString(args, "origin"))
+	month := argString(args, "month")
+
+	if origin == "" {
+		return nil, nil, fmt.Errorf("origin is required")
+	}
+	if month == "" {
+		return nil, nil, fmt.Errorf("month is required")
+	}
+
+	if err := models.ValidateIATA(origin); err != nil {
+		return nil, nil, fmt.Errorf("invalid origin: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	opts := trip.WeekendOptions{
+		Month:     month,
+		MaxBudget: argFloat(args, "max_budget", 0),
+		Nights:    argInt(args, "nights", 2),
+	}
+
+	result, err := trip.FindWeekendGetaways(ctx, origin, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	summary := weekendSummary(result)
+	content, err := buildAnnotatedContentBlocks(summary, result)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return content, result, nil
+}
+
+func weekendSummary(result *trip.WeekendResult) string {
+	if !result.Success || result.Count == 0 {
+		if result.Error != "" {
+			return fmt.Sprintf("Weekend getaway search failed: %s", result.Error)
+		}
+		return "No weekend getaway destinations found."
+	}
+
+	parts := []string{
+		fmt.Sprintf("Found %d weekend getaway destinations from %s in %s (%d nights)",
+			result.Count, result.Origin, result.Month, result.Nights),
+	}
+
+	if len(result.Destinations) > 0 {
+		d := result.Destinations[0]
+		parts = append(parts, fmt.Sprintf("Cheapest: %s (%s) - EUR %.0f total (flight %.0f + hotel est. %.0f)",
+			d.Destination, d.AirportCode, d.TotalEstimate, d.FlightPrice, d.HotelEstimate))
+	}
+
+	return strings.Join(parts, ". ") + "."
+}
+
 // --- Trip Cost tool ---
 
 func tripCostTool() ToolDef {

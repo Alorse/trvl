@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // registerTools adds all trvl tool definitions and handlers to the server.
@@ -14,6 +15,9 @@ func registerTools(s *Server) {
 		hotelPricesTool(),
 		destinationInfoTool(),
 		tripCostTool(),
+		weekendGetawayTool(),
+		suggestDatesTool(),
+		optimizeMultiCityTool(),
 	}
 	s.handlers["search_flights"] = handleSearchFlights
 	s.handlers["search_dates"] = handleSearchDates
@@ -21,6 +25,9 @@ func registerTools(s *Server) {
 	s.handlers["hotel_prices"] = handleHotelPrices
 	s.handlers["destination_info"] = handleDestinationInfo
 	s.handlers["calculate_trip_cost"] = handleTripCost
+	s.handlers["weekend_getaway"] = handleWeekendGetaway
+	s.handlers["suggest_dates"] = handleSuggestDates
+	s.handlers["optimize_multi_city"] = handleOptimizeMultiCity
 }
 
 // --- Suggestion types ---
@@ -71,6 +78,63 @@ func argInt(args map[string]any, key string, def int) int {
 	default:
 		return def
 	}
+}
+
+func argFloat(args map[string]any, key string, def float64) float64 {
+	if args == nil {
+		return def
+	}
+	v, ok := args[key]
+	if !ok {
+		return def
+	}
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	case json.Number:
+		f, err := n.Float64()
+		if err != nil {
+			return def
+		}
+		return f
+	default:
+		return def
+	}
+}
+
+func argStringSlice(args map[string]any, key string) []string {
+	if args == nil {
+		return nil
+	}
+	v, ok := args[key]
+	if !ok {
+		return nil
+	}
+	// Try string (comma-separated).
+	if s, ok := v.(string); ok && s != "" {
+		parts := strings.Split(s, ",")
+		var result []string
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				result = append(result, p)
+			}
+		}
+		return result
+	}
+	// Try []any (JSON array).
+	if arr, ok := v.([]any); ok {
+		var result []string
+		for _, elem := range arr {
+			if s, ok := elem.(string); ok {
+				result = append(result, s)
+			}
+		}
+		return result
+	}
+	return nil
 }
 
 func argBool(args map[string]any, key string, def bool) bool {
