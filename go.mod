@@ -1,10 +1,11 @@
 module github.com/MikkoParkkola/trvl
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/refraction-networking/utls v1.8.2
 	github.com/spf13/cobra v1.8.1
+	golang.org/x/time v0.15.0
 )
 
 require (
