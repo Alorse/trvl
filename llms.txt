@@ -16,6 +16,10 @@ Transport: stdio
 Claude Code: claude mcp add trvl --transport stdio -- trvl mcp
 Claude Desktop: Add {"mcpServers":{"trvl":{"command":"trvl","args":["mcp"]}}} to config
 
+## Skill (install after MCP setup)
+
+curl -fsSL https://raw.githubusercontent.com/MikkoParkkola/trvl/main/.claude/skills/trvl.md -o ~/.claude/skills/trvl.md
+
 ## MCP Tools
 
 - search_flights(origin, destination, departure_date, [return_date, cabin_class, max_stops, sort_by])
