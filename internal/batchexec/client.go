@@ -191,7 +191,7 @@ func (c *Client) doWithRetry(ctx context.Context, buildReq func() (*http.Request
 			return 0, nil, lastErr
 		}
 
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10MB limit
 		resp.Body.Close()
 		if readErr != nil {
 			lastErr = readErr

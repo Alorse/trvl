@@ -34,7 +34,7 @@ func GetHotelPrices(ctx context.Context, hotelID string, checkIn, checkOut strin
 		return nil, fmt.Errorf("parse check-out date: %w", err)
 	}
 
-	client := batchexec.NewClient()
+	client := DefaultClient()
 	encoded := batchexec.BuildHotelPricePayload(hotelID, checkInArr, checkOutArr, currency)
 
 	status, body, err := client.BatchExecute(ctx, encoded)

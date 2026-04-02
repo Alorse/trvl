@@ -127,16 +127,18 @@ func SearchDates(ctx context.Context, origin, destination string, opts DateSearc
 				return
 			}
 
-			// Find the cheapest flight for this date.
-			cheapest := result.Flights[0]
-			for _, f := range result.Flights[1:] {
-				if f.Price > 0 && f.Price < cheapest.Price {
-					cheapest = f
+			// Find the cheapest flight with a positive price for this date.
+			var cheapest *models.FlightResult
+			for i := range result.Flights {
+				if result.Flights[i].Price > 0 {
+					if cheapest == nil || result.Flights[i].Price < cheapest.Price {
+						cheapest = &result.Flights[i]
+					}
 				}
 			}
 
-			if cheapest.Price <= 0 {
-				return
+			if cheapest == nil {
+				return // no priced flights for this date
 			}
 
 			dp := models.DatePriceResult{

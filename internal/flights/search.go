@@ -3,10 +3,26 @@ package flights
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
+
+var (
+	defaultClient     *batchexec.Client
+	defaultClientOnce sync.Once
+)
+
+// DefaultClient returns a shared batchexec.Client for the flights package.
+// The client is created once and reused across all requests, enabling
+// connection reuse and shared rate limiting.
+func DefaultClient() *batchexec.Client {
+	defaultClientOnce.Do(func() {
+		defaultClient = batchexec.NewClient()
+	})
+	return defaultClient
+}
 
 // SearchOptions configures a flight search.
 type SearchOptions struct {
@@ -34,77 +50,9 @@ func (o *SearchOptions) defaults() {
 // date is the departure date as "YYYY-MM-DD".
 //
 // Returns a FlightSearchResult with parsed flight options, or an error.
+// Uses a shared default client for connection reuse and rate limiting.
 func SearchFlights(ctx context.Context, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
-	opts.defaults()
-
-	if origin == "" || destination == "" || date == "" {
-		return &models.FlightSearchResult{
-			Error: "origin, destination, and date are required",
-		}, fmt.Errorf("origin, destination, and date are required")
-	}
-
-	// Build the search filters.
-	filters := buildFilters(origin, destination, date, opts)
-
-	// Encode the payload.
-	encoded, err := batchexec.EncodeFlightFilters(filters)
-	if err != nil {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("encode filters: %v", err),
-		}, fmt.Errorf("encode filters: %w", err)
-	}
-
-	// Execute the request.
-	client := batchexec.NewClient()
-	status, body, err := client.SearchFlights(ctx, encoded)
-	if err != nil {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("request failed: %v", err),
-		}, fmt.Errorf("request failed: %w", err)
-	}
-
-	if status == 403 {
-		return &models.FlightSearchResult{
-			Error: "blocked by Google (403)",
-		}, batchexec.ErrBlocked
-	}
-
-	if status != 200 {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("unexpected status %d", status),
-		}, fmt.Errorf("unexpected status %d", status)
-	}
-
-	// Decode the response.
-	inner, err := batchexec.DecodeFlightResponse(body)
-	if err != nil {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("decode response: %v", err),
-		}, fmt.Errorf("decode response: %w", err)
-	}
-
-	// Extract raw flight entries.
-	rawFlights, err := batchexec.ExtractFlightData(inner)
-	if err != nil {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("extract flights: %v", err),
-		}, fmt.Errorf("extract flights: %w", err)
-	}
-
-	// Parse into structured results.
-	flights := parseFlights(rawFlights)
-
-	tripType := "one_way"
-	if opts.ReturnDate != "" {
-		tripType = "round_trip"
-	}
-
-	return &models.FlightSearchResult{
-		Success:  true,
-		Count:    len(flights),
-		TripType: tripType,
-		Flights:  flights,
-	}, nil
+	return SearchFlightsWithClient(ctx, DefaultClient(), origin, destination, date, opts)
 }
 
 // SearchFlightsWithClient is like SearchFlights but accepts a pre-built client,
@@ -122,32 +70,49 @@ func SearchFlightsWithClient(ctx context.Context, client *batchexec.Client, orig
 
 	encoded, err := batchexec.EncodeFlightFilters(filters)
 	if err != nil {
-		return nil, fmt.Errorf("encode filters: %w", err)
+		return &models.FlightSearchResult{
+			Error: fmt.Sprintf("encode filters: %v", err),
+		}, fmt.Errorf("encode filters: %w", err)
 	}
 
 	status, body, err := client.SearchFlights(ctx, encoded)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return &models.FlightSearchResult{
+			Error: fmt.Sprintf("request failed: %v", err),
+		}, fmt.Errorf("request failed: %w", err)
 	}
 
 	if status == 403 {
-		return &models.FlightSearchResult{Error: "blocked by Google (403)"}, batchexec.ErrBlocked
+		return &models.FlightSearchResult{
+			Error: "blocked by Google (403)",
+		}, batchexec.ErrBlocked
 	}
 	if status != 200 {
-		return nil, fmt.Errorf("unexpected status %d", status)
+		return &models.FlightSearchResult{
+			Error: fmt.Sprintf("unexpected status %d", status),
+		}, fmt.Errorf("unexpected status %d", status)
 	}
 
 	inner, err := batchexec.DecodeFlightResponse(body)
 	if err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return &models.FlightSearchResult{
+			Error: fmt.Sprintf("decode response: %v", err),
+		}, fmt.Errorf("decode response: %w", err)
 	}
 
 	rawFlights, err := batchexec.ExtractFlightData(inner)
 	if err != nil {
-		return nil, fmt.Errorf("extract flights: %w", err)
+		return &models.FlightSearchResult{
+			Error: fmt.Sprintf("extract flights: %v", err),
+		}, fmt.Errorf("extract flights: %w", err)
 	}
 
 	flights := parseFlights(rawFlights)
+
+	// Add booking URLs to each flight.
+	for i := range flights {
+		flights[i].BookingURL = buildFlightBookingURL(origin, destination, date)
+	}
 
 	tripType := "one_way"
 	if opts.ReturnDate != "" {
@@ -160,6 +125,11 @@ func SearchFlightsWithClient(ctx context.Context, client *batchexec.Client, orig
 		TripType: tripType,
 		Flights:  flights,
 	}, nil
+}
+
+// buildFlightBookingURL constructs a Google Flights deep link for a route and date.
+func buildFlightBookingURL(origin, destination, date string) string {
+	return fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", destination, origin, date)
 }
 
 // buildFilters constructs the nested array structure for the flight search payload.

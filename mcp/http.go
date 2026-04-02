@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 // HTTPServer wraps an MCP Server with an HTTP transport.
@@ -34,8 +36,11 @@ func (h *HTTPServer) ListenAndServe() error {
 }
 
 func (h *HTTPServer) handleMCP(w http.ResponseWriter, r *http.Request) {
-	// CORS headers for browser access.
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// CORS headers — restrict to localhost origins only.
+	origin := r.Header.Get("Origin")
+	if isLocalhostOrigin(origin) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
@@ -49,6 +54,8 @@ func (h *HTTPServer) handleMCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Limit request body to 1MB to prevent abuse.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
@@ -86,6 +93,19 @@ func (h *HTTPServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"server":  serverName,
 		"version": serverVersion,
 	})
+}
+
+// isLocalhostOrigin checks if the origin is a localhost URL (any port).
+func isLocalhostOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := strings.Split(u.Host, ":")[0]
+	return host == "localhost" || host == "127.0.0.1" || host == "[::1]"
 }
 
 // RunHTTP starts the MCP server in HTTP mode on the given port.

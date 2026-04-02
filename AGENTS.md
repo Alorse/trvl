@@ -19,6 +19,15 @@ brew install MikkoParkkola/tap/trvl
 go install github.com/MikkoParkkola/trvl/cmd/trvl@latest
 ```
 
+## Claude Code Skill (optional but recommended)
+
+Install the trvl skill so Claude knows how to use it in any project:
+```bash
+curl -fsSL https://raw.githubusercontent.com/MikkoParkkola/trvl/main/.claude/skills/trvl.md -o ~/.claude/skills/trvl.md
+```
+
+This teaches Claude to use trvl's MCP tools when you mention flights, hotels, travel, or trips.
+
 ## MCP Server Setup
 
 ### Claude Code

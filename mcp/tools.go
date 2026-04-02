@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/hotels"
@@ -289,6 +290,7 @@ func hotelPricesTool() ToolDef {
 				"hotel_id":  {Type: "string", Description: "Google Hotels property ID (from search_hotels results)"},
 				"check_in":  {Type: "string", Description: "Check-in date in YYYY-MM-DD format"},
 				"check_out": {Type: "string", Description: "Check-out date in YYYY-MM-DD format"},
+				"currency":  {Type: "string", Description: "Currency code (e.g. USD, EUR). Default: USD"},
 			},
 			Required: []string{"hotel_id", "check_in", "check_out"},
 		},
@@ -448,6 +450,14 @@ func handleSearchFlights(args map[string]any, elicit ElicitFunc) ([]ContentBlock
 		return nil, nil, fmt.Errorf("origin and destination are required")
 	}
 
+	// Validate IATA codes.
+	if err := models.ValidateIATA(origin); err != nil {
+		return nil, nil, fmt.Errorf("invalid origin: %w", err)
+	}
+	if err := models.ValidateIATA(dest); err != nil {
+		return nil, nil, fmt.Errorf("invalid destination: %w", err)
+	}
+
 	// Elicit departure date if missing and client supports it.
 	if date == "" && elicit != nil {
 		schema := flightElicitationSchema(origin, dest)
@@ -474,6 +484,18 @@ func handleSearchFlights(args map[string]any, elicit ElicitFunc) ([]ContentBlock
 
 	if date == "" {
 		return nil, nil, fmt.Errorf("departure_date is required")
+	}
+
+	// Validate date.
+	if err := models.ValidateDate(date); err != nil {
+		return nil, nil, err
+	}
+
+	// Validate return date if provided.
+	if ret := argString(args, "return_date"); ret != "" {
+		if err := models.ValidateDate(ret); err != nil {
+			return nil, nil, fmt.Errorf("invalid return_date: %w", err)
+		}
 	}
 
 	opts := flights.SearchOptions{
@@ -504,7 +526,8 @@ func handleSearchFlights(args map[string]any, elicit ElicitFunc) ([]ContentBlock
 		opts.SortBy = parsed
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	result, err := flights.SearchFlights(ctx, origin, dest, date, opts)
 	if err != nil {
 		return nil, nil, err
@@ -541,6 +564,19 @@ func handleSearchDates(args map[string]any, elicit ElicitFunc) ([]ContentBlock, 
 		return nil, nil, fmt.Errorf("origin, destination, start_date, and end_date are required")
 	}
 
+	// Validate IATA codes.
+	if err := models.ValidateIATA(origin); err != nil {
+		return nil, nil, fmt.Errorf("invalid origin: %w", err)
+	}
+	if err := models.ValidateIATA(dest); err != nil {
+		return nil, nil, fmt.Errorf("invalid destination: %w", err)
+	}
+
+	// Validate date range.
+	if err := models.ValidateDateRange(startDate, endDate); err != nil {
+		return nil, nil, err
+	}
+
 	opts := flights.DateSearchOptions{
 		FromDate:  startDate,
 		ToDate:    endDate,
@@ -548,7 +584,8 @@ func handleSearchDates(args map[string]any, elicit ElicitFunc) ([]ContentBlock, 
 		RoundTrip: argBool(args, "is_round_trip", false),
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	result, err := flights.SearchDates(ctx, origin, dest, opts)
 	if err != nil {
 		return nil, nil, err
@@ -583,6 +620,11 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc) ([]ContentBlock,
 		return nil, nil, fmt.Errorf("location, check_in, and check_out are required")
 	}
 
+	// Validate dates.
+	if err := models.ValidateDateRange(checkIn, checkOut); err != nil {
+		return nil, nil, err
+	}
+
 	opts := hotels.HotelSearchOptions{
 		CheckIn:  checkIn,
 		CheckOut: checkOut,
@@ -591,7 +633,8 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc) ([]ContentBlock,
 		Sort:     argString(args, "sort"),
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	result, err := hotels.SearchHotels(ctx, location, opts)
 	if err != nil {
 		return nil, nil, err
@@ -642,13 +685,23 @@ func handleHotelPrices(args map[string]any, elicit ElicitFunc) ([]ContentBlock, 
 	hotelID := argString(args, "hotel_id")
 	checkIn := argString(args, "check_in")
 	checkOut := argString(args, "check_out")
+	currency := argString(args, "currency")
+	if currency == "" {
+		currency = "USD"
+	}
 
 	if hotelID == "" || checkIn == "" || checkOut == "" {
 		return nil, nil, fmt.Errorf("hotel_id, check_in, and check_out are required")
 	}
 
-	ctx := context.Background()
-	result, err := hotels.GetHotelPrices(ctx, hotelID, checkIn, checkOut, "USD")
+	// Validate dates.
+	if err := models.ValidateDateRange(checkIn, checkOut); err != nil {
+		return nil, nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := hotels.GetHotelPrices(ctx, hotelID, checkIn, checkOut, currency)
 	if err != nil {
 		return nil, nil, err
 	}

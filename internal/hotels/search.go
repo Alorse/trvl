@@ -4,12 +4,29 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
+
+var (
+	defaultClient     *batchexec.Client
+	defaultClientOnce sync.Once
+)
+
+// DefaultClient returns a shared batchexec.Client for the hotels package.
+// The client is created once and reused across all requests, enabling
+// connection reuse and shared rate limiting.
+func DefaultClient() *batchexec.Client {
+	defaultClientOnce.Do(func() {
+		defaultClient = batchexec.NewClient()
+	})
+	return defaultClient
+}
 
 // HotelSearchOptions configures a hotel search.
 type HotelSearchOptions struct {
@@ -47,7 +64,7 @@ func SearchHotels(ctx context.Context, location string, opts HotelSearchOptions)
 		return nil, fmt.Errorf("parse check-out date: %w", err)
 	}
 
-	client := batchexec.NewClient()
+	client := DefaultClient()
 
 	// Build the Google Travel Hotels URL.
 	travelURL := buildTravelURL(location, opts)
@@ -81,11 +98,23 @@ func SearchHotels(ctx context.Context, location string, opts HotelSearchOptions)
 	// Sort results.
 	sortHotels(hotels, opts.Sort)
 
+	// Add booking URLs to each hotel.
+	for i := range hotels {
+		hotels[i].BookingURL = buildHotelBookingURL(location, opts.CheckIn, opts.CheckOut)
+	}
+
 	return &models.HotelSearchResult{
 		Success: true,
 		Count:   len(hotels),
 		Hotels:  hotels,
 	}, nil
+}
+
+// buildHotelBookingURL constructs a Google Hotels deep link for a location and dates.
+func buildHotelBookingURL(location, checkIn, checkOut string) string {
+	encoded := url.PathEscape(location)
+	return fmt.Sprintf("https://www.google.com/travel/hotels/%s?q=%s+hotels&dates=%s,%s",
+		encoded, url.QueryEscape(location), checkIn, checkOut)
 }
 
 // buildTravelURL constructs the Google Travel Hotels search URL.
@@ -120,22 +149,14 @@ func sortHotels(hotels []models.HotelResult, sortBy string) {
 	switch strings.ToLower(sortBy) {
 	case "cheapest", "price", "":
 		// Sort by price ascending. Hotels with price=0 go to the end.
-		for i := 1; i < len(hotels); i++ {
-			for j := i; j > 0; j-- {
-				if lessPrice(hotels[j], hotels[j-1]) {
-					hotels[j], hotels[j-1] = hotels[j-1], hotels[j]
-				}
-			}
-		}
+		sort.Slice(hotels, func(i, j int) bool {
+			return lessPrice(hotels[i], hotels[j])
+		})
 	case "rating":
 		// Sort by rating descending.
-		for i := 1; i < len(hotels); i++ {
-			for j := i; j > 0; j-- {
-				if hotels[j].Rating > hotels[j-1].Rating {
-					hotels[j], hotels[j-1] = hotels[j-1], hotels[j]
-				}
-			}
-		}
+		sort.Slice(hotels, func(i, j int) bool {
+			return hotels[i].Rating > hotels[j].Rating
+		})
 	}
 }
 

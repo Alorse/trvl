@@ -4,7 +4,7 @@ LDFLAGS := -ldflags "-s -w -X main.Version=$(VERSION)"
 .PHONY: build test test-proof lint clean cross
 
 build:
-	go build $(LDFLAGS) -o trvl ./cmd/trvl
+	go build $(LDFLAGS) -o bin/trvl ./cmd/trvl
 
 test:
 	go test ./...
@@ -17,7 +17,7 @@ lint:
 	@command -v staticcheck >/dev/null 2>&1 && staticcheck ./... || echo "staticcheck not installed, skipping"
 
 clean:
-	rm -f trvl
+	rm -f bin/trvl
 	rm -rf dist/
 
 cross:

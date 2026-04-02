@@ -112,6 +112,7 @@ func TestHTTPHandler_OPTIONS_CORS(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	httpReq := httptest.NewRequest("OPTIONS", "/mcp", nil)
+	httpReq.Header.Set("Origin", "http://localhost:3000")
 
 	hs.handleMCP(rr, httpReq)
 
@@ -119,11 +120,25 @@ func TestHTTPHandler_OPTIONS_CORS(t *testing.T) {
 		t.Errorf("status = %d, want %d", rr.Code, http.StatusNoContent)
 	}
 
-	if rr.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Error("missing CORS Allow-Origin header")
+	if rr.Header().Get("Access-Control-Allow-Origin") != "http://localhost:3000" {
+		t.Errorf("CORS Allow-Origin = %q, want http://localhost:3000", rr.Header().Get("Access-Control-Allow-Origin"))
 	}
 	if rr.Header().Get("Access-Control-Allow-Methods") != "POST, OPTIONS" {
 		t.Error("missing CORS Allow-Methods header")
+	}
+}
+
+func TestHTTPHandler_CORS_RejectsNonLocalhost(t *testing.T) {
+	hs := NewHTTPServer(0)
+
+	rr := httptest.NewRecorder()
+	httpReq := httptest.NewRequest("OPTIONS", "/mcp", nil)
+	httpReq.Header.Set("Origin", "https://evil.com")
+
+	hs.handleMCP(rr, httpReq)
+
+	if rr.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Errorf("CORS should not allow non-localhost origin, got %q", rr.Header().Get("Access-Control-Allow-Origin"))
 	}
 }
 

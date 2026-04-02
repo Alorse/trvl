@@ -13,6 +13,7 @@ type HotelResult struct {
 	Lat         float64  `json:"lat"`
 	Lon         float64  `json:"lon"`
 	Amenities   []string `json:"amenities,omitempty"`
+	BookingURL  string   `json:"booking_url,omitempty"`
 }
 
 // HotelSearchResult is the top-level response for a hotel search.

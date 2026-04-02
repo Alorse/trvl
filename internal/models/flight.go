@@ -25,11 +25,12 @@ type FlightLeg struct {
 
 // FlightResult represents a single flight option with price and routing.
 type FlightResult struct {
-	Price    float64     `json:"price"`
-	Currency string      `json:"currency"`
-	Duration int         `json:"duration"` // total minutes
-	Stops    int         `json:"stops"`
-	Legs     []FlightLeg `json:"legs"`
+	Price      float64     `json:"price"`
+	Currency   string      `json:"currency"`
+	Duration   int         `json:"duration"` // total minutes
+	Stops      int         `json:"stops"`
+	Legs       []FlightLeg `json:"legs"`
+	BookingURL string      `json:"booking_url,omitempty"`
 }
 
 // FlightSearchResult is the top-level response for a flight search.

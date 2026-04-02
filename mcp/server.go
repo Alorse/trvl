@@ -400,59 +400,22 @@ func (s *Server) SendLog(level, message string) {
 	})
 }
 
-// makeElicitFunc creates an ElicitFunc that uses the stdio transport to
-// send an elicitation/create request and read the client's response.
+// makeElicitFunc returns an ElicitFunc for the current transport mode.
+//
+// In stdio mode, elicitation is disabled because the elicitation response
+// would be read from the same scanner as ServeStdio's main loop, causing
+// stream desync if a regular request arrives while waiting for the
+// elicitation response. Tool handlers fall back to progressive disclosure
+// suggestions (which already work well) when elicit is nil.
+//
+// TODO: To re-enable stdio elicitation, the transport needs stream
+// multiplexing — either a dedicated response channel or tagging messages
+// with correlation IDs so the scanner can route them correctly.
+//
+// Elicitation works correctly in HTTP mode since each request is independent.
 func (s *Server) makeElicitFunc() ElicitFunc {
-	if s.clientCapabilities.Elicitation == nil {
-		return nil
-	}
-	if s.notifyWriter == nil || s.elicitReader == nil {
-		return nil
-	}
-
-	return func(message string, schema map[string]interface{}) (map[string]interface{}, error) {
-		id := s.elicitID.Add(1)
-		req := ElicitationRequest{
-			JSONRPC: "2.0",
-			ID:      id,
-			Method:  "elicitation/create",
-			Params: ElicitationReqParams{
-				Message:         message,
-				RequestedSchema: schema,
-			},
-		}
-
-		s.notifyMu.Lock()
-		err := writeJSON(s.notifyWriter, req)
-		s.notifyMu.Unlock()
-		if err != nil {
-			return nil, fmt.Errorf("send elicitation request: %w", err)
-		}
-
-		// Read the response from the client. In the stdio transport, the
-		// next line from stdin should be the elicitation response.
-		if !s.elicitReader.Scan() {
-			if err := s.elicitReader.Err(); err != nil {
-				return nil, fmt.Errorf("read elicitation response: %w", err)
-			}
-			return nil, fmt.Errorf("read elicitation response: unexpected EOF")
-		}
-
-		var resp ElicitationResponse
-		if err := json.Unmarshal(s.elicitReader.Bytes(), &resp); err != nil {
-			return nil, fmt.Errorf("parse elicitation response: %w", err)
-		}
-
-		if resp.Error != nil {
-			return nil, fmt.Errorf("elicitation error: %s", resp.Error.Message)
-		}
-
-		if resp.Result.Action != "accept" {
-			return nil, nil // User declined or cancelled.
-		}
-
-		return resp.Result.Content, nil
-	}
+	// Disabled in stdio mode to prevent stream desync.
+	return nil
 }
 
 // HandleRequest processes a single JSON-RPC request and returns the response.
