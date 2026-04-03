@@ -8,17 +8,28 @@
 
 > **Real-time Google Flights + Hotels data for your AI assistant. Free. No API keys. One binary.**
 
-Give your AI the power to plan complete trips:
+### What it looks like
 
-```
-"Find me the cheapest nonstop flight from Helsinki to Barcelona in July"
-"Where can I go for a cheap weekend getaway from Helsinki next month?"
-"Plan a multi-city trip: Helsinki -> Barcelona -> Rome -> Paris, find the cheapest order"
-"What's the total cost for a week in Tokyo — flights, hotel, everything?"
-"Search 4-star hotels in Tokyo for next weekend under $200/night"
-```
+> **You:** I have €300 and a free weekend. Surprise me.
+>
+> **Claude (with trvl):** 🎲 Checking cheapest destinations from Helsinki...
+>
+> **Dubrovnik, Croatia** 🇭🇷
+> ```
+> ✈️ Ryanair HEL→DBV Fri 14:25→17:10 (nonstop) — €167 RT
+> 🏨 Old Town Studios, 4.6★ — €42/night × 2 = €84
+> 🌡️ 26°C, sunny, Adriatic swimming
+> 💰 Total: €251 (€49 under budget!)
+>
+> Optimizations applied:
+>   Fly Friday not Saturday: -€48
+>   Split airlines (Ryanair out, easyJet back): -€31
+>
+> 📊 Naive booking: €350 → Optimized: €251 → Saved: €99 (28%)
+> ```
+> Want me to check nearby restaurants or events that weekend?
 
-trvl is an [MCP server](https://modelcontextprotocol.io/) that gives Claude, Cursor, Windsurf, and any MCP-compatible AI assistant direct access to Google Flights and Google Hotels data — no API keys, no monthly fees, no scraping.
+trvl is an [MCP server](https://modelcontextprotocol.io/) + CLI that gives Claude, Cursor, Windsurf, and any MCP-compatible AI assistant direct access to Google Flights and Google Hotels data. It searches, optimizes, and applies travel hacks automatically — no API keys, no monthly fees, no scraping.
 
 ## Quick Setup (30 seconds)
 
