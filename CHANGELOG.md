@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-04-03
+
+### Added
+- Ground transport: FlixBus, RegioJet, Eurostar/Snap, Deutsche Bahn, SNCF, Transitous
+- Price tracking: `trvl watch` with threshold alerts and history
+- Hotel amenity extraction from Google Hotels search data
+- Hotel filters: price range, rating, distance from center, sort by stars/distance
+- Restaurant search via Google Maps (MCP tool)
+- MCP 2025-11-25 full compliance: ping, completion/complete, logging/setLevel
+- Rate limiting on all API clients
+- Watch MCP resources: trvl://watches, trvl://watch/{id}
+
+### Changed
+- Eurostar searches Snap deals first (up to 50% off), falls back to regular fares
+- Improved test coverage across all packages
+
+### Fixed
+- Zero-price routes filtered from ground transport results
+- RegioJet currency parameter now passed correctly
+- FlixBus city names populated in leg data
+
 ## [0.2.0] - 2026-04-02
 
 ### Added
@@ -48,5 +69,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Single static binary, zero runtime dependencies
 - MIT license
 
+[0.3.0]: https://github.com/MikkoParkkola/trvl/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/MikkoParkkola/trvl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/MikkoParkkola/trvl/releases/tag/v0.1.0

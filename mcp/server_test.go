@@ -97,8 +97,8 @@ func TestInitialize(t *testing.T) {
 	if result.ServerInfo.Name != "trvl" {
 		t.Errorf("server name: got %q, want %q", result.ServerInfo.Name, "trvl")
 	}
-	if result.ServerInfo.Version != "0.2.0" {
-		t.Errorf("server version: got %q, want %q", result.ServerInfo.Version, "0.2.0")
+	if result.ServerInfo.Version != "0.3.0" {
+		t.Errorf("server version: got %q, want %q", result.ServerInfo.Version, "0.3.0")
 	}
 	if result.Capabilities.Tools == nil {
 		t.Error("expected tools capability to be set")

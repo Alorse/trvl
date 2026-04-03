@@ -206,8 +206,8 @@ func TestHTTPHandler_Health(t *testing.T) {
 	if result["server"] != "trvl" {
 		t.Errorf("server = %q, want trvl", result["server"])
 	}
-	if result["version"] != "0.2.0" {
-		t.Errorf("version = %q, want 0.2.0", result["version"])
+	if result["version"] != "0.3.0" {
+		t.Errorf("version = %q, want 0.3.0", result["version"])
 	}
 	tools, ok := result["tools"].(float64)
 	if !ok || tools < 1 {
