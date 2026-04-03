@@ -99,7 +99,7 @@ The repo includes 4 skill files that teach Claude how to use trvl optimally. To 
 
 ```bash
 mkdir -p ~/.claude/skills
-for s in trvl travel-hacks travel-agent travel-agent-compact; do
+for s in trvl; do
   curl -fsSL "https://raw.githubusercontent.com/MikkoParkkola/trvl/main/.claude/skills/$s.md" -o "$HOME/.claude/skills/$s.md"
 done
 ```
@@ -108,7 +108,7 @@ Now Claude knows about trvl in every project — just say "search flights" or "p
 
 ### 4. Ask your AI to search
 
-That's it. Your AI assistant now has 9 travel tools available. Just ask naturally:
+That's it. Your AI assistant now has 13 travel tools available. Just ask naturally:
 
 - *"Search flights from JFK to Tokyo on July 1st, business class"*
 - *"Find hotels in Paris for July 1-5, at least 4 stars"*
@@ -125,7 +125,7 @@ That's it. Your AI assistant now has 9 travel tools available. Just ask naturall
 | **search_flights** | Search flights on a specific date | HEL -> NRT, 2026-06-15, business class, nonstop |
 | **search_dates** | Find cheapest day to fly across a date range | HEL -> BCN, June-August 2026 |
 | **search_hotels** | Search hotels in any city | Tokyo, June 15-18, 4+ stars |
-| **hotel_prices** | Compare prices across booking providers | Booking.com vs Expedia vs Hotels.com |
+| **hotel_prices** | Compare hotel prices from Google (aggregated from multiple providers) |
 | **destination_info** | Travel intelligence for any city | Tokyo: weather, safety, holidays, currency |
 | **calculate_trip_cost** | Estimate total trip cost (flights + hotel) | HEL -> BCN, Jul 1-8, 2 guests |
 | **weekend_getaway** | Find cheap weekend destinations | From HEL in July, budget EUR 500 |
