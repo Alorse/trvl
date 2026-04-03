@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/MikkoParkkola/trvl/internal/jsonutil"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -121,7 +122,7 @@ func extractOrganicHotels(data any, currency string) []models.HotelResult {
 	var hotels []models.HotelResult
 
 	// Navigate to data[0][0][0][1]
-	hotelList := navigateArray(data, 0, 0, 0, 1)
+	hotelList := jsonutil.NavigateArray(data, 0, 0, 0, 1)
 	if hotelList == nil {
 		return nil
 	}
@@ -176,7 +177,7 @@ func parseOrganicHotel(entry []any, currency string) models.HotelResult {
 
 	// [1] = hotel name
 	if len(entry) > 1 {
-		h.Name = safeString(entry[1])
+		h.Name = jsonutil.StringValue(entry[1])
 	}
 
 	// [2] = location info, [2][0] = [lat, lon]
@@ -229,7 +230,7 @@ func parseOrganicHotel(entry []any, currency string) models.HotelResult {
 
 	// [9] = Google Place ID (hex entity ID)
 	if len(entry) > 9 {
-		if id := safeString(entry[9]); id != "" {
+		if id := jsonutil.StringValue(entry[9]); id != "" {
 			h.HotelID = id
 		}
 	}
@@ -243,7 +244,7 @@ func parseOrganicHotel(entry []any, currency string) models.HotelResult {
 	var description string
 	if len(entry) > 11 {
 		if descArr, ok := entry[11].([]any); ok && len(descArr) > 0 {
-			if desc := safeString(descArr[0]); desc != "" {
+			if desc := jsonutil.StringValue(descArr[0]); desc != "" {
 				h.Address = desc // Use description as address fallback
 				description = desc
 			}
@@ -288,7 +289,7 @@ func extractOrganicPrice(raw any) (float64, string) {
 	var currency string
 	if len(arr) > 1 {
 		if searchParams, ok := arr[1].([]any); ok && len(searchParams) > 3 {
-			currency = safeString(searchParams[3])
+			currency = jsonutil.StringValue(searchParams[3])
 		}
 	}
 
@@ -321,7 +322,7 @@ func extractOrganicPrice(raw any) (float64, string) {
 		if priceArr, ok := innerArr[0].([]any); ok && len(priceArr) >= 1 {
 			if price, ok := priceArr[0].(float64); ok && price > 0 {
 				if len(innerArr) > 3 {
-					if cur := safeString(innerArr[3]); cur != "" {
+					if cur := jsonutil.StringValue(innerArr[3]); cur != "" {
 						currency = cur
 					}
 				}
@@ -341,7 +342,7 @@ func extractSponsoredHotels(data any, currency string) []models.HotelResult {
 	var hotels []models.HotelResult
 
 	// Navigate to data[0][0][0][1]
-	hotelList := navigateArray(data, 0, 0, 0, 1)
+	hotelList := jsonutil.NavigateArray(data, 0, 0, 0, 1)
 	if hotelList == nil {
 		return nil
 	}
@@ -401,12 +402,12 @@ func parseSponsoredHotel(entry []any, currency string) models.HotelResult {
 
 	// [0] = hotel name
 	if len(entry) > 0 {
-		h.Name = safeString(entry[0])
+		h.Name = jsonutil.StringValue(entry[0])
 	}
 
 	// [2] = price string (e.g. "PLN 420", "USD 150")
 	if len(entry) > 2 {
-		if priceStr := safeString(entry[2]); priceStr != "" {
+		if priceStr := jsonutil.StringValue(entry[2]); priceStr != "" {
 			price, cur := parsePriceString(priceStr)
 			if price > 0 {
 				h.Price = price
@@ -477,28 +478,6 @@ func deduplicateHotels(hotels []models.HotelResult) []models.HotelResult {
 		}
 	}
 	return result
-}
-
-// navigateArray safely navigates a nested array structure by indices.
-// Returns nil if any index is out of bounds or the value is not an array.
-func navigateArray(v any, indices ...int) any {
-	current := v
-	for _, idx := range indices {
-		arr, ok := current.([]any)
-		if !ok || idx >= len(arr) {
-			return nil
-		}
-		current = arr[idx]
-	}
-	return current
-}
-
-// safeString extracts a string from an any value, returning "" for non-strings.
-func safeString(v any) string {
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
 }
 
 // ParseHotelSearchResponse parses hotel search results from a decoded
@@ -655,17 +634,4 @@ func parseHotelsFromRaw(entries []any, currency string) ([]models.HotelResult, e
 		return nil, fmt.Errorf("no hotels found in raw response")
 	}
 	return hotels, nil
-}
-
-// Helper functions.
-
-func toFloat64(v any) (float64, bool) {
-	switch val := v.(type) {
-	case float64:
-		return val, true
-	case json.Number:
-		f, err := val.Float64()
-		return f, err == nil
-	}
-	return 0, false
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
+	"github.com/MikkoParkkola/trvl/internal/jsonutil"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -217,7 +218,7 @@ func tryExtractPlace(arr []any, queryLat, queryLon float64) (models.RatedPlace, 
 	}
 
 	// Index 4: rating must be a number between 1.0 and 5.0.
-	rating, ok := toFloat(arr[4])
+	rating, ok := jsonutil.ToFloat(arr[4])
 	if !ok || rating < 1.0 || rating > 5.0 {
 		return models.RatedPlace{}, false
 	}
@@ -229,8 +230,8 @@ func tryExtractPlace(arr []any, queryLat, queryLon float64) (models.RatedPlace, 
 
 	// Index 9: coordinates [nil, nil, lat, lon]
 	if coordArr, ok := arr[9].([]any); ok && len(coordArr) >= 4 {
-		if lat, ok := toFloat(coordArr[2]); ok {
-			if lon, ok := toFloat(coordArr[3]); ok {
+		if lat, ok := jsonutil.ToFloat(coordArr[2]); ok {
+			if lon, ok := jsonutil.ToFloat(coordArr[3]); ok {
 				place.Distance = haversineMeters(queryLat, queryLon, lat, lon)
 			}
 		}
@@ -251,20 +252,6 @@ func tryExtractPlace(arr []any, queryLat, queryLon float64) (models.RatedPlace, 
 	}
 
 	return place, true
-}
-
-// toFloat converts a JSON number (float64) to float64, returning false if not a number.
-func toFloat(v any) (float64, bool) {
-	switch n := v.(type) {
-	case float64:
-		return n, true
-	case int:
-		return float64(n), true
-	case json.Number:
-		f, err := n.Float64()
-		return f, err == nil
-	}
-	return 0, false
 }
 
 // formatCoords formats lat,lon for URL embedding.

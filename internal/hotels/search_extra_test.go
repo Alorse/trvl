@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MikkoParkkola/trvl/internal/jsonutil"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -15,9 +16,9 @@ import (
 
 func TestParsePriceString(t *testing.T) {
 	tests := []struct {
-		input    string
-		wantAmt  float64
-		wantCur  string
+		input   string
+		wantAmt float64
+		wantCur string
 	}{
 		{"PLN 420", 420, "PLN"},
 		{"USD 150.50", 150.50, "USD"},
@@ -103,7 +104,7 @@ func TestNavigateArray(t *testing.T) {
 		},
 	}
 
-	result := navigateArray(data, 0, 0, 0)
+	result := jsonutil.NavigateArray(data, 0, 0, 0)
 	if result != "deep value" {
 		t.Errorf("got %v, want %q", result, "deep value")
 	}
@@ -112,14 +113,14 @@ func TestNavigateArray(t *testing.T) {
 func TestNavigateArray_OutOfBounds(t *testing.T) {
 	data := []any{[]any{"only one"}}
 
-	result := navigateArray(data, 0, 5)
+	result := jsonutil.NavigateArray(data, 0, 5)
 	if result != nil {
 		t.Errorf("expected nil for out-of-bounds, got %v", result)
 	}
 }
 
 func TestNavigateArray_NotArray(t *testing.T) {
-	result := navigateArray("not an array", 0)
+	result := jsonutil.NavigateArray("not an array", 0)
 	if result != nil {
 		t.Errorf("expected nil for non-array, got %v", result)
 	}
@@ -127,7 +128,7 @@ func TestNavigateArray_NotArray(t *testing.T) {
 
 func TestNavigateArray_NoIndices(t *testing.T) {
 	data := []any{1, 2, 3}
-	result := navigateArray(data)
+	result := jsonutil.NavigateArray(data)
 	// With no indices, should return the value itself.
 	arr, ok := result.([]any)
 	if !ok || len(arr) != 3 {
@@ -138,16 +139,16 @@ func TestNavigateArray_NoIndices(t *testing.T) {
 // --- safeString ---
 
 func TestSafeString(t *testing.T) {
-	if safeString("hello") != "hello" {
+	if jsonutil.StringValue("hello") != "hello" {
 		t.Error("expected 'hello'")
 	}
-	if safeString(nil) != "" {
+	if jsonutil.StringValue(nil) != "" {
 		t.Error("expected empty for nil")
 	}
-	if safeString(42) != "" {
+	if jsonutil.StringValue(42) != "" {
 		t.Error("expected empty for int")
 	}
-	if safeString(3.14) != "" {
+	if jsonutil.StringValue(3.14) != "" {
 		t.Error("expected empty for float")
 	}
 }
@@ -155,22 +156,22 @@ func TestSafeString(t *testing.T) {
 // --- toFloat64 ---
 
 func TestToFloat64(t *testing.T) {
-	f, ok := toFloat64(float64(42.5))
+	f, ok := jsonutil.ToFloat(float64(42.5))
 	if !ok || f != 42.5 {
 		t.Errorf("toFloat64(42.5) = (%v, %v)", f, ok)
 	}
 
-	f, ok = toFloat64(json.Number("99.9"))
+	f, ok = jsonutil.ToFloat(json.Number("99.9"))
 	if !ok || f != 99.9 {
 		t.Errorf("toFloat64(json.Number 99.9) = (%v, %v)", f, ok)
 	}
 
-	_, ok = toFloat64(nil)
+	_, ok = jsonutil.ToFloat(nil)
 	if ok {
 		t.Error("expected false for nil")
 	}
 
-	_, ok = toFloat64("string")
+	_, ok = jsonutil.ToFloat("string")
 	if ok {
 		t.Error("expected false for string")
 	}
@@ -1040,10 +1041,10 @@ func TestFilterHotels_Stars(t *testing.T) {
 func TestFilterHotels_MaxDistance(t *testing.T) {
 	// Helsinki center: 60.17, 24.94
 	hotels := []models.HotelResult{
-		{Name: "Close", Lat: 60.17, Lon: 24.94},     // ~0 km
-		{Name: "Medium", Lat: 60.20, Lon: 24.94},     // ~3.3 km
-		{Name: "Far", Lat: 60.50, Lon: 24.94},         // ~36.7 km
-		{Name: "No Coords", Lat: 0, Lon: 0},           // no coords, should NOT be filtered
+		{Name: "Close", Lat: 60.17, Lon: 24.94},  // ~0 km
+		{Name: "Medium", Lat: 60.20, Lon: 24.94}, // ~3.3 km
+		{Name: "Far", Lat: 60.50, Lon: 24.94},    // ~36.7 km
+		{Name: "No Coords", Lat: 0, Lon: 0},      // no coords, should NOT be filtered
 	}
 	result := filterHotels(hotels, HotelSearchOptions{
 		MaxDistanceKm: 5,

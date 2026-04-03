@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/MikkoParkkola/trvl/internal/jsonutil"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -79,7 +80,7 @@ func parseOneFlight(entry []any) (models.FlightResult, error) {
 
 	// Parse total duration from flightInfo[9]
 	if len(flightInfo) > 9 {
-		fr.Duration = toInt(flightInfo[9])
+		fr.Duration = jsonutil.ToInt(flightInfo[9])
 	}
 
 	// Parse price from entry[1]
@@ -159,7 +160,7 @@ func parseOneLeg(leg []any) models.FlightLeg {
 	}
 
 	if len(leg) > 11 {
-		fl.Duration = toInt(leg[11])
+		fl.Duration = jsonutil.ToInt(leg[11])
 	}
 
 	// Airline info at leg[22]: [code, flight_number, null, airline_name]
@@ -196,7 +197,7 @@ func parsePrice(raw any) (float64, string) {
 		if priceArr, ok := arr[0].([]any); ok && len(priceArr) > 0 {
 			// Walk backwards to find the first numeric value (price)
 			for i := len(priceArr) - 1; i >= 0; i-- {
-				if f, ok := toFloat(priceArr[i]); ok && f > 0 {
+				if f, ok := jsonutil.ToFloat(priceArr[i]); ok && f > 0 {
 					amount = f
 					break
 				}
@@ -215,7 +216,7 @@ func parsePrice(raw any) (float64, string) {
 	// Fallback: scan for explicit currency code or nested price in the array
 	if amount == 0 {
 		for _, v := range arr {
-			if f, ok := toFloat(v); ok && f > 0 {
+			if f, ok := jsonutil.ToFloat(v); ok && f > 0 {
 				amount = f
 				break
 			}
@@ -300,9 +301,9 @@ func formatDateTime(dateRaw, timeRaw any) string {
 		return ""
 	}
 
-	year := toInt(dateArr[0])
-	month := toInt(dateArr[1])
-	day := toInt(dateArr[2])
+	year := jsonutil.ToInt(dateArr[0])
+	month := jsonutil.ToInt(dateArr[1])
+	day := jsonutil.ToInt(dateArr[2])
 	if year == 0 {
 		return ""
 	}
@@ -313,10 +314,10 @@ func formatDateTime(dateRaw, timeRaw any) string {
 		return fmt.Sprintf("%04d-%02d-%02d", year, month, day)
 	}
 
-	hour := toInt(timeArr[0])
+	hour := jsonutil.ToInt(timeArr[0])
 	minute := 0
 	if len(timeArr) >= 2 {
-		minute = toInt(timeArr[1])
+		minute = jsonutil.ToInt(timeArr[1])
 	}
 
 	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d", year, month, day, hour, minute)
@@ -331,11 +332,11 @@ func formatTime(raw any) string {
 		return ""
 	}
 
-	year := toInt(arr[0])
-	month := toInt(arr[1])
-	day := toInt(arr[2])
-	hour := toInt(arr[3])
-	minute := toInt(arr[4])
+	year := jsonutil.ToInt(arr[0])
+	month := jsonutil.ToInt(arr[1])
+	day := jsonutil.ToInt(arr[2])
+	hour := jsonutil.ToInt(arr[3])
+	minute := jsonutil.ToInt(arr[4])
 
 	if year == 0 {
 		return ""
@@ -360,26 +361,4 @@ func toString(v any) string {
 		return fmt.Sprintf("%g", f)
 	}
 	return fmt.Sprintf("%v", v)
-}
-
-// toInt safely converts a JSON value to int.
-func toInt(v any) int {
-	if v == nil {
-		return 0
-	}
-	if f, ok := v.(float64); ok {
-		return int(f)
-	}
-	return 0
-}
-
-// toFloat safely converts a JSON value to float64, returning ok=false if not numeric.
-func toFloat(v any) (float64, bool) {
-	if v == nil {
-		return 0, false
-	}
-	if f, ok := v.(float64); ok {
-		return f, true
-	}
-	return 0, false
 }

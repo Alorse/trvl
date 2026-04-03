@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/MikkoParkkola/trvl/internal/jsonutil"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -201,7 +202,7 @@ func TestToInt(t *testing.T) {
 		{"not a number", 0},
 	}
 	for _, tt := range tests {
-		got := toInt(tt.in)
+		got := jsonutil.ToInt(tt.in)
 		if got != tt.want {
 			t.Errorf("toInt(%v) = %d, want %d", tt.in, got, tt.want)
 		}

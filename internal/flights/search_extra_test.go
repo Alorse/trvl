@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MikkoParkkola/trvl/internal/jsonutil"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -203,10 +204,10 @@ func TestParsePrice_SubArrayPrice(t *testing.T) {
 
 func TestFormatDateTime(t *testing.T) {
 	tests := []struct {
-		name     string
-		dateRaw  any
-		timeRaw  any
-		want     string
+		name    string
+		dateRaw any
+		timeRaw any
+		want    string
 	}{
 		{
 			"full datetime",
@@ -286,17 +287,17 @@ func TestToString_NonStringNonFloat(t *testing.T) {
 // --- toFloat ---
 
 func TestToFloat(t *testing.T) {
-	f, ok := toFloat(float64(42.5))
+	f, ok := jsonutil.ToFloat(float64(42.5))
 	if !ok || f != 42.5 {
 		t.Errorf("toFloat(42.5) = (%v, %v)", f, ok)
 	}
 
-	f, ok = toFloat(nil)
+	f, ok = jsonutil.ToFloat(nil)
 	if ok {
 		t.Error("expected ok=false for nil")
 	}
 
-	f, ok = toFloat("not a number")
+	f, ok = jsonutil.ToFloat("not a number")
 	if ok {
 		t.Error("expected ok=false for string")
 	}

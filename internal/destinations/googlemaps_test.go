@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/jsonutil"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -225,7 +226,7 @@ func TestToFloat(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got, ok := toFloat(tt.input)
+		got, ok := jsonutil.ToFloat(tt.input)
 		if ok != tt.ok {
 			t.Errorf("toFloat(%v) ok = %v, want %v", tt.input, ok, tt.ok)
 		}
