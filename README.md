@@ -7,6 +7,8 @@
 
 # trvl — Travel MCP Server for AI Assistants
 
+![trvl demo](demo.gif)
+
 > **Real-time Google Flights + Hotels data for your AI assistant. Free. No API keys. One binary.**
 
 ### What it looks like
