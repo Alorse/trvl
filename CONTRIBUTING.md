@@ -39,13 +39,14 @@ capabilities/       mcp-gateway YAML files
 
 ## Open Problems (good first issues)
 
-- [ ] **Google Maps restaurant ratings** — proof of concept exists (`internal/destinations/maps_proof_test.go`), needs parser implementation
-- [ ] **Rome2Rio integration** — ground transport from airport to hotel
-- [ ] **Price tracking** — `trvl watch HEL-NRT --below 500` with local SQLite
-- [ ] **Windows support** — binary compiles, needs testing
-- [ ] **CLI color output** — colored tables for terminal
-- [ ] **Explore timeout** — increase to 60s for the explore endpoint
+- [ ] **Non-European ground transport** — Amtrak (US), JR (Japan), KTX (Korea) providers
+- [ ] **Booking.com affiliate API** — apply at partnerships.booking.com, integrate hotel prices
+- [ ] **Skyscanner affiliate API** — apply at partners.skyscanner.net, add flight meta-search
+- [ ] **`trvl watch` daemon mode** — run price checks on a schedule (cron/interval)
+- [ ] **Calendar integration** — check Google/Apple Calendar for conflicts before suggesting dates
+- [ ] **Saved itinerary export** — export planned trips as ICS calendar events
 - [ ] **More airport names** — expand `internal/models/airports.go` beyond 200
+- [ ] **Provider interfaces** — abstract flight/hotel/ground search behind interfaces for better testing
 
 ## Pull Request Process
 

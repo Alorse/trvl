@@ -18,15 +18,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP 2025-11-25 full compliance: ping, completion/complete, logging/setLevel
 - Rate limiting on all API clients
 - Watch MCP resources: trvl://watches, trvl://watch/{id}
+- Travel deals aggregation from 4 RSS feeds (Secret Flying, Fly4Free, Holiday Pirates, The Points Guy)
+- Deal alerts shown inline in flight search results
+- Multi-airport search: `trvl flights AMS,EIN HEL,TLL` searches all combos in parallel
+- Route watches: monitor prices without specific dates (scans next 60 days)
+- Smart price advice: error fare detection (30%+ drops), trend warnings
+- CLI eye-candy: box-drawing banners, summaries, booking hints
+- Display-width-aware table alignment (ANSI colors + emojis)
+- CODE_OF_CONDUCT.md (Contributor Covenant 2.1)
 
 ### Changed
 - Eurostar searches Snap deals first (up to 50% off), falls back to regular fares
-- Improved test coverage across all packages
+- Improved test coverage across all packages (trip 47%→84%, watch 56%→84%, batchexec 66%→74%)
+- README restructured: MCP-first, CLI secondary
+- 16 MCP tools (was 13), 20 CLI commands (was 14)
 
 ### Fixed
 - Zero-price routes filtered from ground transport results
 - RegioJet currency parameter now passed correctly
 - FlixBus city names populated in leg data
+- HTTP server timeouts added (DoS prevention)
+- Table alignment with ANSI color codes and emoji characters
 
 ## [0.2.0] - 2026-04-02
 
