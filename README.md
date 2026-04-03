@@ -117,6 +117,8 @@ That's it. Your AI assistant now has 13 travel tools available. Just ask natural
 - *"How much would a week in Barcelona cost — flights and hotel?"*
 - *"When should I fly to London? Check dates around July 15th"*
 - *"Plan a trip: Helsinki -> Barcelona -> Rome -> Paris, cheapest routing"*
+- *"Search buses from Prague to Krakow on May 3rd"*
+- *"Compare train and bus prices Prague to Vienna"*
 
 ## MCP Tools
 
@@ -131,6 +133,7 @@ That's it. Your AI assistant now has 13 travel tools available. Just ask natural
 | **weekend_getaway** | Find cheap weekend destinations | From HEL in July, budget EUR 500 |
 | **suggest_dates** | Smart date suggestions around a target date | HEL -> BCN around Jul 15, +/- 7 days |
 | **optimize_multi_city** | Find cheapest routing for multi-city trips | HEL -> BCN, ROM, PAR -> HEL |
+| **search_ground** | Search buses and trains (FlixBus + RegioJet) | Prague -> Vienna, May 3rd, trains only |
 
 ### MCP Protocol Features (v2025-11-25)
 
@@ -138,7 +141,7 @@ That's it. Your AI assistant now has 13 travel tools available. Just ask natural
 |---------|---------|
 | **Structured content** | Typed JSON (`structuredContent`) alongside human-readable summaries |
 | **Content annotations** | `audience: ["user"]` for summaries, `audience: ["assistant"]` for data |
-| **Output schemas** | Full JSON Schema validation for all 9 tool responses |
+| **Output schemas** | Full JSON Schema validation for all 10 tool responses |
 | **Prompts** | `plan-trip`, `find-cheapest-dates`, `compare-hotels` |
 | **Resources** | Airport codes (50 major hubs), flight/hotel usage guides |
 | **Elicitation** | Interactive parameter collection when dates are missing |
@@ -150,6 +153,7 @@ That's it. Your AI assistant now has 13 travel tools available. Just ask natural
 | Feature | trvl | fli | Google Flights | Skyscanner | Kiwi |
 |---------|------|-----|---------------|------------|------|
 | Flight search | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Bus/train search | ✅ (FlixBus + RegioJet) | ❌ | ❌ | ❌ | ❌ |
 | Hotel search | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Hotel reviews | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Trip cost calculator | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -283,6 +287,16 @@ trvl suggest HEL BCN --around 2026-07-15 --flex 7  # Best dates +/- 7 days
 trvl multi-city HEL --visit BCN,ROM,PAR --dates 2026-07-01,2026-07-21
 ```
 
+### Buses & Trains
+
+```bash
+trvl ground Prague Vienna 2026-07-01                  # All providers
+trvl bus Prague Krakow 2026-07-01                     # Same command, bus alias
+trvl train Prague Vienna 2026-07-01 --type train      # Trains only
+trvl ground Prague Vienna 2026-07-01 --provider regiojet  # RegioJet only
+trvl ground Prague Vienna 2026-07-01 --max-price 20   # Under EUR 20
+```
+
 ## How It Works
 
 Google's travel frontend uses an internal gRPC-over-HTTP protocol called **batchexecute**. `trvl` speaks this protocol natively:
@@ -293,7 +307,9 @@ Google's travel frontend uses an internal gRPC-over-HTTP protocol called **batch
 4. **Hotel prices** — `TravelFrontendUi/data/batchexecute` with rpcid `yY52ce`
 5. **Explore** — `GetExploreDestinations` for destination discovery
 6. **Destination info** — Parallel aggregation of 5 free APIs (Open-Meteo, REST Countries, Nager.Date, travel-advisory.info, ExchangeRate-API)
-7. **Rate limiting** — 10 req/s token bucket with exponential backoff on 429/5xx
+7. **Buses** — FlixBus public API (`global.api.flixbus.com`) with city autocomplete + search
+8. **Trains** — RegioJet public API (`brn-ybus-pubapi.sa.cz`) with route search + pricing
+9. **Rate limiting** — 10 req/s token bucket with exponential backoff on 429/5xx
 
 No Selenium. No Puppeteer. No browser. Just HTTP.
 
@@ -318,10 +334,10 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | | |
 |---|---|
 | **Binary** | Single static ~15MB. Zero runtime dependencies. |
-| **Data** | Real-time from 7 Google endpoints + 11 free APIs + Google Maps |
+| **Data** | Real-time from 7 Google endpoints + FlixBus + RegioJet + 11 free APIs + Google Maps |
 | **Auth** | None required. Optional free API keys for events/restaurant ratings. |
-| **MCP** | Full v2025-11-25 — 13 tools, 3 prompts, resources, structured content, sampling |
-| **CLI** | 20 commands with table/JSON output, color, shell completion |
+| **MCP** | Full v2025-11-25 — 14 tools, 3 prompts, resources, structured content, sampling |
+| **CLI** | 21 commands with table/JSON output, color, shell completion |
 | **Booking links** | Every flight and hotel result includes a direct Google booking link |
 | **Travel hacks** | 30+ hacks auto-applied: nearby airports, throw-away returns, hotel splits |
 | **Personal profile** | Remembers your FF status, luggage needs, favourite hotels, departure preferences |

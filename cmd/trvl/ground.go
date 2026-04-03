@@ -1,0 +1,134 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/MikkoParkkola/trvl/internal/ground"
+	"github.com/MikkoParkkola/trvl/internal/models"
+	"github.com/spf13/cobra"
+)
+
+func groundCmd() *cobra.Command {
+	var (
+		currency  string
+		providers string
+		maxPrice  float64
+		typeFilter string
+	)
+
+	cmd := &cobra.Command{
+		Use:     "ground FROM TO DATE",
+		Aliases: []string{"bus", "train"},
+		Short:   "Search bus and train connections (FlixBus, RegioJet)",
+		Long: `Search ground transport (buses and trains) between two cities.
+
+Searches FlixBus and RegioJet in parallel. No API key required.
+
+FROM and TO are city names (e.g. "Prague", "Vienna", "Helsinki").
+DATE is the departure date in YYYY-MM-DD format.
+
+Examples:
+  trvl ground Prague Vienna 2026-07-01
+  trvl bus "Prague" "Krakow" 2026-07-01
+  trvl train Prague Vienna 2026-07-01 --type train
+  trvl ground Helsinki Tampere 2026-07-01 --provider flixbus
+  trvl ground Prague Budapest 2026-07-01 --max-price 30`,
+		Args: cobra.ExactArgs(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			from := args[0]
+			to := args[1]
+			date := args[2]
+
+			opts := ground.SearchOptions{
+				Currency: currency,
+				MaxPrice: maxPrice,
+				Type:     typeFilter,
+			}
+			if providers != "" {
+				opts.Providers = strings.Split(providers, ",")
+			}
+
+			result, err := ground.SearchByName(cmd.Context(), from, to, date, opts)
+			if err != nil {
+				return err
+			}
+
+			if format == "json" {
+				return models.FormatJSON(os.Stdout, result)
+			}
+
+			return printGroundTable(result)
+		},
+	}
+
+	cmd.Flags().StringVar(&currency, "currency", "EUR", "Price currency")
+	cmd.Flags().StringVar(&providers, "provider", "", "Restrict to providers (flixbus,regiojet)")
+	cmd.Flags().Float64Var(&maxPrice, "max-price", 0, "Maximum price filter")
+	cmd.Flags().StringVar(&typeFilter, "type", "", "Filter by type (bus, train)")
+
+	return cmd
+}
+
+func printGroundTable(result *models.GroundSearchResult) error {
+	if !result.Success {
+		if result.Error != "" {
+			fmt.Fprintf(os.Stderr, "No routes found: %s\n", result.Error)
+		} else {
+			fmt.Fprintln(os.Stderr, "No routes found.")
+		}
+		return nil
+	}
+
+	fmt.Printf("Found %d routes:\n\n", result.Count)
+
+	headers := []string{"Price", "Duration", "Type", "Provider", "Transfers", "Departs", "Arrives", "Seats"}
+	var rows [][]string
+
+	for _, r := range result.Routes {
+		price := fmt.Sprintf("%s %.2f", r.Currency, r.Price)
+		if r.PriceMax > 0 && r.PriceMax != r.Price {
+			price = fmt.Sprintf("%s %.2f-%.2f", r.Currency, r.Price, r.PriceMax)
+		}
+
+		dur := formatDuration(r.Duration)
+		transfers := "Direct"
+		if r.Transfers > 0 {
+			transfers = fmt.Sprintf("%d", r.Transfers)
+		}
+
+		depTime := formatGroundTime(r.Departure.Time)
+		arrTime := formatGroundTime(r.Arrival.Time)
+
+		seats := "-"
+		if r.SeatsLeft != nil {
+			seats = fmt.Sprintf("%d", *r.SeatsLeft)
+			if *r.SeatsLeft <= 5 {
+				seats = models.Red(seats + "!")
+			}
+		}
+
+		rows = append(rows, []string{
+			models.Green(price),
+			dur,
+			r.Type,
+			r.Provider,
+			transfers,
+			depTime,
+			arrTime,
+			seats,
+		})
+	}
+
+	models.FormatTable(os.Stdout, headers, rows)
+	return nil
+}
+
+func formatGroundTime(isoTime string) string {
+	// Extract just the time portion from ISO 8601
+	if len(isoTime) >= 16 {
+		return isoTime[11:16] // HH:MM
+	}
+	return isoTime
+}

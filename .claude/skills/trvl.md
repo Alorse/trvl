@@ -1,6 +1,6 @@
 ---
 name: trvl
-description: "AI Travel Agent — flights, hotels, destinations, hacks, trip optimization. Searches Google Flights + Hotels in real-time."
+description: "AI Travel Agent — flights, hotels, buses, trains, destinations, hacks, trip optimization. Searches Google Flights, Hotels, FlixBus, and RegioJet in real-time."
 triggers:
   - flight
   - flights
@@ -23,6 +23,11 @@ triggers:
   - weekend getaway
   - nearby
   - destination
+  - bus
+  - train
+  - flixbus
+  - regiojet
+  - ground transport
 allowed-tools:
   - Bash
   - mcp__gateway__gateway_invoke
@@ -54,6 +59,7 @@ From?|To?|When?|Flex?|Travelers?|Budget? Check calendar (Google/Apple/manual) fo
 | `nearby_places` | POIs near hotel | lat,lon,[category,radius_m] |
 | `travel_guide` | Wikivoyage guide | location |
 | `local_events` | Events during trip | location,start_date,end_date |
+| `search_ground` | Bus/train routes | from,to,date,[currency,type,provider] |
 
 ## ALWAYS RUN THESE CHECKS
 1. **Nearby airports** — HEL/TMP/TKU, LHR/LGW/STN, CDG/ORY/BVA, JFK/EWR
@@ -73,6 +79,8 @@ From?|To?|When?|Flex?|Travelers?|Budget? Check calendar (Google/Apple/manual) fo
 | KLM/AF connections | Via AMS | 1-stop sometimes cheaper than nonstop |
 | Open-jaw | Multi-city | Fly in A, out of B, save backtracking |
 | Train+flight | Europe | Nearby city by train + cheaper flight |
+| Bus vs train | Short haul | search_ground both, compare FlixBus vs RegioJet |
+| Overnight bus | Long routes | FlixBus night buses save hotel night |
 
 ## OUTPUT FORMAT
 Be DECISIVE — 1 recommendation, not 50 options. Show exact details:

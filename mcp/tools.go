@@ -24,6 +24,7 @@ func registerTools(s *Server) {
 		nearbyPlacesTool(),
 		travelGuideTool(),
 		localEventsTool(),
+		searchGroundTool(),
 	}
 	s.handlers["search_flights"] = s.wrapHandler(handleSearchFlights)
 	s.handlers["search_dates"] = s.wrapHandler(handleSearchDates)
@@ -38,6 +39,7 @@ func registerTools(s *Server) {
 	s.handlers["nearby_places"] = s.wrapHandler(handleNearbyPlaces)
 	s.handlers["travel_guide"] = s.wrapHandler(handleTravelGuide)
 	s.handlers["local_events"] = s.wrapHandler(handleLocalEvents)
+	s.handlers["search_ground"] = s.wrapHandler(handleSearchGround)
 }
 
 // wrapHandler returns a ToolHandler that delegates to the inner handler and
