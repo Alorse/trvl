@@ -7,6 +7,34 @@ import (
 	"strings"
 )
 
+// UseColor controls whether ANSI color codes are emitted.
+// Set to false when output is piped (not a terminal).
+var UseColor = true
+
+// Green wraps s in ANSI green (for positive values like savings).
+func Green(s string) string {
+	if !UseColor {
+		return s
+	}
+	return "\033[32m" + s + "\033[0m"
+}
+
+// Red wraps s in ANSI red (for warnings or high prices).
+func Red(s string) string {
+	if !UseColor {
+		return s
+	}
+	return "\033[31m" + s + "\033[0m"
+}
+
+// Yellow wraps s in ANSI yellow (for cautions or moderate values).
+func Yellow(s string) string {
+	if !UseColor {
+		return s
+	}
+	return "\033[33m" + s + "\033[0m"
+}
+
 // FormatJSON writes v as pretty-printed JSON to w.
 func FormatJSON(w io.Writer, v interface{}) error {
 	enc := json.NewEncoder(w)

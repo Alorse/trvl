@@ -2,6 +2,7 @@ package destinations
 
 import (
 	"context"
+	"os"
 	"sync"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -38,17 +39,31 @@ func GetNearbyPlaces(ctx context.Context, lat, lon float64, radiusMeters int, ca
 		mu.Unlock()
 	}()
 
-	// Optional: Foursquare for rated places.
+	// Rated places: Foursquare if API key is set, otherwise Google Maps (zero keys).
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		places, err := GetRatedPlaces(ctx, lat, lon, category, 10)
-		if err != nil || places == nil {
-			return
+		if os.Getenv("FOURSQUARE_API_KEY") != "" {
+			places, err := GetRatedPlaces(ctx, lat, lon, category, 10)
+			if err != nil || places == nil {
+				return
+			}
+			mu.Lock()
+			result.RatedPlaces = places
+			mu.Unlock()
+		} else {
+			query := category
+			if query == "all" || query == "" {
+				query = "restaurants"
+			}
+			places, err := SearchGoogleMapsPlaces(ctx, lat, lon, query, 10)
+			if err != nil || places == nil {
+				return
+			}
+			mu.Lock()
+			result.RatedPlaces = places
+			mu.Unlock()
 		}
-		mu.Lock()
-		result.RatedPlaces = places
-		mu.Unlock()
 	}()
 
 	// Optional: Geoapify for walkable POIs (enrich OSM results).

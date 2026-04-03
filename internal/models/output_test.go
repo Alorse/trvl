@@ -140,3 +140,35 @@ func TestFormatTable_MismatchedColumns(t *testing.T) {
 		t.Error("expected output even with mismatched column count")
 	}
 }
+
+func TestColorHelpers_Enabled(t *testing.T) {
+	origColor := UseColor
+	UseColor = true
+	defer func() { UseColor = origColor }()
+
+	if got := Green("ok"); got != "\033[32mok\033[0m" {
+		t.Errorf("Green = %q, want ANSI green", got)
+	}
+	if got := Red("err"); got != "\033[31merr\033[0m" {
+		t.Errorf("Red = %q, want ANSI red", got)
+	}
+	if got := Yellow("warn"); got != "\033[33mwarn\033[0m" {
+		t.Errorf("Yellow = %q, want ANSI yellow", got)
+	}
+}
+
+func TestColorHelpers_Disabled(t *testing.T) {
+	origColor := UseColor
+	UseColor = false
+	defer func() { UseColor = origColor }()
+
+	if got := Green("ok"); got != "ok" {
+		t.Errorf("Green(disabled) = %q, want plain text", got)
+	}
+	if got := Red("err"); got != "err" {
+		t.Errorf("Red(disabled) = %q, want plain text", got)
+	}
+	if got := Yellow("warn"); got != "warn" {
+		t.Errorf("Yellow(disabled) = %q, want plain text", got)
+	}
+}

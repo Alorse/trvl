@@ -83,6 +83,20 @@ func setTestFoursquareURL(url string) string {
 	return prev
 }
 
+// setTestGoogleMapsURL overrides the Google Maps search URL and returns the previous value.
+func setTestGoogleMapsURL(url string) string {
+	prev := googleMapsAPIURL
+	googleMapsAPIURL = url
+	return prev
+}
+
+// setTestGoogleSearchURL overrides the Google search URL and returns the previous value.
+func setTestGoogleSearchURL(url string) string {
+	prev := googleSearchAPIURL
+	googleSearchAPIURL = url
+	return prev
+}
+
 // setTestGeoapifyPlacesURL overrides the Geoapify Places URL and returns the previous value.
 func setTestGeoapifyPlacesURL(url string) string {
 	prev := geoapifyPlacesAPIURL
@@ -146,4 +160,8 @@ func clearAllCaches() {
 	attractionsCache.Lock()
 	attractionsCache.entries = make(map[string]attractionsCacheEntry)
 	attractionsCache.Unlock()
+
+	mapsCache.Lock()
+	mapsCache.entries = make(map[string]mapsCacheEntry)
+	mapsCache.Unlock()
 }

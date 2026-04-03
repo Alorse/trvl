@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand/v2"
 	"net"
 	"net/http"
@@ -21,6 +22,9 @@ import (
 	utls "github.com/refraction-networking/utls"
 	"golang.org/x/time/rate"
 )
+
+// logger is the package-level structured logger for batchexec operations.
+var logger = slog.Default()
 
 // Endpoint constants for Google Travel APIs.
 const (
@@ -213,16 +217,22 @@ func (c *Client) doWithRetry(ctx context.Context, buildReq func() (*http.Request
 		if err := c.limiter.Wait(ctx); err != nil {
 			return 0, nil, fmt.Errorf("rate limiter: %w", err)
 		}
+		slog.Debug("rate_limit", "waiting", true)
 
 		req, err := buildReq()
 		if err != nil {
 			return 0, nil, err
 		}
 
+		slog.Debug("request", "method", req.Method, "url", req.URL.String(), "payload_len", req.ContentLength)
+		start := time.Now()
+
 		resp, err := c.http.Do(req)
 		if err != nil {
 			lastErr = err
 			if attempt < defaultMaxRetries {
+				backoff := defaultBaseBackoff << attempt
+				slog.Warn("retry", "attempt", attempt, "error", err.Error(), "backoff_ms", backoff.Milliseconds())
 				if sleepErr := backoffSleep(ctx, attempt); sleepErr != nil {
 					return 0, nil, sleepErr
 				}
@@ -233,9 +243,13 @@ func (c *Client) doWithRetry(ctx context.Context, buildReq func() (*http.Request
 
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10MB limit
 		resp.Body.Close()
+		elapsed := time.Since(start)
+
 		if readErr != nil {
 			lastErr = readErr
 			if attempt < defaultMaxRetries {
+				backoff := defaultBaseBackoff << attempt
+				slog.Warn("retry", "attempt", attempt, "error", readErr.Error(), "backoff_ms", backoff.Milliseconds())
 				if sleepErr := backoffSleep(ctx, attempt); sleepErr != nil {
 					return 0, nil, sleepErr
 				}
@@ -243,6 +257,8 @@ func (c *Client) doWithRetry(ctx context.Context, buildReq func() (*http.Request
 			}
 			return 0, nil, lastErr
 		}
+
+		slog.Debug("response", "status", resp.StatusCode, "body_len", len(body), "duration_ms", elapsed.Milliseconds())
 
 		lastStatus = resp.StatusCode
 		lastBody = body
@@ -255,6 +271,8 @@ func (c *Client) doWithRetry(ctx context.Context, buildReq func() (*http.Request
 
 		// Retryable error — backoff before next attempt (unless this was the last).
 		if attempt < defaultMaxRetries {
+			backoff := defaultBaseBackoff << attempt
+			slog.Warn("retry", "attempt", attempt, "status", resp.StatusCode, "backoff_ms", backoff.Milliseconds())
 			if sleepErr := backoffSleep(ctx, attempt); sleepErr != nil {
 				return 0, nil, sleepErr
 			}
