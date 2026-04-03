@@ -195,8 +195,40 @@ func SearchFlixBus(ctx context.Context, fromCity, toCity, date, currency string)
 		return nil, fmt.Errorf("flixbus decode: %w", err)
 	}
 
-	// City name cache for enriching results
+	// City name cache for enriching results.
+	// Collect all unique city IDs from trips/legs, then resolve via autocomplete.
 	cityNames := make(map[string]string)
+	{
+		cityIDs := make(map[string]struct{})
+		for _, trip := range searchResp.Trips {
+			cityIDs[trip.DepartureCityID] = struct{}{}
+			cityIDs[trip.ArrivalCityID] = struct{}{}
+			for _, r := range trip.Results {
+				cityIDs[r.Departure.CityID] = struct{}{}
+				cityIDs[r.Arrival.CityID] = struct{}{}
+				for _, leg := range r.Legs {
+					cityIDs[leg.Departure.CityID] = struct{}{}
+					cityIDs[leg.Arrival.CityID] = struct{}{}
+				}
+			}
+		}
+		// Resolve each unique city ID via autocomplete (FlixBus autocomplete
+		// returns matching cities when queried by ID).
+		for id := range cityIDs {
+			if id == "" {
+				continue
+			}
+			cities, err := FlixBusAutoComplete(ctx, id)
+			if err == nil {
+				for _, c := range cities {
+					if c.ID == id {
+						cityNames[id] = c.Name
+						break
+					}
+				}
+			}
+		}
+	}
 
 	var routes []models.GroundRoute
 	for _, trip := range searchResp.Trips {

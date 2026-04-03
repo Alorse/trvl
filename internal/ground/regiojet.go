@@ -142,6 +142,8 @@ func SearchRegioJet(ctx context.Context, fromCityID, toCityID int, date, currenc
 		"fromLocationType": {"CITY"},
 		"toLocationType":   {"CITY"},
 		"departureDate":    {date},
+		"tariffs":          {"REGULAR"},
+		"currency":         {strings.ToUpper(currency)},
 	}
 
 	u := regiojetBaseURL + regiojetSearch + "?" + params.Encode()

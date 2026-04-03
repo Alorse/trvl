@@ -90,6 +90,17 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		allRoutes = append(allRoutes, r.routes...)
 	}
 
+	// Filter out zero-price routes (sold-out routes from RegioJet)
+	{
+		filtered := allRoutes[:0]
+		for _, r := range allRoutes {
+			if r.Price > 0 {
+				filtered = append(filtered, r)
+			}
+		}
+		allRoutes = filtered
+	}
+
 	// Apply filters
 	if opts.MaxPrice > 0 {
 		filtered := allRoutes[:0]
