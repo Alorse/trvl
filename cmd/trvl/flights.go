@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
 	"github.com/MikkoParkkola/trvl/internal/deals"
+	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/spf13/cobra"
@@ -14,13 +16,14 @@ import (
 
 func flightsCmd() *cobra.Command {
 	var (
-		returnDate string
-		cabin      string
-		maxStops   string
-		sortBy     string
-		airlines   []string
-		adults     int
-		format     string
+		returnDate     string
+		cabin          string
+		maxStops       string
+		sortBy         string
+		airlines       []string
+		adults         int
+		format         string
+		targetCurrency string
 	)
 
 	cmd := &cobra.Command{
@@ -80,7 +83,7 @@ Examples:
 				return models.FormatJSON(os.Stdout, result)
 			}
 
-			return printFlightsTable(cmd.Context(), strings.Join(origins, ","), strings.Join(destinations, ","), result)
+			return printFlightsTable(cmd.Context(), strings.Join(origins, ","), strings.Join(destinations, ","), targetCurrency, result)
 		},
 	}
 
@@ -91,6 +94,7 @@ Examples:
 	cmd.Flags().StringSliceVar(&airlines, "airline", nil, "Filter by airline IATA code (repeatable)")
 	cmd.Flags().IntVar(&adults, "adults", 1, "Number of adult passengers")
 	cmd.Flags().StringVar(&format, "format", "table", "Output format: table, json")
+	cmd.Flags().StringVar(&targetCurrency, "currency", "", "Convert prices to this currency (e.g. EUR, USD). Empty = show API default")
 
 	cmd.ValidArgsFunction = airportCompletion
 
@@ -98,8 +102,8 @@ Examples:
 }
 
 // printFlightsTable renders flight results as an ASCII table.
-// Checks for matching deals and shows them in the banner.
-func printFlightsTable(ctx context.Context, origin, destination string, result *models.FlightSearchResult) error {
+// If targetCurrency is set and differs from API currency, converts prices.
+func printFlightsTable(ctx context.Context, origin, destination, targetCurrency string, result *models.FlightSearchResult) error {
 	if !result.Success {
 		fmt.Fprintf(os.Stderr, "Search failed: %s\n", result.Error)
 		return nil
@@ -123,6 +127,17 @@ func printFlightsTable(ctx context.Context, origin, destination string, result *
 
 	models.Banner(os.Stdout, "✈️", fmt.Sprintf("Flights · %s", result.TripType), bannerLines...)
 	fmt.Println()
+
+	// Convert prices if --currency specified and differs from API currency.
+	if targetCurrency != "" && len(result.Flights) > 0 && result.Flights[0].Currency != targetCurrency {
+		for i := range result.Flights {
+			if result.Flights[i].Price > 0 && result.Flights[i].Currency != targetCurrency {
+				converted, cur := destinations.ConvertCurrency(ctx, result.Flights[i].Price, result.Flights[i].Currency, targetCurrency)
+				result.Flights[i].Price = math.Round(converted)
+				result.Flights[i].Currency = cur
+			}
+		}
+	}
 
 	headers := []string{"Price", "Duration", "Stops", "Route", "Airline", "Flight", "Departs", "Arrives"}
 	var rows [][]string

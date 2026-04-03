@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
-	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -66,7 +65,7 @@ func SearchHotels(ctx context.Context, location string, opts HotelSearchOptions)
 		opts.Guests = 2
 	}
 	if opts.Currency == "" {
-		opts.Currency = "EUR"
+		opts.Currency = "USD" // Google's default when no currency specified
 	}
 
 	// Validate dates.
@@ -105,18 +104,9 @@ func SearchHotels(ctx context.Context, location string, opts HotelSearchOptions)
 		return nil, fmt.Errorf("parse hotel results: %w", err)
 	}
 
-	// Convert all prices to the user's preferred currency.
-	targetCurrency := opts.Currency
-	if targetCurrency == "" {
-		targetCurrency = "EUR"
-	}
-	for i := range hotels {
-		if hotels[i].Price > 0 && hotels[i].Currency != "" && hotels[i].Currency != targetCurrency {
-			converted, _ := destinations.ConvertCurrency(ctx, hotels[i].Price, hotels[i].Currency, targetCurrency)
-			hotels[i].Price = math.Round(converted)
-			hotels[i].Currency = targetCurrency
-		}
-	}
+	// Prices are in the API's native currency (set by Google based on gl= param).
+	// The hotel URL already passes opts.Currency to Google — if Google honors it,
+	// prices come back in the requested currency. If not, CLI display layer converts.
 
 	// Resolve city center for distance filter/sort if needed.
 	if opts.MaxDistanceKm > 0 || strings.EqualFold(opts.Sort, "distance") {

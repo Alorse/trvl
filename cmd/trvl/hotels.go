@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/hotels"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/spf13/cobra"
@@ -31,7 +33,7 @@ Examples:
 	cmd.Flags().Int("guests", 2, "Number of guests")
 	cmd.Flags().Int("stars", 0, "Minimum star rating (0=any, 2-5)")
 	cmd.Flags().String("sort", "cheapest", "Sort by: cheapest, rating, distance, stars")
-	cmd.Flags().String("currency", "EUR", "Currency code (e.g. EUR, USD, GBP)")
+	cmd.Flags().String("currency", "", "Target currency (e.g. EUR, USD). Empty = API default. Passed to Google if supported, otherwise converted")
 	cmd.Flags().Float64("min-price", 0, "Minimum price per night")
 	cmd.Flags().Float64("max-price", 0, "Maximum price per night")
 	cmd.Flags().Float64("min-rating", 0, "Minimum guest rating (e.g. 4.0)")
@@ -83,10 +85,10 @@ func runHotels(cmd *cobra.Command, args []string) error {
 		return models.FormatJSON(os.Stdout, result)
 	}
 
-	return formatHotelsTable(result)
+	return formatHotelsTable(cmd.Context(), currency, result)
 }
 
-func formatHotelsTable(result *models.HotelSearchResult) error {
+func formatHotelsTable(ctx context.Context, targetCurrency string, result *models.HotelSearchResult) error {
 	if len(result.Hotels) == 0 {
 		fmt.Println("No hotels found.")
 		return nil
@@ -95,6 +97,17 @@ func formatHotelsTable(result *models.HotelSearchResult) error {
 	models.Banner(os.Stdout, "🏨", "Hotels",
 		fmt.Sprintf("Found %d hotels", result.Count))
 	fmt.Println()
+
+	// Convert prices if --currency specified and differs from API result.
+	if targetCurrency != "" && len(result.Hotels) > 0 && result.Hotels[0].Currency != targetCurrency {
+		for i := range result.Hotels {
+			if result.Hotels[i].Price > 0 && result.Hotels[i].Currency != targetCurrency {
+				converted, cur := destinations.ConvertCurrency(ctx, result.Hotels[i].Price, result.Hotels[i].Currency, targetCurrency)
+				result.Hotels[i].Price = math.Round(converted)
+				result.Hotels[i].Currency = cur
+			}
+		}
+	}
 
 	headers := []string{"Name", "Stars", "Rating", "Reviews", "Price", "Amenities"}
 	rows := make([][]string, 0, len(result.Hotels))

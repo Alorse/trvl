@@ -4,14 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/url"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
-	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -106,18 +104,12 @@ func SearchCalendar(ctx context.Context, origin, dest string, opts CalendarOptio
 	}
 
 	// CalendarGraph returns prices in the IP's local currency without a label.
-	// Detect the actual currency by doing a quick single-flight search, then
-	// convert all calendar prices to the user's preferred currency (default EUR).
-	targetCurrency := "EUR" // TODO: make configurable via user preference
-	if len(dates) > 0 {
+	// Detect the actual currency by doing a quick flight search on the first date.
+	// Currency conversion, if needed, happens in the CLI display layer.
+	if len(dates) > 0 && dates[0].Currency == "" {
 		sourceCurrency := detectSourceCurrency(ctx, origin, dest, dates[0].Date)
 		for i := range dates {
 			dates[i].Currency = sourceCurrency
-			if sourceCurrency != targetCurrency && dates[i].Price > 0 {
-				converted, cur := destinations.ConvertCurrency(ctx, dates[i].Price, sourceCurrency, targetCurrency)
-				dates[i].Price = math.Round(converted)
-				dates[i].Currency = cur
-			}
 		}
 	}
 
