@@ -46,6 +46,7 @@ func init() {
 	rootCmd.AddCommand(eventsCmd())
 	rootCmd.AddCommand(restaurantsCmd)
 	rootCmd.AddCommand(groundCmd())
+	rootCmd.AddCommand(dealsCmd())
 	rootCmd.AddCommand(watchCmd())
 	rootCmd.AddCommand(mcpCmd())
 }
