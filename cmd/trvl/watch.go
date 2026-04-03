@@ -62,8 +62,8 @@ Examples:
   trvl watch add HEL BCN --depart 2026-07-01 --return 2026-07-08 --below 200
   trvl watch add HEL PRG --from 2026-07-01 --to 2026-08-31 --below 100
   trvl watch add HEL NRT --below 500
-  trvl watch add --type hotel Barcelona --depart 2026-07-01 --return 2026-07-08 --below 80`,
-		Args: cobra.ExactArgs(2),
+  trvl watch add --type hotel Prague --depart 2026-07-01 --return 2026-07-08 --below 80`,
+		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			store, err := watch.DefaultStore()
 			if err != nil {
@@ -73,10 +73,20 @@ Examples:
 				return err
 			}
 
+			origin := args[0]
+			destination := ""
+			if len(args) >= 2 {
+				destination = args[1]
+			} else {
+				// Single arg: for hotels, it's the destination
+				destination = args[0]
+				origin = ""
+			}
+
 			w := watch.Watch{
 				Type:        watchType,
-				Origin:      args[0],
-				Destination: args[1],
+				Origin:      origin,
+				Destination: destination,
 				DepartDate:  departDate,
 				ReturnDate:  returnDate,
 				DepartFrom:  departFrom,
