@@ -120,7 +120,7 @@ Examples:
 	cmd.Flags().Float64Var(&belowPrice, "below", 0, "Alert when price drops below this amount")
 	cmd.Flags().StringVar(&currency, "currency", "EUR", "Currency code")
 	cmd.Flags().StringVar(&watchType, "type", "flight", "Watch type: flight or hotel")
-	_ = cmd.MarkFlagRequired("depart")
+	// --depart is optional: route watches monitor next 60 days without specific dates
 
 	return cmd
 }
