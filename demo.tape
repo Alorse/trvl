@@ -45,10 +45,10 @@ Type ""
 Enter
 Sleep 800ms
 
-Type "# 🚂 Prague → Amsterdam by train? (6 providers in parallel)"
+Type "# 🚂 Prague → Vienna — buses and trains from 3 providers"
 Enter
 Sleep 400ms
-Type "trvl ground Prague Amsterdam 2026-06-18"
+Type "trvl ground Prague Vienna 2026-06-18"
 Enter
 Sleep 45s
 
