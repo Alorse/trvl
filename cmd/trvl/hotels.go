@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/hotels"
@@ -93,7 +94,7 @@ func formatHotelsTable(result *models.HotelSearchResult) error {
 
 	fmt.Printf("Found %d hotels:\n\n", result.Count)
 
-	headers := []string{"Name", "Stars", "Rating", "Reviews", "Price", "Address"}
+	headers := []string{"Name", "Stars", "Rating", "Reviews", "Price", "Amenities"}
 	rows := make([][]string, 0, len(result.Hotels))
 	for _, h := range result.Hotels {
 		starsStr := ""
@@ -112,11 +113,11 @@ func formatHotelsTable(result *models.HotelSearchResult) error {
 		if h.Price > 0 {
 			priceStr = fmt.Sprintf("%.0f %s", h.Price, h.Currency)
 		}
-		addr := h.Address
-		if len(addr) > 40 {
-			addr = addr[:37] + "..."
+		amenStr := strings.Join(h.Amenities, ", ")
+		if len(amenStr) > 40 {
+			amenStr = amenStr[:37] + "..."
 		}
-		rows = append(rows, []string{h.Name, starsStr, ratingStr, reviewsStr, priceStr, addr})
+		rows = append(rows, []string{h.Name, starsStr, ratingStr, reviewsStr, priceStr, amenStr})
 	}
 
 	models.FormatTable(os.Stdout, headers, rows)
