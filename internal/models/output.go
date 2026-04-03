@@ -71,34 +71,38 @@ func Banner(w io.Writer, icon, title, subtitle string) {
 	titleContent := fmt.Sprintf(" %s %s ", icon, title)
 	titleDisplayW := displayWidth(titleContent)
 
-	minWidth := 58
-	subDisplayW := displayWidth(subtitle) + 4 // "│  " + subtitle + " │"
-	width := minWidth
-	if titleDisplayW+4 > width {
-		width = titleDisplayW + 4
+	// Total display width of the box (outer edge to outer edge).
+	// Top line structure: ╭(1) ─(1) titleContent(titleDisplayW) ─×topPad ╮(1)
+	// So total = 2 + titleDisplayW + topPad + 1
+	// We want a minimum inner width of 56 (total = 58).
+	minInner := 56
+	innerNeeded := titleDisplayW + 1 // +1 for the ─ after ╭
+	subInner := displayWidth(subtitle) + 3 // "  " + subtitle + " "
+	if subInner > innerNeeded {
+		innerNeeded = subInner
 	}
-	if subDisplayW+2 > width {
-		width = subDisplayW + 2
+	if innerNeeded < minInner {
+		innerNeeded = minInner
 	}
 
-	// Top line: ╭──<titleContent>──────╮
-	topPad := width - titleDisplayW - 2 // 2 for ╭─ and ╮
+	// Top line: ╭─<titleContent><pad>╮
+	topPad := innerNeeded - titleDisplayW - 1 // -1 for the leading ─
 	if topPad < 1 {
 		topPad = 1
 	}
 	fmt.Fprintf(w, "╭─%s%s╮\n", titleContent, strings.Repeat("─", topPad))
 
-	// Subtitle line: │  subtitle          │
+	// Subtitle line: │  subtitle<pad> │
 	if subtitle != "" {
-		subPad := width - displayWidth(subtitle) - 4 // 4 for "│  " and "│"
-		if subPad < 1 {
-			subPad = 1
+		subPad := innerNeeded - displayWidth(subtitle) - 3 // 3 for "  " prefix + " " suffix
+		if subPad < 0 {
+			subPad = 0
 		}
 		fmt.Fprintf(w, "│  %s%s │\n", subtitle, strings.Repeat(" ", subPad))
 	}
 
-	// Bottom line: ╰──────────────────────╯
-	fmt.Fprintf(w, "╰%s╯\n", strings.Repeat("─", width-2))
+	// Bottom line: ╰─────────╯  (same total width as top)
+	fmt.Fprintf(w, "╰%s╯\n", strings.Repeat("─", innerNeeded))
 }
 
 // displayWidth estimates the terminal display width of a string.
