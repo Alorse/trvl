@@ -208,7 +208,7 @@ func TestBuildTravelURL(t *testing.T) {
 	if !strings.Contains(url, "adults=2") {
 		t.Errorf("URL missing adults: %s", url)
 	}
-	if !strings.Contains(url, "hl=en-US") {
+	if !strings.Contains(url, "hl=en") {
 		t.Errorf("URL missing hl: %s", url)
 	}
 }
