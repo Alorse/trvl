@@ -86,9 +86,13 @@ func MatchDeals(ctx context.Context, origin, destination string) []Deal {
 		dOrigin := strings.ToLower(d.Origin)
 		dDest := strings.ToLower(d.Destination)
 
-		// Match if deal origin/destination contains or equals the search terms.
-		originMatch := dOrigin == "" || // deal has no specific origin → matches any
-			dOrigin == origin ||
+		// Only match if the deal has BOTH a specific origin and destination.
+		// Deals without route info are too noisy to show inline.
+		if dOrigin == "" || dDest == "" {
+			continue
+		}
+
+		originMatch := dOrigin == origin ||
 			strings.Contains(dOrigin, origin) ||
 			strings.Contains(origin, dOrigin)
 

@@ -25,21 +25,21 @@ func flightsCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "flights ORIGIN DESTINATION DATE",
-		Short: "Search flights between two airports",
-		Long: `Search flights between two airports on a specific date.
+		Short: "Search flights between airports (supports multi-airport)",
+		Long: `Search flights between airports on a specific date.
 
-ORIGIN and DESTINATION are IATA airport codes (e.g. HEL, NRT, JFK).
+ORIGIN and DESTINATION are IATA codes, comma-separated for multi-airport.
 DATE is the departure date in YYYY-MM-DD format.
 
 Examples:
   trvl flights HEL NRT 2026-06-15
+  trvl flights AMS,EIN,ANR HEL,TKU,TLL 2026-06-15
   trvl flights HEL NRT 2026-06-15 --return 2026-06-22
-  trvl flights HEL NRT 2026-06-15 --cabin business --stops nonstop
-  trvl flights HEL NRT 2026-06-15 --format json`,
+  trvl flights HEL NRT 2026-06-15 --cabin business --stops nonstop`,
 		Args: cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			origin := strings.ToUpper(args[0])
-			destination := strings.ToUpper(args[1])
+			origins := flights.ParseAirports(args[0])
+			destinations := flights.ParseAirports(args[1])
 			date := args[2]
 
 			cabinClass, err := models.ParseCabinClass(cabin)
@@ -66,7 +66,12 @@ Examples:
 				Adults:     adults,
 			}
 
-			result, err := flights.SearchFlights(cmd.Context(), origin, destination, date, opts)
+			var result *models.FlightSearchResult
+			if len(origins) > 1 || len(destinations) > 1 {
+				result, err = flights.SearchMultiAirport(cmd.Context(), origins, destinations, date, opts)
+			} else {
+				result, err = flights.SearchFlights(cmd.Context(), origins[0], destinations[0], date, opts)
+			}
 			if err != nil {
 				return err
 			}
@@ -75,7 +80,7 @@ Examples:
 				return models.FormatJSON(os.Stdout, result)
 			}
 
-			return printFlightsTable(cmd.Context(), origin, destination, result)
+			return printFlightsTable(cmd.Context(), strings.Join(origins, ","), strings.Join(destinations, ","), result)
 		},
 	}
 
