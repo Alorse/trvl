@@ -16,6 +16,17 @@ Type "# ═══ Story 1: Weekend escape on a budget ═══"
 Enter
 Sleep 800ms
 
+Type "# What deals are hot from Helsinki right now?"
+Enter
+Sleep 300ms
+Type "./bin/trvl deals --from HEL --max-price 400"
+Enter
+Sleep 15s
+
+Type ""
+Enter
+Sleep 600ms
+
 Type "# Where can I go for under €400 this July?"
 Enter
 Sleep 300ms
