@@ -29,14 +29,24 @@ type CheckResult struct {
 }
 
 // CheckAll checks all watches using the provided price checker and records
-// results in the store. Returns a result for each watch.
+// results in the store. Pauses 3 seconds between checks to respect API rate limits.
+// Returns a result for each watch.
 func CheckAll(ctx context.Context, store *Store, checker PriceChecker) []CheckResult {
 	watches := store.List()
 	results := make([]CheckResult, 0, len(watches))
 
-	for _, w := range watches {
+	for i, w := range watches {
 		r := checkOne(ctx, store, checker, w)
 		results = append(results, r)
+
+		// Pause between checks to respect rate limits (skip after last).
+		if i < len(watches)-1 {
+			select {
+			case <-ctx.Done():
+				return results
+			case <-time.After(3 * time.Second):
+			}
+		}
 	}
 	return results
 }
