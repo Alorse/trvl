@@ -54,7 +54,7 @@ func FetchCurrency(ctx context.Context, currencyCode string) (models.CurrencyInf
 	currencyCache.RUnlock()
 
 	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, exchangeRateAPIURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, exchangeRateURL, nil)
 	if err != nil {
 		return models.CurrencyInfo{}, fmt.Errorf("create currency request: %w", err)
 	}
@@ -98,4 +98,21 @@ func FetchCurrency(ctx context.Context, currencyCode string) (models.CurrencyInf
 		ExchangeRate:  rate,
 		BaseCurrency:  "EUR",
 	}, nil
+}
+
+// ConvertToEUR converts an amount from the given currency to EUR.
+// Returns the EUR amount. If the currency is already EUR, returns as-is.
+// If conversion fails (unknown currency, API error), returns the original amount.
+func ConvertToEUR(ctx context.Context, amount float64, fromCurrency string) (float64, string) {
+	if fromCurrency == "EUR" || fromCurrency == "" || amount == 0 {
+		return amount, "EUR"
+	}
+
+	info, err := FetchCurrency(ctx, fromCurrency)
+	if err != nil || info.ExchangeRate == 0 {
+		return amount, fromCurrency // can't convert, return as-is
+	}
+
+	// ExchangeRate is "1 EUR = X fromCurrency", so EUR = amount / rate
+	return amount / info.ExchangeRate, "EUR"
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
+	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -102,6 +103,17 @@ func SearchHotels(ctx context.Context, location string, opts HotelSearchOptions)
 	hotels, err := parseHotelsFromPage(string(body), opts.Currency)
 	if err != nil {
 		return nil, fmt.Errorf("parse hotel results: %w", err)
+	}
+
+	// Convert prices to EUR if they came back in a different currency.
+	if len(hotels) > 0 && hotels[0].Currency != "EUR" && hotels[0].Currency != "" {
+		for i := range hotels {
+			if hotels[i].Price > 0 && hotels[i].Currency != "EUR" {
+				eurPrice, _ := destinations.ConvertToEUR(ctx, hotels[i].Price, hotels[i].Currency)
+				hotels[i].Price = math.Round(eurPrice)
+				hotels[i].Currency = "EUR"
+			}
+		}
 	}
 
 	// Resolve city center for distance filter/sort if needed.
