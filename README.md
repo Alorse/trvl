@@ -9,7 +9,7 @@
 
 ![trvl demo](demo.gif)
 
-> **15 travel tools for your AI assistant — flights, hotels, trains, buses, price alerts, destination intel. Free. No API keys. One binary.**
+> **16 travel tools for your AI assistant — flights, hotels, trains, buses, price alerts, destination intel. Free. No API keys. One binary.**
 >
 > Also works as a standalone CLI with 19 commands.
 
@@ -110,7 +110,7 @@ Now Claude knows about trvl in every project — just say "search flights" or "p
 
 ### 4. Ask your AI to search
 
-That's it. Your AI assistant now has 15 travel tools available. Just ask naturally:
+That's it. Your AI assistant now has 16 travel tools available. Just ask naturally:
 
 - *"Search flights from JFK to Tokyo on July 1st, business class"*
 - *"Find hotels in Paris for July 1-5, at least 4 stars"*
@@ -121,6 +121,9 @@ That's it. Your AI assistant now has 15 travel tools available. Just ask natural
 - *"Plan a trip: Helsinki -> Barcelona -> Rome -> Paris, cheapest routing"*
 - *"Search buses from Prague to Krakow on May 3rd"*
 - *"Compare train and bus prices Prague to Vienna"*
+- *"Search flights from Amsterdam, Eindhoven, or Antwerp to Helsinki or Tallinn"*
+- *"Show me travel deals from Helsinki under €400"*
+- *"Alert me when flights to Tokyo drop below €500"*
 
 ## MCP Tools
 
@@ -141,6 +144,7 @@ That's it. Your AI assistant now has 15 travel tools available. Just ask natural
 | **local_events** | Find events during your trip dates | Concerts, festivals, exhibitions |
 | **search_ground** | Search buses and trains (6 providers) | Prague -> Vienna, May 3rd, trains only |
 | **search_restaurants** | Find restaurants near a location (Google Maps) | Barcelona, italian cuisine |
+| **search_deals** | Travel deals from 4 RSS feeds (error fares, flash sales) | Deals from HEL under EUR 400 |
 
 ### MCP Protocol Features (v2025-11-25)
 
@@ -202,7 +206,7 @@ https://raw.githubusercontent.com/MikkoParkkola/trvl/main/llms.txt
 
 ## CLI Usage
 
-trvl also works as a standalone CLI tool with 19 commands:
+trvl also works as a standalone CLI tool with 20 commands:
 
 ### Flights
 
@@ -220,6 +224,7 @@ Found 86 flights (one_way)
 
 ```bash
 trvl flights JFK LHR 2026-07-01 --cabin business --stops nonstop
+trvl flights AMS,EIN,ANR HEL,TKU,TLL 2026-06-15     # Multi-airport search
 trvl flights HEL BCN 2026-07-01 --return 2026-07-08
 trvl flights HEL NRT 2026-06-15 --format json       # JSON output
 ```
@@ -321,6 +326,16 @@ trvl watch history <id>                               # Price history for a watc
 trvl watch remove <id>                                # Remove a watch
 ```
 
+### Travel Deals
+
+Aggregates error fares, flash sales, and deals from 4 RSS feeds (Secret Flying, Fly4Free, Holiday Pirates, The Points Guy). Deals also appear automatically in flight search results when a matching deal is found.
+
+```bash
+trvl deals                                            # All recent deals
+trvl deals --from HEL,AMS --max-price 400             # From my airports, under €400
+trvl deals --type error_fare                           # Error fares only
+```
+
 ## How It Works
 
 Google's travel frontend uses an internal gRPC-over-HTTP protocol called **batchexecute**. `trvl` speaks this protocol natively:
@@ -364,8 +379,8 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | **Binary** | Single static ~15MB. Zero runtime dependencies. |
 | **Data** | Real-time from 7 Google endpoints + FlixBus + RegioJet + Eurostar + Deutsche Bahn + SNCF + Transitous + 11 free APIs + Google Maps |
 | **Auth** | None required. Optional free API keys for events/restaurant ratings. |
-| **MCP** | Full v2025-11-25 — 15 tools, 4 prompts, resources, structured content, sampling |
-| **CLI** | 19 commands (+ 5 watch subcommands) with table/JSON output, color, shell completion |
+| **MCP** | Full v2025-11-25 — 16 tools, 4 prompts, resources, structured content, sampling |
+| **CLI** | 20 commands (+ 5 watch subcommands) with table/JSON output, color, shell completion |
 | **Booking links** | Every flight and hotel result includes a direct Google booking link |
 | **Travel hacks** | 30+ hacks auto-applied: nearby airports, throw-away returns, hotel splits |
 | **Personal profile** | Remembers your FF status, luggage needs, favourite hotels, departure preferences |
