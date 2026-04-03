@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // HTTPServer wraps an MCP Server with an HTTP transport.
@@ -35,7 +36,14 @@ func (h *HTTPServer) ListenAndServe() error {
 
 	addr := fmt.Sprintf(":%d", h.port)
 	log.Printf("trvl MCP server listening on http://localhost%s/mcp", addr)
-	return http.ListenAndServe(addr, mux)
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+	return srv.ListenAndServe()
 }
 
 func (h *HTTPServer) handleMCP(w http.ResponseWriter, r *http.Request) {
