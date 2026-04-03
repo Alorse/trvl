@@ -98,9 +98,12 @@ func printGroundTable(result *models.GroundSearchResult) error {
 	var rows [][]string
 
 	for _, r := range result.Routes {
-		price := fmt.Sprintf("%s %.2f", r.Currency, r.Price)
-		if r.PriceMax > 0 && r.PriceMax != r.Price {
-			price = fmt.Sprintf("%s %.2f-%.2f", r.Currency, r.Price, r.PriceMax)
+		price := "-"
+		if r.Price > 0 {
+			price = fmt.Sprintf("%s %.2f", r.Currency, r.Price)
+			if r.PriceMax > 0 && r.PriceMax != r.Price {
+				price = fmt.Sprintf("%s %.2f-%.2f", r.Currency, r.Price, r.PriceMax)
+			}
 		}
 
 		dur := formatDuration(r.Duration)

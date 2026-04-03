@@ -8,178 +8,78 @@ Set Theme "Catppuccin Mocha"
 Set Padding 12
 Set TypingSpeed 30ms
 
-# ═══════════════════════════════════════════════════
-# Story 1: "I need a cheap weekend escape from Helsinki"
-# ═══════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────
+# trvl — What no other travel tool does
+# ─────────────────────────────────────────────────────
 
-Type "# ═══ Story 1: Weekend escape on a budget ═══"
+Type "# 💰 When's the cheapest day to fly Amsterdam → Helsinki?"
 Enter
-Sleep 800ms
-
-Type "# What deals are hot from Helsinki right now?"
-Enter
-Sleep 300ms
-Type "./bin/trvl deals --from HEL --max-price 400"
-Enter
-Sleep 15s
-
-Type ""
-Enter
-Sleep 600ms
-
-Type "# Where can I go for under €400 this July?"
-Enter
-Sleep 300ms
-Type "./bin/trvl weekend HEL --month july-2026 --budget 400"
-Enter
-Sleep 15s
-
-Type ""
-Enter
-Sleep 600ms
-
-Type "# Dubrovnik looks great. What's it like?"
-Enter
-Sleep 300ms
-Type "./bin/trvl destination Dubrovnik"
-Enter
-Sleep 8s
-
-Type ""
-Enter
-Sleep 600ms
-
-Type "# Which exact dates are cheapest?"
-Enter
-Sleep 300ms
-Type "./bin/trvl dates HEL DBV --from 2026-07-01 --to 2026-07-14"
-Enter
-Sleep 15s
-
-Type ""
-Enter
-Sleep 600ms
-
-Type "# Show me ALL departure × return combos as a price grid"
-Enter
-Sleep 300ms
-Type "./bin/trvl grid HEL DBV --depart-from 2026-07-04 --depart-to 2026-07-07 --return-from 2026-07-11 --return-to 2026-07-14"
-Enter
-Sleep 15s
-
-Type ""
-Enter
-Sleep 600ms
-
-Type "# Monitor BOTH flight and hotel prices — alerts on drops + flash sales"
-Enter
-Sleep 300ms
-Type "./bin/trvl watch add HEL DBV --depart 2026-07-04 --return 2026-07-13 --below 200"
-Enter
-Sleep 3s
-Type "./bin/trvl watch add --type hotel Dubrovnik --depart 2026-07-04 --return 2026-07-13 --below 80"
-Enter
-Sleep 3s
-Type "./bin/trvl watch list"
-Enter
-Sleep 3s
-
-Type ""
-Enter
-Sleep 800ms
-
-# ═══════════════════════════════════════════════════
-# Story 2: "Plan a multi-city Europe trip"
-# ═══════════════════════════════════════════════════
-
-Type "# ═══ Story 2: Multi-city Europe trip ═══"
-Enter
-Sleep 800ms
-
-Type "# What's the cheapest order to visit 3 cities?"
-Enter
-Sleep 300ms
-Type "./bin/trvl multi-city HEL --visit BCN,ROM,PAR --dates 2026-07-01,2026-07-21"
+Sleep 400ms
+Type "trvl dates AMS HEL --from 2026-04-04 --to 2026-04-10"
 Enter
 Sleep 20s
 
 Type ""
 Enter
-Sleep 600ms
+Sleep 800ms
 
-Type "# Hotels in Barcelona — sorted by rating, with amenities"
+Type "# ✈️ Multi-airport: fly from AMS or EIN to HEL or TLL"
 Enter
-Sleep 300ms
-Type "./bin/trvl hotels Barcelona --checkin 2026-07-01 --checkout 2026-07-05 --sort rating"
+Sleep 400ms
+Type "trvl flights AMS,EIN HEL,TLL 2026-04-10"
 Enter
-Sleep 15s
-
-Type ""
-Enter
-Sleep 600ms
-
-Type "# Total trip cost: flights + hotel?"
-Enter
-Sleep 300ms
-Type "./bin/trvl trip-cost HEL BCN --depart 2026-07-01 --return 2026-07-08 --guests 2"
-Enter
-Sleep 15s
-
-Type ""
-Enter
-Sleep 600ms
-
-Type "# Train from Barcelona to Rome?"
-Enter
-Sleep 300ms
-Type "./bin/trvl ground Barcelona Rome 2026-07-07"
-Enter
-Sleep 25s
+Sleep 30s
 
 Type ""
 Enter
 Sleep 800ms
 
-# ═══════════════════════════════════════════════════
-# Story 3: "Quick — flexible dates, best deal"
-# ═══════════════════════════════════════════════════
+Type "# 🏨 Hotels in Prague — sorted by rating, with amenities"
+Enter
+Sleep 400ms
+Type "trvl hotels Prague --checkin 2026-04-12 --checkout 2026-04-15 --sort rating"
+Enter
+Sleep 20s
 
-Type "# ═══ Story 3: Flexible dates, best deal ═══"
+Type ""
 Enter
 Sleep 800ms
 
-Type "# Where's cheap from Amsterdam right now?"
+Type "# 🚂 Prague → Amsterdam by train? (6 providers in parallel)"
 Enter
-Sleep 300ms
-Type "./bin/trvl explore AMS"
+Sleep 400ms
+Type "trvl ground Prague Amsterdam 2026-04-15"
 Enter
-Sleep 25s
+Sleep 45s
 
 Type ""
 Enter
-Sleep 600ms
+Sleep 800ms
 
-Type "# When should I fly to Prague? Check ±7 days"
+Type "# 🔥 Travel deals from 4 RSS feeds"
 Enter
-Sleep 300ms
-Type "./bin/trvl suggest AMS PRG --around 2026-04-15 --flex 7"
+Sleep 400ms
+Type "trvl deals"
 Enter
-Sleep 15s
+Sleep 20s
 
 Type ""
 Enter
-Sleep 600ms
+Sleep 800ms
 
-Type "# Show me the flights — with booking links"
+Type "# 📉 Monitor flight AND hotel prices — alert on drops"
 Enter
-Sleep 300ms
-Type "./bin/trvl flights AMS PRG 2026-04-12 --format json | head -25"
+Sleep 400ms
+Type "trvl watch add HEL PRG --below 100"
 Enter
-Sleep 15s
+Sleep 5s
+Type "trvl watch add --type hotel Prague --depart 2026-04-12 --return 2026-04-15 --below 80"
+Enter
+Sleep 5s
 
 Type ""
 Enter
 Sleep 400ms
-Type "# 15 tools. 6 train/bus providers. One binary. No API keys."
+Type "# 16 tools. 6 train/bus providers. One binary. No API keys."
 Enter
 Sleep 3s
