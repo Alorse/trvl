@@ -60,13 +60,16 @@ Type ""
 Enter
 Sleep 600ms
 
-Type "# Track both flight AND hotel prices"
+Type "# Monitor BOTH flight and hotel prices — alerts on drops + flash sales"
 Enter
 Sleep 300ms
 Type "./bin/trvl watch add HEL DBV --depart 2026-07-04 --return 2026-07-13 --below 200"
 Enter
 Sleep 3s
 Type "./bin/trvl watch add --type hotel Dubrovnik --depart 2026-07-04 --return 2026-07-13 --below 80"
+Enter
+Sleep 3s
+Type "./bin/trvl watch list"
 Enter
 Sleep 3s
 

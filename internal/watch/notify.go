@@ -77,9 +77,24 @@ func (n *Notifier) Notify(r CheckResult) {
 		lowest = fmt.Sprintf("  lowest: %.0f", r.Watch.LowestPrice)
 	}
 
-	fmt.Fprintf(n.Out, " %s  %s  %s%s%s\n",
+	// Actionable advice based on price movement.
+	advice := ""
+	if r.PrevPrice > 0 {
+		if r.PriceDrop < -r.PrevPrice*0.3 {
+			// 30%+ drop — likely error fare or flash sale.
+			advice = n.green("  ⚡ big drop — error fare or flash sale? Book fast!")
+		} else if r.PriceDrop < 0 {
+			// Normal drop — campaign, competition, demand shift.
+			advice = n.green("  ↓ price dropped — good time to book")
+		} else if r.PriceDrop > 0 && r.Watch.Type == "flight" {
+			// Flight prices trending up — normal closer to departure.
+			advice = n.red("  ↑ trending up — consider booking soon")
+		}
+	}
+
+	fmt.Fprintf(n.Out, " %s  %s  %s%s%s%s\n",
 		strings.ToUpper(r.Watch.Type[:1])+r.Watch.Type[1:],
-		route, priceStr, changeStr, lowest,
+		route, priceStr, changeStr, lowest, advice,
 	)
 }
 
