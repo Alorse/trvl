@@ -47,7 +47,7 @@ func DecodeFlightResponse(body []byte) (any, error) {
 	// outer[0] should be an array
 	first, ok := outer[0].([]any)
 	if !ok {
-		return nil, fmt.Errorf("outer[0] not array, got %T", outer[0])
+		return nil, fmt.Errorf("unexpected response format")
 	}
 
 	if len(first) < 3 {
@@ -157,7 +157,7 @@ func DecodeBatchResponse(body []byte) ([]any, error) {
 func ExtractFlightData(inner any) ([]any, error) {
 	arr, ok := inner.([]any)
 	if !ok {
-		return nil, fmt.Errorf("inner not array, got %T", inner)
+		return nil, fmt.Errorf("unexpected flight data format")
 	}
 
 	var flights []any

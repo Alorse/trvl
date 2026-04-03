@@ -164,6 +164,9 @@ func TestSNCFRateLimiterConfiguration(t *testing.T) {
 }
 
 func TestSearchSNCF_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

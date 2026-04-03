@@ -196,6 +196,9 @@ func TestTransitousRateLimiterConfiguration(t *testing.T) {
 }
 
 func TestSearchTransitous_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -234,6 +237,9 @@ func TestSearchTransitous_Integration(t *testing.T) {
 }
 
 func TestGeocodeCity_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -252,6 +258,9 @@ func TestGeocodeCity_Integration(t *testing.T) {
 }
 
 func TestGeocodeCity_Cache(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -273,6 +282,9 @@ func TestGeocodeCity_Cache(t *testing.T) {
 }
 
 func TestGeocodeCity_UnknownCity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 

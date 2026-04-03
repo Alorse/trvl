@@ -59,7 +59,7 @@ func extractInnerJSON(entry any) (any, error) {
 	// Entry could be a flat array: ["wrb.fr", null, "json-string"]
 	arr, ok := entry.([]any)
 	if !ok {
-		return nil, fmt.Errorf("entry not array")
+		return nil, fmt.Errorf("unexpected response entry format")
 	}
 
 	// Look for string element that contains JSON
@@ -85,7 +85,7 @@ func extractInnerJSON(entry any) (any, error) {
 func parseExploreFromInner(data any) ([]models.ExploreDestination, error) {
 	arr, ok := data.([]any)
 	if !ok {
-		return nil, fmt.Errorf("inner data not array")
+		return nil, fmt.Errorf("unexpected explore data format")
 	}
 
 	// Try indices 3, 4, and 5 for the destination array

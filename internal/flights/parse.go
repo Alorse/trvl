@@ -69,7 +69,7 @@ func parseOneFlight(entry []any) (models.FlightResult, error) {
 	// entry[0] is the flight info array
 	flightInfo, ok := entry[0].([]any)
 	if !ok {
-		return fr, fmt.Errorf("entry[0] not array")
+		return fr, fmt.Errorf("unexpected flight entry format")
 	}
 
 	// Parse legs from flightInfo[2] — the legs array in Google's live response.
