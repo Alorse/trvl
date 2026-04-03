@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/deals"
+	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +20,7 @@ func dealsCmd() *cobra.Command {
 		maxPrice float64
 		dealType string
 		hours    int
+		currency string
 	)
 
 	cmd := &cobra.Command{
@@ -51,7 +55,7 @@ Examples:
 				return models.FormatJSON(os.Stdout, result)
 			}
 
-			return printDealsTable(result)
+			return printDealsTable(cmd.Context(), currency, result)
 		},
 	}
 
@@ -59,11 +63,12 @@ Examples:
 	cmd.Flags().Float64Var(&maxPrice, "max-price", 0, "Maximum price filter (0 = no limit)")
 	cmd.Flags().StringVar(&dealType, "type", "", "Filter by deal type: error_fare, deal, flash_sale, package")
 	cmd.Flags().IntVar(&hours, "hours", 48, "Only show deals from last N hours")
+	cmd.Flags().StringVar(&currency, "currency", "", "Convert prices to this currency (e.g. EUR, USD). Empty = show as-is")
 
 	return cmd
 }
 
-func printDealsTable(result *deals.DealsResult) error {
+func printDealsTable(ctx context.Context, targetCurrency string, result *deals.DealsResult) error {
 	if !result.Success {
 		if result.Error != "" {
 			fmt.Fprintf(os.Stderr, "No deals found: %s\n", result.Error)
@@ -71,6 +76,18 @@ func printDealsTable(result *deals.DealsResult) error {
 			fmt.Fprintln(os.Stderr, "No deals found.")
 		}
 		return nil
+	}
+
+	// Convert prices if --currency specified.
+	if targetCurrency != "" {
+		for i := range result.Deals {
+			d := &result.Deals[i]
+			if d.Currency != targetCurrency && d.Price > 0 {
+				converted, cur := destinations.ConvertCurrency(ctx, d.Price, d.Currency, targetCurrency)
+				d.Price = math.Round(converted)
+				d.Currency = cur
+			}
+		}
 	}
 
 	// Count unique sources.

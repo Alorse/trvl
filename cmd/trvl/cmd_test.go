@@ -295,7 +295,7 @@ func TestGroundCmd_Flags(t *testing.T) {
 		name     string
 		defValue string
 	}{
-		{"currency", "EUR"},
+		{"currency", ""},
 		{"provider", ""},
 		{"max-price", "0"},
 		{"type", ""},

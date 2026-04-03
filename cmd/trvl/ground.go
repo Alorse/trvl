@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
+	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/ground"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/spf13/cobra"
@@ -60,11 +63,11 @@ Examples:
 				return models.FormatJSON(os.Stdout, result)
 			}
 
-			return printGroundTable(result)
+			return printGroundTable(cmd.Context(), currency, result)
 		},
 	}
 
-	cmd.Flags().StringVar(&currency, "currency", "EUR", "Price currency")
+	cmd.Flags().StringVar(&currency, "currency", "", "Convert prices to this currency (e.g. EUR). Empty = provider default")
 	cmd.Flags().StringVar(&providers, "provider", "", "Restrict to providers (flixbus,regiojet)")
 	cmd.Flags().Float64Var(&maxPrice, "max-price", 0, "Maximum price filter")
 	cmd.Flags().StringVar(&typeFilter, "type", "", "Filter by type (bus, train)")
@@ -72,7 +75,7 @@ Examples:
 	return cmd
 }
 
-func printGroundTable(result *models.GroundSearchResult) error {
+func printGroundTable(ctx context.Context, targetCurrency string, result *models.GroundSearchResult) error {
 	if !result.Success {
 		if result.Error != "" {
 			fmt.Fprintf(os.Stderr, "No routes found: %s\n", result.Error)
@@ -80,6 +83,22 @@ func printGroundTable(result *models.GroundSearchResult) error {
 			fmt.Fprintln(os.Stderr, "No routes found.")
 		}
 		return nil
+	}
+
+	// Convert prices if --currency specified.
+	if targetCurrency != "" {
+		for i := range result.Routes {
+			r := &result.Routes[i]
+			if r.Currency != targetCurrency && r.Price > 0 {
+				converted, cur := destinations.ConvertCurrency(ctx, r.Price, r.Currency, targetCurrency)
+				r.Price = math.Round(converted*100) / 100
+				if r.PriceMax > 0 {
+					convertedMax, _ := destinations.ConvertCurrency(ctx, r.PriceMax, r.Currency, targetCurrency)
+					r.PriceMax = math.Round(convertedMax*100) / 100
+				}
+				r.Currency = cur
+			}
+		}
 	}
 
 	// Count unique providers
