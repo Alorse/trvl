@@ -291,3 +291,86 @@ func TestBuildAnnotatedContentBlocks_Basic(t *testing.T) {
 		t.Error("block[1] should contain JSON data")
 	}
 }
+
+// --- searchHotelsTool schema ---
+
+func TestSearchHotelsTool_FilterProperties(t *testing.T) {
+	tool := searchHotelsTool()
+
+	// Verify new filter properties exist in the schema.
+	filterProps := []string{"min_price", "max_price", "min_rating", "max_distance"}
+	for _, prop := range filterProps {
+		p, ok := tool.InputSchema.Properties[prop]
+		if !ok {
+			t.Errorf("missing property %q in search_hotels schema", prop)
+			continue
+		}
+		if p.Type != "number" {
+			t.Errorf("property %q type = %q, want number", prop, p.Type)
+		}
+		if p.Description == "" {
+			t.Errorf("property %q has empty description", prop)
+		}
+	}
+
+	// Sort should still be a string.
+	sortProp, ok := tool.InputSchema.Properties["sort"]
+	if !ok {
+		t.Fatal("missing 'sort' property")
+	}
+	if sortProp.Type != "string" {
+		t.Errorf("sort type = %q, want string", sortProp.Type)
+	}
+}
+
+func TestSearchHotelsTool_RequiredUnchanged(t *testing.T) {
+	tool := searchHotelsTool()
+	required := map[string]bool{"location": false, "check_in": false, "check_out": false}
+	for _, r := range tool.InputSchema.Required {
+		if _, ok := required[r]; ok {
+			required[r] = true
+		}
+	}
+	for k, found := range required {
+		if !found {
+			t.Errorf("required field %q missing from schema", k)
+		}
+	}
+	// Filter fields should NOT be required.
+	for _, r := range tool.InputSchema.Required {
+		if r == "min_price" || r == "max_price" || r == "min_rating" || r == "max_distance" {
+			t.Errorf("filter field %q should not be required", r)
+		}
+	}
+}
+
+// --- handleSearchHotels filter args parsing ---
+
+func TestHandleSearchHotels_FilterArgsDefaults(t *testing.T) {
+	_, _, err := handleSearchHotels(map[string]any{
+		"location":  "Helsinki",
+		"check_in":  "2026-06-15",
+		"check_out": "2026-06-18",
+	}, nil, nil)
+	if err != nil && strings.Contains(err.Error(), "min_price") {
+		t.Error("should not error on filter parsing with defaults")
+	}
+}
+
+func TestHandleSearchHotels_FilterArgsFloat(t *testing.T) {
+	_, _, err := handleSearchHotels(map[string]any{
+		"location":     "Helsinki",
+		"check_in":     "2026-06-15",
+		"check_out":    "2026-06-18",
+		"min_price":    float64(100),
+		"max_price":    float64(300),
+		"min_rating":   float64(4.0),
+		"max_distance": float64(5.0),
+	}, nil, nil)
+	if err != nil && (strings.Contains(err.Error(), "min_price") ||
+		strings.Contains(err.Error(), "max_price") ||
+		strings.Contains(err.Error(), "min_rating") ||
+		strings.Contains(err.Error(), "max_distance")) {
+		t.Errorf("should not error on filter parameter parsing: %v", err)
+	}
+}

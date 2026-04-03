@@ -268,12 +268,12 @@ func TestFilterByStars_ZeroStars(t *testing.T) {
 
 func TestSortHotels_EmptySlice(t *testing.T) {
 	var hotels []models.HotelResult
-	sortHotels(hotels, "cheapest") // should not panic
+	sortHotels(hotels, "cheapest", 0, 0) // should not panic
 }
 
 func TestSortHotels_SingleElement(t *testing.T) {
 	hotels := []models.HotelResult{{Name: "Only", Price: 100}}
-	sortHotels(hotels, "cheapest")
+	sortHotels(hotels, "cheapest", 0, 0)
 	if hotels[0].Name != "Only" {
 		t.Errorf("single element changed")
 	}
@@ -285,7 +285,7 @@ func TestSortHotels_UnknownSort(t *testing.T) {
 		{Name: "B", Price: 200},
 		{Name: "A", Price: 100},
 	}
-	sortHotels(hotels, "unknown_sort")
+	sortHotels(hotels, "unknown_sort", 0, 0)
 	// "unknown_sort" doesn't match any case — no sorting happens.
 	// The original order is preserved.
 	if hotels[0].Name != "B" {
@@ -300,7 +300,7 @@ func TestSortHotels_PriceWithZeros(t *testing.T) {
 		{Name: "Zero2", Price: 0},
 		{Name: "Mid", Price: 150},
 	}
-	sortHotels(hotels, "cheapest")
+	sortHotels(hotels, "cheapest", 0, 0)
 
 	// Priced hotels first (ascending), zeros at end.
 	if hotels[0].Name != "Cheap" {
@@ -318,7 +318,7 @@ func TestSortHotels_RatingDescending(t *testing.T) {
 		{Name: "C", Rating: 4.0},
 		{Name: "D", Rating: 5.0},
 	}
-	sortHotels(hotels, "rating")
+	sortHotels(hotels, "rating", 0, 0)
 
 	if hotels[0].Name != "D" {
 		t.Errorf("first = %q, want D (5.0)", hotels[0].Name)
@@ -922,5 +922,233 @@ func TestSearchHotels_DefaultCurrency(t *testing.T) {
 	})
 	if err == nil {
 		t.Log("Unexpectedly succeeded")
+	}
+}
+
+// --- Haversine ---
+
+func TestHaversine_SamePoint(t *testing.T) {
+	d := Haversine(60.17, 24.94, 60.17, 24.94)
+	if d != 0 {
+		t.Errorf("same point distance = %v, want 0", d)
+	}
+}
+
+func TestHaversine_HelsinkiToTallinn(t *testing.T) {
+	// Helsinki (60.17, 24.94) to Tallinn (59.44, 24.75) ~80 km
+	d := Haversine(60.17, 24.94, 59.44, 24.75)
+	if d < 70 || d > 90 {
+		t.Errorf("Helsinki-Tallinn distance = %.1f km, expected ~80 km", d)
+	}
+}
+
+func TestHaversine_HelsinkiToTokyo(t *testing.T) {
+	// Helsinki (60.17, 24.94) to Tokyo (35.68, 139.69) ~7800 km
+	d := Haversine(60.17, 24.94, 35.68, 139.69)
+	if d < 7500 || d > 8200 {
+		t.Errorf("Helsinki-Tokyo distance = %.0f km, expected ~7800 km", d)
+	}
+}
+
+func TestHaversine_Antipodal(t *testing.T) {
+	// North pole to south pole ~20000 km
+	d := Haversine(90, 0, -90, 0)
+	if d < 19900 || d > 20100 {
+		t.Errorf("pole-to-pole distance = %.0f km, expected ~20015 km", d)
+	}
+}
+
+// --- filterHotels ---
+
+func TestFilterHotels_NoFilters(t *testing.T) {
+	hotels := []models.HotelResult{
+		{Name: "A", Price: 100, Rating: 3.5, Stars: 3},
+		{Name: "B", Price: 200, Rating: 4.5, Stars: 4},
+	}
+	result := filterHotels(hotels, HotelSearchOptions{})
+	if len(result) != 2 {
+		t.Errorf("expected 2, got %d", len(result))
+	}
+}
+
+func TestFilterHotels_MinPrice(t *testing.T) {
+	hotels := []models.HotelResult{
+		{Name: "Cheap", Price: 50},
+		{Name: "Mid", Price: 150},
+		{Name: "Pricey", Price: 300},
+		{Name: "No Price", Price: 0}, // price=0 should NOT be filtered out
+	}
+	result := filterHotels(hotels, HotelSearchOptions{MinPrice: 100})
+	if len(result) != 3 {
+		t.Errorf("expected 3 (Mid + Pricey + No Price), got %d", len(result))
+	}
+	for _, h := range result {
+		if h.Name == "Cheap" {
+			t.Error("Cheap should be filtered out by MinPrice=100")
+		}
+	}
+}
+
+func TestFilterHotels_MaxPrice(t *testing.T) {
+	hotels := []models.HotelResult{
+		{Name: "Cheap", Price: 50},
+		{Name: "Mid", Price: 150},
+		{Name: "Pricey", Price: 300},
+		{Name: "No Price", Price: 0},
+	}
+	result := filterHotels(hotels, HotelSearchOptions{MaxPrice: 200})
+	if len(result) != 3 {
+		t.Errorf("expected 3 (Cheap + Mid + No Price), got %d", len(result))
+	}
+	for _, h := range result {
+		if h.Name == "Pricey" {
+			t.Error("Pricey should be filtered out by MaxPrice=200")
+		}
+	}
+}
+
+func TestFilterHotels_MinRating(t *testing.T) {
+	hotels := []models.HotelResult{
+		{Name: "Low", Rating: 3.0},
+		{Name: "Mid", Rating: 4.0},
+		{Name: "High", Rating: 4.8},
+		{Name: "No Rating", Rating: 0}, // should NOT be filtered out
+	}
+	result := filterHotels(hotels, HotelSearchOptions{MinRating: 4.0})
+	if len(result) != 3 {
+		t.Errorf("expected 3 (Mid + High + No Rating), got %d", len(result))
+	}
+	for _, h := range result {
+		if h.Name == "Low" {
+			t.Error("Low should be filtered out by MinRating=4.0")
+		}
+	}
+}
+
+func TestFilterHotels_Stars(t *testing.T) {
+	hotels := []models.HotelResult{
+		{Name: "Two", Stars: 2},
+		{Name: "Four", Stars: 4},
+		{Name: "Five", Stars: 5},
+	}
+	result := filterHotels(hotels, HotelSearchOptions{Stars: 4})
+	if len(result) != 2 {
+		t.Errorf("expected 2, got %d", len(result))
+	}
+}
+
+func TestFilterHotels_MaxDistance(t *testing.T) {
+	// Helsinki center: 60.17, 24.94
+	hotels := []models.HotelResult{
+		{Name: "Close", Lat: 60.17, Lon: 24.94},     // ~0 km
+		{Name: "Medium", Lat: 60.20, Lon: 24.94},     // ~3.3 km
+		{Name: "Far", Lat: 60.50, Lon: 24.94},         // ~36.7 km
+		{Name: "No Coords", Lat: 0, Lon: 0},           // no coords, should NOT be filtered
+	}
+	result := filterHotels(hotels, HotelSearchOptions{
+		MaxDistanceKm: 5,
+		CenterLat:     60.17,
+		CenterLon:     24.94,
+	})
+	if len(result) != 3 {
+		t.Errorf("expected 3 (Close + Medium + No Coords), got %d", len(result))
+	}
+	for _, h := range result {
+		if h.Name == "Far" {
+			t.Error("Far should be filtered out by MaxDistanceKm=5")
+		}
+	}
+}
+
+func TestFilterHotels_MaxDistanceNoCenterCoords(t *testing.T) {
+	// If center coords are 0, distance filter should not remove anything.
+	hotels := []models.HotelResult{
+		{Name: "A", Lat: 60.17, Lon: 24.94},
+		{Name: "B", Lat: 35.68, Lon: 139.69},
+	}
+	result := filterHotels(hotels, HotelSearchOptions{
+		MaxDistanceKm: 1,
+		CenterLat:     0,
+		CenterLon:     0,
+	})
+	if len(result) != 2 {
+		t.Errorf("expected 2 (no filtering without center), got %d", len(result))
+	}
+}
+
+func TestFilterHotels_Combined(t *testing.T) {
+	hotels := []models.HotelResult{
+		{Name: "Perfect", Price: 150, Rating: 4.5, Stars: 4, Lat: 60.17, Lon: 24.94},
+		{Name: "Cheap Bad", Price: 50, Rating: 2.0, Stars: 2, Lat: 60.17, Lon: 24.94},
+		{Name: "Expensive", Price: 500, Rating: 4.8, Stars: 5, Lat: 60.17, Lon: 24.94},
+		{Name: "Far Good", Price: 120, Rating: 4.2, Stars: 4, Lat: 60.50, Lon: 24.94},
+	}
+	result := filterHotels(hotels, HotelSearchOptions{
+		Stars:         3,
+		MinPrice:      80,
+		MaxPrice:      300,
+		MinRating:     4.0,
+		MaxDistanceKm: 5,
+		CenterLat:     60.17,
+		CenterLon:     24.94,
+	})
+	if len(result) != 1 {
+		t.Errorf("expected 1 (Perfect only), got %d", len(result))
+		for _, h := range result {
+			t.Logf("  %s: price=%.0f rating=%.1f stars=%d", h.Name, h.Price, h.Rating, h.Stars)
+		}
+	}
+	if len(result) > 0 && result[0].Name != "Perfect" {
+		t.Errorf("expected Perfect, got %q", result[0].Name)
+	}
+}
+
+// --- sortHotels stars and distance ---
+
+func TestSortHotels_Stars(t *testing.T) {
+	hotels := []models.HotelResult{
+		{Name: "Two", Stars: 2},
+		{Name: "Five", Stars: 5},
+		{Name: "Three", Stars: 3},
+		{Name: "Four", Stars: 4},
+	}
+	sortHotels(hotels, "stars", 0, 0)
+	if hotels[0].Name != "Five" {
+		t.Errorf("first = %q, want Five", hotels[0].Name)
+	}
+	if hotels[1].Name != "Four" {
+		t.Errorf("second = %q, want Four", hotels[1].Name)
+	}
+}
+
+func TestSortHotels_Distance(t *testing.T) {
+	// Helsinki center: 60.17, 24.94
+	hotels := []models.HotelResult{
+		{Name: "Far", Lat: 60.50, Lon: 24.94},
+		{Name: "Close", Lat: 60.17, Lon: 24.94},
+		{Name: "Medium", Lat: 60.20, Lon: 24.94},
+	}
+	sortHotels(hotels, "distance", 60.17, 24.94)
+	if hotels[0].Name != "Close" {
+		t.Errorf("first = %q, want Close", hotels[0].Name)
+	}
+	if hotels[1].Name != "Medium" {
+		t.Errorf("second = %q, want Medium", hotels[1].Name)
+	}
+	if hotels[2].Name != "Far" {
+		t.Errorf("third = %q, want Far", hotels[2].Name)
+	}
+}
+
+func TestSortHotels_DistanceNoCenter(t *testing.T) {
+	// With center=(0,0), distance sort should still not panic.
+	hotels := []models.HotelResult{
+		{Name: "A", Lat: 60.17, Lon: 24.94},
+		{Name: "B", Lat: 35.68, Lon: 139.69},
+	}
+	sortHotels(hotels, "distance", 0, 0)
+	// No crash is the success condition.
+	if len(hotels) != 2 {
+		t.Errorf("expected 2 hotels, got %d", len(hotels))
 	}
 }

@@ -95,12 +95,16 @@ func searchHotelsTool() ToolDef {
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"location":  {Type: "string", Description: "Location name or address (e.g., Helsinki, Tokyo, Manhattan New York)"},
-				"check_in":  {Type: "string", Description: "Check-in date in YYYY-MM-DD format"},
-				"check_out": {Type: "string", Description: "Check-out date in YYYY-MM-DD format"},
-				"guests":    {Type: "integer", Description: "Number of guests (default: 2)"},
-				"stars":     {Type: "integer", Description: "Minimum star rating 1-5 (default: no filter)"},
-				"sort":      {Type: "string", Description: "Sort order: relevance, price, rating, or distance (default: relevance)"},
+				"location":     {Type: "string", Description: "Location name or address (e.g., Helsinki, Tokyo, Manhattan New York)"},
+				"check_in":     {Type: "string", Description: "Check-in date in YYYY-MM-DD format"},
+				"check_out":    {Type: "string", Description: "Check-out date in YYYY-MM-DD format"},
+				"guests":       {Type: "integer", Description: "Number of guests (default: 2)"},
+				"stars":        {Type: "integer", Description: "Minimum star rating 1-5 (default: no filter)"},
+				"sort":         {Type: "string", Description: "Sort order: price, rating, distance, or stars (default: price)"},
+				"min_price":    {Type: "number", Description: "Minimum price per night (default: no filter)"},
+				"max_price":    {Type: "number", Description: "Maximum price per night (default: no filter)"},
+				"min_rating":   {Type: "number", Description: "Minimum guest rating, e.g. 4.0 (default: no filter)"},
+				"max_distance": {Type: "number", Description: "Maximum distance from city center in km (default: no filter)"},
 			},
 			Required: []string{"location", "check_in", "check_out"},
 		},
@@ -185,11 +189,15 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc, sampling Samplin
 	}
 
 	opts := hotels.HotelSearchOptions{
-		CheckIn:  checkIn,
-		CheckOut: checkOut,
-		Guests:   argInt(args, "guests", 2),
-		Stars:    argInt(args, "stars", 0),
-		Sort:     argString(args, "sort"),
+		CheckIn:       checkIn,
+		CheckOut:      checkOut,
+		Guests:        argInt(args, "guests", 2),
+		Stars:         argInt(args, "stars", 0),
+		Sort:          argString(args, "sort"),
+		MinPrice:      argFloat(args, "min_price", 0),
+		MaxPrice:      argFloat(args, "max_price", 0),
+		MinRating:     argFloat(args, "min_rating", 0),
+		MaxDistanceKm: argFloat(args, "max_distance", 0),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

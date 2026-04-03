@@ -3,6 +3,7 @@ package hotels
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/url"
 	"sort"
 	"strings"
@@ -34,8 +35,16 @@ type HotelSearchOptions struct {
 	CheckOut string // YYYY-MM-DD
 	Guests   int
 	Stars    int    // 0 = any, 2-5 filter
-	Sort     string // "cheapest", "rating", "distance"
+	Sort     string // "cheapest", "rating", "distance", "stars"
 	Currency string // default "USD"
+
+	// Post-fetch filters.
+	MinPrice      float64 // minimum price per night (0 = no filter)
+	MaxPrice      float64 // maximum price per night (0 = no filter)
+	MinRating     float64 // minimum guest rating, e.g. 4.0 (0 = no filter)
+	MaxDistanceKm float64 // max km from city center (0 = no filter)
+	CenterLat     float64 // city center latitude (resolved automatically if 0)
+	CenterLon     float64 // city center longitude (resolved automatically if 0)
 }
 
 // SearchHotels searches for hotels in the given location.
@@ -90,13 +99,22 @@ func SearchHotels(ctx context.Context, location string, opts HotelSearchOptions)
 		return nil, fmt.Errorf("parse hotel results: %w", err)
 	}
 
-	// Apply post-filters.
-	if opts.Stars > 0 {
-		hotels = filterByStars(hotels, opts.Stars)
+	// Resolve city center for distance filter/sort if needed.
+	if opts.MaxDistanceKm > 0 || strings.EqualFold(opts.Sort, "distance") {
+		if opts.CenterLat == 0 && opts.CenterLon == 0 {
+			lat, lon, err := ResolveLocation(ctx, location)
+			if err == nil {
+				opts.CenterLat = lat
+				opts.CenterLon = lon
+			}
+		}
 	}
 
+	// Apply post-filters.
+	hotels = filterHotels(hotels, opts)
+
 	// Sort results.
-	sortHotels(hotels, opts.Sort)
+	sortHotels(hotels, opts.Sort, opts.CenterLat, opts.CenterLon)
 
 	// Add booking URLs to each hotel.
 	for i := range hotels {
@@ -133,6 +151,33 @@ func buildTravelURL(location string, opts HotelSearchOptions) string {
 	return fmt.Sprintf("https://www.google.com/travel/hotels/%s?%s", encoded, query.Encode())
 }
 
+// filterHotels applies all post-fetch filters to hotel results.
+func filterHotels(hotels []models.HotelResult, opts HotelSearchOptions) []models.HotelResult {
+	filtered := make([]models.HotelResult, 0, len(hotels))
+	for _, h := range hotels {
+		if opts.Stars > 0 && h.Stars < opts.Stars {
+			continue
+		}
+		if opts.MinPrice > 0 && h.Price > 0 && h.Price < opts.MinPrice {
+			continue
+		}
+		if opts.MaxPrice > 0 && h.Price > 0 && h.Price > opts.MaxPrice {
+			continue
+		}
+		if opts.MinRating > 0 && h.Rating > 0 && h.Rating < opts.MinRating {
+			continue
+		}
+		if opts.MaxDistanceKm > 0 && h.Lat != 0 && h.Lon != 0 && opts.CenterLat != 0 {
+			dist := Haversine(opts.CenterLat, opts.CenterLon, h.Lat, h.Lon)
+			if dist > opts.MaxDistanceKm {
+				continue
+			}
+		}
+		filtered = append(filtered, h)
+	}
+	return filtered
+}
+
 // filterByStars removes hotels below the requested star rating.
 func filterByStars(hotels []models.HotelResult, minStars int) []models.HotelResult {
 	filtered := make([]models.HotelResult, 0, len(hotels))
@@ -145,7 +190,7 @@ func filterByStars(hotels []models.HotelResult, minStars int) []models.HotelResu
 }
 
 // sortHotels sorts hotel results in-place by the given criteria.
-func sortHotels(hotels []models.HotelResult, sortBy string) {
+func sortHotels(hotels []models.HotelResult, sortBy string, centerLat, centerLon float64) {
 	switch strings.ToLower(sortBy) {
 	case "cheapest", "price", "":
 		// Sort by price ascending. Hotels with price=0 go to the end.
@@ -157,7 +202,40 @@ func sortHotels(hotels []models.HotelResult, sortBy string) {
 		sort.Slice(hotels, func(i, j int) bool {
 			return hotels[i].Rating > hotels[j].Rating
 		})
+	case "stars":
+		// Sort by star rating descending.
+		sort.Slice(hotels, func(i, j int) bool {
+			return hotels[i].Stars > hotels[j].Stars
+		})
+	case "distance":
+		// Sort by distance from city center ascending.
+		if centerLat != 0 || centerLon != 0 {
+			sort.Slice(hotels, func(i, j int) bool {
+				di := Haversine(centerLat, centerLon, hotels[i].Lat, hotels[i].Lon)
+				dj := Haversine(centerLat, centerLon, hotels[j].Lat, hotels[j].Lon)
+				return di < dj
+			})
+		}
 	}
+}
+
+// Haversine returns the great-circle distance in kilometers between two
+// points specified in decimal degrees.
+func Haversine(lat1, lon1, lat2, lon2 float64) float64 {
+	const earthRadiusKm = 6371.0
+	dLat := degreesToRadians(lat2 - lat1)
+	dLon := degreesToRadians(lon2 - lon1)
+
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(degreesToRadians(lat1))*math.Cos(degreesToRadians(lat2))*
+			math.Sin(dLon/2)*math.Sin(dLon/2)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+	return earthRadiusKm * c
+}
+
+func degreesToRadians(deg float64) float64 {
+	return deg * math.Pi / 180
 }
 
 func lessPrice(a, b models.HotelResult) bool {

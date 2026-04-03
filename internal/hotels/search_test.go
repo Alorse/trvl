@@ -158,7 +158,7 @@ func TestSortHotels(t *testing.T) {
 		{Name: "No Price", Price: 0},
 	}
 
-	sortHotels(hotels, "cheapest")
+	sortHotels(hotels, "cheapest", 0, 0)
 	if hotels[0].Name != "Cheap" {
 		t.Errorf("cheapest sort: first hotel = %q, want %q", hotels[0].Name, "Cheap")
 	}
@@ -176,7 +176,7 @@ func TestSortHotels(t *testing.T) {
 		{Name: "High", Rating: 4.8},
 		{Name: "Mid", Rating: 4.2},
 	}
-	sortHotels(hotels2, "rating")
+	sortHotels(hotels2, "rating", 0, 0)
 	if hotels2[0].Name != "High" {
 		t.Errorf("rating sort: first hotel = %q, want %q", hotels2[0].Name, "High")
 	}
