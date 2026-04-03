@@ -3,9 +3,11 @@ package flights
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
+	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -109,9 +111,14 @@ func SearchFlightsWithClient(ctx context.Context, client *batchexec.Client, orig
 
 	flights := parseFlights(rawFlights)
 
-	// Add booking URLs to each flight.
+	// Add booking URLs and convert currency to EUR if needed.
 	for i := range flights {
 		flights[i].BookingURL = buildFlightBookingURL(origin, destination, date)
+		if flights[i].Price > 0 && flights[i].Currency != "" && flights[i].Currency != "EUR" {
+			converted, _ := destinations.ConvertCurrency(ctx, flights[i].Price, flights[i].Currency, "EUR")
+			flights[i].Price = math.Round(converted)
+			flights[i].Currency = "EUR"
+		}
 	}
 
 	tripType := "one_way"
