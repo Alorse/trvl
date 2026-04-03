@@ -1,8 +1,15 @@
 package mcp
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
 
-// registerResources adds all resource definitions to the server.
+	"github.com/MikkoParkkola/trvl/internal/flights"
+)
+
+// registerResources adds all static resource definitions to the server.
 func registerResources(s *Server) {
 	s.resources = []ResourceDef{
 		{
@@ -23,13 +30,70 @@ func registerResources(s *Server) {
 			Description: "Hotel search usage guide with examples",
 			MimeType:    "text/markdown",
 		},
+		{
+			URI:         "trvl://trip/summary",
+			Name:        "Trip Planning Summary",
+			Description: "Accumulated summary of all searches in this session",
+			MimeType:    "text/plain",
+		},
 	}
 }
 
-// readResource returns the content for a resource URI.
-func readResource(uri string) (*ResourcesReadResult, error) {
-	switch uri {
-	case "trvl://airports/popular":
+// listResources returns the static resources plus any dynamic watch resources
+// created from flight searches in the session.
+func (s *Server) listResources() []ResourceDef {
+	// Start with static resources.
+	resources := make([]ResourceDef, len(s.resources))
+	copy(resources, s.resources)
+
+	// Add dynamic watch resources from searches.
+	s.tripState.mu.Lock()
+	seen := make(map[string]bool)
+	for _, sr := range s.tripState.Searches {
+		if sr.Type == "flight" {
+			// Extract origin-dest-date from query like "HEL->BCN 2026-07-01".
+			uri := watchURIFromQuery(sr.Query)
+			if uri != "" && !seen[uri] {
+				seen[uri] = true
+				resources = append(resources, ResourceDef{
+					URI:         uri,
+					Name:        fmt.Sprintf("Price watch: %s", sr.Query),
+					Description: "Re-fetch to check for price changes",
+					MimeType:    "text/plain",
+				})
+			}
+		}
+	}
+	s.tripState.mu.Unlock()
+
+	return resources
+}
+
+// watchURIFromQuery converts a query like "HEL->BCN 2026-07-01" to
+// "trvl://watch/HEL-BCN-2026-07-01".
+func watchURIFromQuery(query string) string {
+	// Expected format: "HEL->BCN 2026-07-01" or "HEL->BCN 2026-07-01 (round-trip ...)"
+	parts := strings.Fields(query)
+	if len(parts) < 2 {
+		return ""
+	}
+	route := parts[0] // "HEL->BCN"
+	date := parts[1]  // "2026-07-01"
+
+	routeParts := strings.SplitN(route, "->", 2)
+	if len(routeParts) != 2 {
+		return ""
+	}
+	origin := routeParts[0]
+	dest := routeParts[1]
+
+	return fmt.Sprintf("trvl://watch/%s-%s-%s", origin, dest, date)
+}
+
+// readResource returns the content for a resource URI, including dynamic resources.
+func (s *Server) readResource(uri string) (*ResourcesReadResult, error) {
+	switch {
+	case uri == "trvl://airports/popular":
 		return &ResourcesReadResult{
 			Contents: []ResourceContent{{
 				URI:      uri,
@@ -37,7 +101,7 @@ func readResource(uri string) (*ResourcesReadResult, error) {
 				Text:     popularAirports,
 			}},
 		}, nil
-	case "trvl://help/flights":
+	case uri == "trvl://help/flights":
 		return &ResourcesReadResult{
 			Contents: []ResourceContent{{
 				URI:      uri,
@@ -45,7 +109,7 @@ func readResource(uri string) (*ResourcesReadResult, error) {
 				Text:     flightSearchGuide,
 			}},
 		}, nil
-	case "trvl://help/hotels":
+	case uri == "trvl://help/hotels":
 		return &ResourcesReadResult{
 			Contents: []ResourceContent{{
 				URI:      uri,
@@ -53,9 +117,164 @@ func readResource(uri string) (*ResourcesReadResult, error) {
 				Text:     hotelSearchGuide,
 			}},
 		}, nil
+	case uri == "trvl://trip/summary":
+		return s.readTripSummary()
+	case strings.HasPrefix(uri, "trvl://watch/"):
+		return s.readWatchResource(uri)
 	default:
 		return nil, fmt.Errorf("resource not found: %s", uri)
 	}
+}
+
+// readTripSummary returns a formatted summary of all searches in the session.
+func (s *Server) readTripSummary() (*ResourcesReadResult, error) {
+	s.tripState.mu.Lock()
+	searches := make([]SearchRecord, len(s.tripState.Searches))
+	copy(searches, s.tripState.Searches)
+	s.tripState.mu.Unlock()
+
+	if len(searches) == 0 {
+		return &ResourcesReadResult{
+			Contents: []ResourceContent{{
+				URI:      "trvl://trip/summary",
+				MimeType: "text/plain",
+				Text:     "Trip Planning Session Summary\n\nNo searches yet. Use search_flights, search_hotels, or destination_info to start planning.",
+			}},
+		}, nil
+	}
+
+	// Count by type.
+	counts := make(map[string]int)
+	for _, sr := range searches {
+		counts[sr.Type]++
+	}
+
+	var b strings.Builder
+	b.WriteString("Trip Planning Session Summary\n")
+	b.WriteString(strings.Repeat("=", 40))
+	b.WriteString("\n")
+
+	// Searched line.
+	var parts []string
+	if n := counts["flight"]; n > 0 {
+		parts = append(parts, fmt.Sprintf("%d flight(s)", n))
+	}
+	if n := counts["hotel"]; n > 0 {
+		parts = append(parts, fmt.Sprintf("%d hotel(s)", n))
+	}
+	if n := counts["destination"]; n > 0 {
+		parts = append(parts, fmt.Sprintf("%d destination(s)", n))
+	}
+	b.WriteString(fmt.Sprintf("Searched: %s\n\n", strings.Join(parts, ", ")))
+
+	// Individual searches.
+	var totalCost float64
+	var currency string
+	for _, sr := range searches {
+		icon := "  "
+		switch sr.Type {
+		case "flight":
+			icon = ">> "
+		case "hotel":
+			icon = "## "
+		case "destination":
+			icon = "** "
+		}
+		if sr.BestPrice > 0 {
+			b.WriteString(fmt.Sprintf("%s%s: cheapest %s %.0f\n", icon, sr.Query, sr.Currency, sr.BestPrice))
+			totalCost += sr.BestPrice
+			if currency == "" {
+				currency = sr.Currency
+			}
+		} else {
+			b.WriteString(fmt.Sprintf("%s%s\n", icon, sr.Query))
+		}
+	}
+
+	if totalCost > 0 {
+		b.WriteString(fmt.Sprintf("\nEstimated total: %s %.0f", currency, totalCost))
+	}
+
+	return &ResourcesReadResult{
+		Contents: []ResourceContent{{
+			URI:      "trvl://trip/summary",
+			MimeType: "text/plain",
+			Text:     b.String(),
+		}},
+	}, nil
+}
+
+// readWatchResource handles trvl://watch/{origin}-{dest}-{date} URIs.
+// It runs a fresh cheapest-flight search and returns the price with delta.
+func (s *Server) readWatchResource(uri string) (*ResourcesReadResult, error) {
+	// Parse: "trvl://watch/HEL-BCN-2026-07-01"
+	path := strings.TrimPrefix(uri, "trvl://watch/")
+	parts := strings.SplitN(path, "-", 3)
+	if len(parts) < 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return nil, fmt.Errorf("invalid watch URI: %s (expected trvl://watch/ORIGIN-DEST-YYYY-MM-DD)", uri)
+	}
+	origin := strings.ToUpper(parts[0])
+	dest := strings.ToUpper(parts[1])
+	date := parts[2]
+
+	// Run a quick search for the cheapest flight.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	opts := flights.SearchOptions{}
+	result, err := flights.SearchFlights(ctx, origin, dest, date, opts)
+	if err != nil {
+		return nil, fmt.Errorf("watch search failed: %w", err)
+	}
+
+	cacheKey := fmt.Sprintf("%s-%s-%s", origin, dest, date)
+
+	if !result.Success || result.Count == 0 {
+		return &ResourcesReadResult{
+			Contents: []ResourceContent{{
+				URI:      uri,
+				MimeType: "text/plain",
+				Text:     fmt.Sprintf("No flights found for %s -> %s on %s.", origin, dest, date),
+			}},
+		}, nil
+	}
+
+	// Find cheapest.
+	cheapest := result.Flights[0]
+	for _, f := range result.Flights[1:] {
+		if f.Price > 0 && f.Price < cheapest.Price {
+			cheapest = f
+		}
+	}
+
+	// Check delta from cached price.
+	var text string
+	if prev, ok := s.priceCache.get(cacheKey); ok {
+		delta := cheapest.Price - prev
+		direction := "unchanged"
+		if delta > 0 {
+			direction = fmt.Sprintf("up %.0f", delta)
+		} else if delta < 0 {
+			direction = fmt.Sprintf("down %.0f", -delta)
+		}
+		text = fmt.Sprintf("%s -> %s on %s: %s%.0f (%s from previous %s%.0f)",
+			origin, dest, date, cheapest.Currency, cheapest.Price,
+			direction, cheapest.Currency, prev)
+	} else {
+		text = fmt.Sprintf("%s -> %s on %s: %s%.0f (first check)",
+			origin, dest, date, cheapest.Currency, cheapest.Price)
+	}
+
+	// Update cache.
+	s.priceCache.set(cacheKey, cheapest.Price)
+
+	return &ResourcesReadResult{
+		Contents: []ResourceContent{{
+			URI:      uri,
+			MimeType: "text/plain",
+			Text:     text,
+		}},
+	}, nil
 }
 
 const popularAirports = `HEL - Helsinki, Finland

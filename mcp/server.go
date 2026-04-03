@@ -23,6 +23,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -180,9 +181,14 @@ type ToolCallResult struct {
 }
 
 // ContentBlock is a single content block in a tool result.
+// Supports "text" and "resource_link" types per MCP 2025-11-25.
 type ContentBlock struct {
 	Type        string             `json:"type"`
 	Text        string             `json:"text,omitempty"`
+	URI         string             `json:"uri,omitempty"`
+	Name        string             `json:"name,omitempty"`
+	Description string             `json:"description,omitempty"`
+	MimeType    string             `json:"mimeType,omitempty"`
 	Annotations *ContentAnnotation `json:"annotations,omitempty"`
 }
 
@@ -331,6 +337,57 @@ type ResourceContent struct {
 	Text     string `json:"text,omitempty"`
 }
 
+// --- Trip state types ---
+
+// TripState tracks all searches in the current session for trip summary.
+type TripState struct {
+	mu          sync.Mutex
+	Searches    []SearchRecord  `json:"searches"`
+	Shortlisted []ShortlistItem `json:"shortlisted"`
+}
+
+// SearchRecord captures one tool call for the trip summary.
+type SearchRecord struct {
+	Type      string    `json:"type"`       // "flight", "hotel", "destination"
+	Query     string    `json:"query"`      // human-readable search description
+	BestPrice float64   `json:"best_price"` // cheapest result price
+	Currency  string    `json:"currency"`
+	Time      time.Time `json:"time"`
+}
+
+// ShortlistItem tracks a user-interesting result.
+type ShortlistItem struct {
+	Type        string  `json:"type"`
+	Description string  `json:"description"`
+	Price       float64 `json:"price"`
+	Currency    string  `json:"currency"`
+}
+
+// --- Price cache for watch resources ---
+
+// priceCache stores the last known price for a route, for delta tracking.
+type priceCache struct {
+	mu     sync.Mutex
+	prices map[string]float64 // key: "origin-dest-date" -> price
+}
+
+func newPriceCache() *priceCache {
+	return &priceCache{prices: make(map[string]float64)}
+}
+
+func (c *priceCache) get(key string) (float64, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	v, ok := c.prices[key]
+	return v, ok
+}
+
+func (c *priceCache) set(key string, price float64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.prices[key] = price
+}
+
 // --- Server ---
 
 // Server handles MCP JSON-RPC requests.
@@ -348,6 +405,10 @@ type Server struct {
 	// For elicitation: reader and writer set during ServeStdio.
 	elicitReader *bufio.Scanner
 	elicitID     atomic.Int64
+
+	// Session state for trip planning.
+	tripState  TripState
+	priceCache *priceCache
 }
 
 // ToolHandler processes a tool call and returns content blocks, optional
@@ -358,12 +419,26 @@ type ToolHandler func(args map[string]any, elicit ElicitFunc) ([]ContentBlock, i
 // NewServer creates a new MCP server with the standard trvl tools registered.
 func NewServer() *Server {
 	s := &Server{
-		handlers: make(map[string]ToolHandler),
+		handlers:   make(map[string]ToolHandler),
+		priceCache: newPriceCache(),
 	}
 	registerTools(s)
 	registerPrompts(s)
 	registerResources(s)
 	return s
+}
+
+// recordSearch adds a search record to the session trip state.
+func (s *Server) recordSearch(typ, query string, bestPrice float64, currency string) {
+	s.tripState.mu.Lock()
+	defer s.tripState.mu.Unlock()
+	s.tripState.Searches = append(s.tripState.Searches, SearchRecord{
+		Type:      typ,
+		Query:     query,
+		BestPrice: bestPrice,
+		Currency:  currency,
+		Time:      time.Now(),
+	})
 }
 
 // SendNotification writes a JSON-RPC notification to the client (server->client).
@@ -566,10 +641,12 @@ func (s *Server) handlePromptsGet(req *Request) *Response {
 }
 
 func (s *Server) handleResourcesList(req *Request) *Response {
+	// Combine static resources with dynamic ones from trip state.
+	resources := s.listResources()
 	return &Response{
 		JSONRPC: "2.0",
 		ID:      req.ID,
-		Result:  ResourcesListResult{Resources: s.resources},
+		Result:  ResourcesListResult{Resources: resources},
 	}
 }
 
@@ -583,7 +660,7 @@ func (s *Server) handleResourcesRead(req *Request) *Response {
 		}
 	}
 
-	result, err := readResource(params.URI)
+	result, err := s.readResource(params.URI)
 	if err != nil {
 		return &Response{
 			JSONRPC: "2.0",

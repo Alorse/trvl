@@ -7,6 +7,8 @@ import (
 )
 
 // registerTools adds all trvl tool definitions and handlers to the server.
+// Handlers are wrapped in closures to give them access to the server for
+// recording searches and adding resource_link content blocks.
 func registerTools(s *Server) {
 	s.tools = []ToolDef{
 		searchFlightsTool(),
@@ -20,16 +22,34 @@ func registerTools(s *Server) {
 		suggestDatesTool(),
 		optimizeMultiCityTool(),
 	}
-	s.handlers["search_flights"] = handleSearchFlights
-	s.handlers["search_dates"] = handleSearchDates
-	s.handlers["search_hotels"] = handleSearchHotels
-	s.handlers["hotel_prices"] = handleHotelPrices
-	s.handlers["hotel_reviews"] = handleHotelReviews
-	s.handlers["destination_info"] = handleDestinationInfo
-	s.handlers["calculate_trip_cost"] = handleTripCost
-	s.handlers["weekend_getaway"] = handleWeekendGetaway
-	s.handlers["suggest_dates"] = handleSuggestDates
-	s.handlers["optimize_multi_city"] = handleOptimizeMultiCity
+	s.handlers["search_flights"] = s.wrapHandler(handleSearchFlights)
+	s.handlers["search_dates"] = s.wrapHandler(handleSearchDates)
+	s.handlers["search_hotels"] = s.wrapHandler(handleSearchHotels)
+	s.handlers["hotel_prices"] = s.wrapHandler(handleHotelPrices)
+	s.handlers["hotel_reviews"] = s.wrapHandler(handleHotelReviews)
+	s.handlers["destination_info"] = s.wrapHandler(handleDestinationInfo)
+	s.handlers["calculate_trip_cost"] = s.wrapHandler(handleTripCost)
+	s.handlers["weekend_getaway"] = s.wrapHandler(handleWeekendGetaway)
+	s.handlers["suggest_dates"] = s.wrapHandler(handleSuggestDates)
+	s.handlers["optimize_multi_city"] = s.wrapHandler(handleOptimizeMultiCity)
+}
+
+// wrapHandler returns a ToolHandler that delegates to the inner handler and
+// then post-processes the result to add resource_link blocks and record the
+// search in trip state.
+func (s *Server) wrapHandler(inner ToolHandler) ToolHandler {
+	return func(args map[string]any, elicit ElicitFunc) ([]ContentBlock, interface{}, error) {
+		content, structured, err := inner(args, elicit)
+		if err != nil {
+			return content, structured, err
+		}
+
+		// Post-process: add resource links and record searches based on args.
+		content = s.addResourceLinks(content, args)
+		s.recordSearchFromArgs(args, structured)
+
+		return content, structured, nil
+	}
 }
 
 // --- Suggestion types ---
@@ -152,6 +172,156 @@ func argBool(args map[string]any, key string, def bool) bool {
 		return def
 	}
 	return b
+}
+
+// --- Resource link and search recording ---
+
+// addResourceLinks inspects the tool arguments and appends a resource_link
+// content block so the user can re-fetch updated prices later.
+func (s *Server) addResourceLinks(content []ContentBlock, args map[string]any) []ContentBlock {
+	origin := strings.ToUpper(argString(args, "origin"))
+	dest := strings.ToUpper(argString(args, "destination"))
+	date := argString(args, "departure_date")
+
+	// Flight search: resource link for price watch.
+	if origin != "" && dest != "" && date != "" {
+		content = append(content, ContentBlock{
+			Type:        "resource_link",
+			URI:         fmt.Sprintf("trvl://watch/%s-%s-%s", origin, dest, date),
+			Name:        fmt.Sprintf("%s->%s flight prices", origin, dest),
+			Description: "Re-fetch to check for price changes",
+		})
+	}
+
+	// Hotel search: resource link referencing the location.
+	location := argString(args, "location")
+	checkIn := argString(args, "check_in")
+	checkOut := argString(args, "check_out")
+	if location != "" && checkIn != "" && checkOut != "" {
+		// Sanitize location for URI (replace spaces with underscores).
+		safeLocation := strings.ReplaceAll(strings.TrimSpace(location), " ", "_")
+		content = append(content, ContentBlock{
+			Type:        "resource_link",
+			URI:         fmt.Sprintf("trvl://search/hotels/%s-%s-%s", safeLocation, checkIn, checkOut),
+			Name:        fmt.Sprintf("%s hotel prices", location),
+			Description: "Re-fetch to check for price changes",
+		})
+	}
+
+	return content
+}
+
+// recordSearchFromArgs inspects the structured result and args to record the
+// search in the trip state for the session summary resource.
+func (s *Server) recordSearchFromArgs(args map[string]any, structured interface{}) {
+	if structured == nil || args == nil {
+		return
+	}
+
+	// Try to extract common fields via JSON round-trip.
+	data, err := json.Marshal(structured)
+	if err != nil {
+		return
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		return
+	}
+
+	// Determine search type and extract best price.
+	origin := strings.ToUpper(argString(args, "origin"))
+	dest := strings.ToUpper(argString(args, "destination"))
+	date := argString(args, "departure_date")
+	location := argString(args, "location")
+
+	switch {
+	case origin != "" && dest != "" && date != "":
+		// Flight search.
+		bestPrice, currency := extractBestFlightPrice(m)
+		retDate := argString(args, "return_date")
+		query := fmt.Sprintf("%s->%s %s", origin, dest, date)
+		if retDate != "" {
+			query += fmt.Sprintf(" (round-trip return %s)", retDate)
+		}
+		s.recordSearch("flight", query, bestPrice, currency)
+
+		// Cache the price for watch resources.
+		if bestPrice > 0 {
+			cacheKey := fmt.Sprintf("%s-%s-%s", origin, dest, date)
+			s.priceCache.set(cacheKey, bestPrice)
+		}
+
+	case location != "":
+		// Hotel or destination search.
+		checkIn := argString(args, "check_in")
+		checkOut := argString(args, "check_out")
+		if checkIn != "" && checkOut != "" {
+			// Hotel search.
+			bestPrice, currency := extractBestHotelPrice(m)
+			query := fmt.Sprintf("%s %s to %s", location, checkIn, checkOut)
+			s.recordSearch("hotel", query, bestPrice, currency)
+		} else {
+			// Destination info.
+			query := location
+			s.recordSearch("destination", query, 0, "")
+		}
+	}
+}
+
+// extractBestFlightPrice extracts the cheapest flight price from a structured result.
+func extractBestFlightPrice(m map[string]interface{}) (float64, string) {
+	flightsRaw, ok := m["flights"]
+	if !ok {
+		return 0, ""
+	}
+	flightsList, ok := flightsRaw.([]interface{})
+	if !ok || len(flightsList) == 0 {
+		return 0, ""
+	}
+	var best float64
+	var currency string
+	for _, f := range flightsList {
+		fm, ok := f.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		price, _ := fm["price"].(float64)
+		if price > 0 && (best == 0 || price < best) {
+			best = price
+			if c, ok := fm["currency"].(string); ok {
+				currency = c
+			}
+		}
+	}
+	return best, currency
+}
+
+// extractBestHotelPrice extracts the cheapest hotel price from a structured result.
+func extractBestHotelPrice(m map[string]interface{}) (float64, string) {
+	hotelsRaw, ok := m["hotels"]
+	if !ok {
+		return 0, ""
+	}
+	hotelsList, ok := hotelsRaw.([]interface{})
+	if !ok || len(hotelsList) == 0 {
+		return 0, ""
+	}
+	var best float64
+	var currency string
+	for _, h := range hotelsList {
+		hm, ok := h.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		price, _ := hm["price"].(float64)
+		if price > 0 && (best == 0 || price < best) {
+			best = price
+			if c, ok := hm["currency"].(string); ok {
+				currency = c
+			}
+		}
+	}
+	return best, currency
 }
 
 // --- Content block builder ---
