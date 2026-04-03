@@ -84,7 +84,7 @@ func TestHasEurostarRoute(t *testing.T) {
 }
 
 func TestEurostarGraphQLQuery(t *testing.T) {
-	q := eurostarGraphQLQuery("7015400", "8727100", "2026-04-10", "2026-04-30", "GBP")
+	q := eurostarGraphQLQuery("7015400", "8727100", "2026-04-10", "2026-04-30", "GBP", false)
 
 	checks := []string{
 		`origin: "7015400"`,
@@ -106,9 +106,23 @@ func TestEurostarGraphQLQuery(t *testing.T) {
 }
 
 func TestEurostarGraphQLQuery_CurrencyUppercase(t *testing.T) {
-	q := eurostarGraphQLQuery("7015400", "8727100", "2026-04-10", "2026-04-30", "eur")
+	q := eurostarGraphQLQuery("7015400", "8727100", "2026-04-10", "2026-04-30", "eur", false)
 	if !strings.Contains(q, "currency: EUR") {
 		t.Error("currency should be uppercased")
+	}
+}
+
+func TestEurostarGraphQLQuery_SnapFilter(t *testing.T) {
+	q := eurostarGraphQLQuery("7015400", "8727100", "2026-04-10", "2026-04-30", "GBP", true)
+	if !strings.Contains(q, `productFamiliesSearch: "SNAP"`) {
+		t.Error("snap query should contain productFamiliesSearch SNAP filter")
+	}
+}
+
+func TestEurostarGraphQLQuery_NoSnapFilter(t *testing.T) {
+	q := eurostarGraphQLQuery("7015400", "8727100", "2026-04-10", "2026-04-30", "GBP", false)
+	if strings.Contains(q, "SNAP") {
+		t.Error("non-snap query should not contain SNAP")
 	}
 }
 

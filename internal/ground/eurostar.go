@@ -73,7 +73,13 @@ func HasEurostarRoute(from, to string) bool {
 }
 
 // eurostarGraphQLQuery builds the cheapestFaresSearch GraphQL query.
-func eurostarGraphQLQuery(originUIC, destUIC, startDate, endDate, currency string) string {
+// If snapOnly is true, adds productFamiliesSearch: "SNAP" to filter for
+// Eurostar Snap last-minute deals (released ~1 week before travel).
+func eurostarGraphQLQuery(originUIC, destUIC, startDate, endDate, currency string, snapOnly bool) string {
+	productFilter := ""
+	if snapOnly {
+		productFilter = `productFamiliesSearch: "SNAP"`
+	}
 	return fmt.Sprintf(`{
   cheapestFaresSearch(
     cheapestFaresLists: [{
@@ -85,11 +91,12 @@ func eurostarGraphQLQuery(originUIC, destUIC, startDate, endDate, currency strin
     }]
     numberOfPassenger: 1
     mainPassengerType: { type: "ADULT" }
+    %s
     currency: %s
   ) {
     cheapestFares { date price }
   }
-}`, originUIC, destUIC, startDate, endDate, strings.ToUpper(currency))
+}`, originUIC, destUIC, startDate, endDate, productFilter, strings.ToUpper(currency))
 }
 
 // eurostarGQLResponse is the expected GraphQL response structure.
@@ -109,7 +116,8 @@ type eurostarGQLResponse struct {
 
 // SearchEurostar searches Eurostar for cheapest fares between two cities.
 // from/to are city names (e.g. "London", "Paris"). startDate and endDate are YYYY-MM-DD.
-func SearchEurostar(ctx context.Context, from, to, startDate, endDate, currency string) ([]models.GroundRoute, error) {
+// If snapOnly is true, filters for Eurostar Snap last-minute deals only.
+func SearchEurostar(ctx context.Context, from, to, startDate, endDate, currency string, snapOnly bool) ([]models.GroundRoute, error) {
 	fromStation, ok := LookupEurostarStation(from)
 	if !ok {
 		return nil, fmt.Errorf("no Eurostar station for %q", from)
@@ -123,7 +131,7 @@ func SearchEurostar(ctx context.Context, from, to, startDate, endDate, currency 
 		currency = "GBP"
 	}
 
-	query := eurostarGraphQLQuery(fromStation.UIC, toStation.UIC, startDate, endDate, currency)
+	query := eurostarGraphQLQuery(fromStation.UIC, toStation.UIC, startDate, endDate, currency, snapOnly)
 	body, err := json.Marshal(map[string]string{"query": query})
 	if err != nil {
 		return nil, fmt.Errorf("eurostar marshal query: %w", err)
@@ -172,8 +180,12 @@ func SearchEurostar(ctx context.Context, from, to, startDate, endDate, currency 
 			if fare.Price <= 0 {
 				continue
 			}
+			provider := "eurostar"
+			if snapOnly {
+				provider = "eurostar_snap"
+			}
 			route := models.GroundRoute{
-				Provider: "eurostar",
+				Provider: provider,
 				Type:     "train",
 				Price:    fare.Price,
 				Currency: strings.ToUpper(currency),

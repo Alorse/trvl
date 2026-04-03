@@ -90,14 +90,20 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		}()
 	}
 
-	// Eurostar — only if both cities have Eurostar stations
-	if useProvider("eurostar") && HasEurostarRoute(from, to) {
+	// Eurostar — only if both cities have Eurostar stations.
+	// Try Snap (last-minute deals) first — if no Snap fares, fall back to regular.
+	if (useProvider("eurostar") || useProvider("eurostar_snap")) && HasEurostarRoute(from, to) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			// Eurostar returns cheapest fares for a date range; use the single date
 			// as both start and end to get that day's price.
-			routes, err := SearchEurostar(ctx, from, to, date, date, opts.Currency)
+			// Try Snap first (preferred — better value), fall back to regular.
+			routes, err := SearchEurostar(ctx, from, to, date, date, opts.Currency, true)
+			if err != nil || len(routes) == 0 {
+				slog.Debug("no eurostar snap fares, trying regular", "err", err)
+				routes, err = SearchEurostar(ctx, from, to, date, date, opts.Currency, false)
+			}
 			results <- providerResult{routes: routes, err: err, name: "eurostar"}
 		}()
 	}
