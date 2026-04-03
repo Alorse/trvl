@@ -80,7 +80,11 @@ func OptimizeMultiCity(ctx context.Context, homeAirport string, cities []string,
 		}
 	}
 
-	// Generate all permutations and find the cheapest.
+	return optimizeRoute(homeAirport, cities, priceCache), nil
+}
+
+// optimizeRoute finds the cheapest routing order given pre-fetched prices.
+func optimizeRoute(homeAirport string, cities []string, priceCache map[string]float64) *MultiCityResult {
 	perms := permutations(cities)
 
 	var bestOrder []string
@@ -123,7 +127,7 @@ func OptimizeMultiCity(ctx context.Context, homeAirport string, cities []string,
 		WorstCost:    worstCost,
 		Savings:      worstCost - bestCost,
 		Permutations: len(perms),
-	}, nil
+	}
 }
 
 // routeCost calculates the total cost of a route: home -> perm[0] -> ... -> perm[N-1] -> home.

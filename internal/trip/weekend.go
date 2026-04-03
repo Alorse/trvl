@@ -100,38 +100,10 @@ func estimateHotelFromPriceLevel(flightPrice float64) float64 {
 	}
 }
 
-// FindWeekendGetaways searches for cheap weekend getaway destinations from an origin.
-//
-// It uses the explore API to find the cheapest destinations, then estimates
-// hotel costs based on flight price levels. Results are ranked by total
-// estimated cost (flight round-trip + hotel).
-func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions) (*WeekendResult, error) {
-	opts.defaults()
-
-	if origin == "" {
-		return nil, fmt.Errorf("origin airport is required")
-	}
-
-	departDate, returnDate, displayMonth, err := parseMonth(opts.Month)
-	if err != nil {
-		return nil, err
-	}
-
-	client := batchexec.NewClient()
-
-	exploreOpts := explore.ExploreOptions{
-		DepartureDate: departDate,
-		ReturnDate:    returnDate,
-		Adults:        1,
-	}
-
-	exploreResult, err := explore.SearchExplore(ctx, client, origin, exploreOpts)
-	if err != nil {
-		return nil, fmt.Errorf("explore destinations: %w", err)
-	}
-
+// buildWeekendResult assembles a WeekendResult from explore destinations.
+// It sorts by price, estimates hotels, filters by budget, and returns the result.
+func buildWeekendResult(origin, displayMonth string, opts WeekendOptions, dests []models.ExploreDestination) *WeekendResult {
 	// Sort by price and take top 10.
-	dests := exploreResult.Destinations
 	sort.Slice(dests, func(i, j int) bool {
 		return dests[i].Price < dests[j].Price
 	})
@@ -179,5 +151,38 @@ func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions
 		Nights:       opts.Nights,
 		Count:        len(results),
 		Destinations: results,
-	}, nil
+	}
+}
+
+// FindWeekendGetaways searches for cheap weekend getaway destinations from an origin.
+//
+// It uses the explore API to find the cheapest destinations, then estimates
+// hotel costs based on flight price levels. Results are ranked by total
+// estimated cost (flight round-trip + hotel).
+func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions) (*WeekendResult, error) {
+	opts.defaults()
+
+	if origin == "" {
+		return nil, fmt.Errorf("origin airport is required")
+	}
+
+	departDate, returnDate, displayMonth, err := parseMonth(opts.Month)
+	if err != nil {
+		return nil, err
+	}
+
+	client := batchexec.NewClient()
+
+	exploreOpts := explore.ExploreOptions{
+		DepartureDate: departDate,
+		ReturnDate:    returnDate,
+		Adults:        1,
+	}
+
+	exploreResult, err := explore.SearchExplore(ctx, client, origin, exploreOpts)
+	if err != nil {
+		return nil, fmt.Errorf("explore destinations: %w", err)
+	}
+
+	return buildWeekendResult(origin, displayMonth, opts, exploreResult.Destinations), nil
 }

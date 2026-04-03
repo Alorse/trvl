@@ -97,13 +97,19 @@ func SuggestDates(ctx context.Context, origin, dest string, opts SmartDateOption
 		return nil, fmt.Errorf("search calendar: %w", err)
 	}
 
+	return assembleDateResult(origin, dest, target, dateResult), nil
+}
+
+// assembleDateResult builds a SmartDateResult from raw calendar data.
+// It filters zero prices, sorts, picks the cheapest dates, and generates insights.
+func assembleDateResult(origin, dest string, target time.Time, dateResult *models.DateSearchResult) *SmartDateResult {
 	if !dateResult.Success || len(dateResult.Dates) == 0 {
 		return &SmartDateResult{
 			Success:     false,
 			Origin:      origin,
 			Destination: dest,
 			Error:       "no price data found for the given date range",
-		}, nil
+		}
 	}
 
 	// Filter out zero prices.
@@ -120,7 +126,7 @@ func SuggestDates(ctx context.Context, origin, dest string, opts SmartDateOption
 			Origin:      origin,
 			Destination: dest,
 			Error:       "no valid prices found",
-		}, nil
+		}
 	}
 
 	// Sort by price.
@@ -169,7 +175,7 @@ func SuggestDates(ctx context.Context, origin, dest string, opts SmartDateOption
 		AveragePrice:  math.Round(avgPrice),
 		Currency:      currency,
 		Insights:      insights,
-	}, nil
+	}
 }
 
 // buildInsights generates human-readable pricing insights.

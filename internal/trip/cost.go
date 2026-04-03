@@ -120,6 +120,14 @@ func CalculateTripCost(ctx context.Context, input TripCostInput) (*TripCostResul
 		Currency: input.Currency,
 	})
 
+	assembleTripCost(result, outResult, outErr, retResult, retErr, hotelResult, hotelErr, nights, input.Guests)
+
+	return result, nil
+}
+
+// assembleTripCost populates the TripCostResult from search results.
+// It extracts cheapest flights/hotels, aggregates costs, and computes per-person/per-day.
+func assembleTripCost(result *TripCostResult, outResult *models.FlightSearchResult, outErr error, retResult *models.FlightSearchResult, retErr error, hotelResult *models.HotelSearchResult, hotelErr error, nights, guests int) {
 	// Extract cheapest outbound flight.
 	if outErr == nil && outResult != nil && outResult.Success && len(outResult.Flights) > 0 {
 		cheapest := cheapestFlight(outResult.Flights)
@@ -162,12 +170,12 @@ func CalculateTripCost(ctx context.Context, input TripCostInput) (*TripCostResul
 	// Calculate total.
 	// Flights are per person, hotels are per room.
 	flightPerPerson := result.Flights.Outbound + result.Flights.Return
-	flightTotal := flightPerPerson * float64(input.Guests)
+	flightTotal := flightPerPerson * float64(guests)
 	result.Total = flightTotal + result.Hotels.Total
 
 	if result.Total > 0 {
 		result.Success = true
-		result.PerPerson = result.Total / float64(input.Guests)
+		result.PerPerson = result.Total / float64(guests)
 		if nights > 0 {
 			result.PerDay = result.Total / float64(nights)
 		}
@@ -176,8 +184,6 @@ func CalculateTripCost(ctx context.Context, input TripCostInput) (*TripCostResul
 	if !result.Success && len(errors) > 0 {
 		result.Error = fmt.Sprintf("partial failure: %s", errors[0])
 	}
-
-	return result, nil
 }
 
 // cheapestFlight returns the flight with the lowest positive price.
