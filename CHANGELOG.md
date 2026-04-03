@@ -10,7 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Ground transport: FlixBus, RegioJet, Eurostar/Snap, Deutsche Bahn, SNCF, Transitous
 - Price tracking: `trvl watch` with threshold alerts and history
-- Hotel amenity extraction from Google Hotels search data
+- Hotel amenity extraction from Google Hotels search data (18 codes + description)
+- Hotel detail page amenity enrichment (opt-in, fetches full amenity lists per hotel)
+- Hotel amenity filtering (pool, wifi, breakfast, etc.)
 - Hotel filters: price range, rating, distance from center, sort by stars/distance
 - Restaurant search via Google Maps (MCP tool)
 - MCP 2025-11-25 full compliance: ping, completion/complete, logging/setLevel
