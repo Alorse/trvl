@@ -100,19 +100,40 @@ func FetchCurrency(ctx context.Context, currencyCode string) (models.CurrencyInf
 	}, nil
 }
 
-// ConvertToEUR converts an amount from the given currency to EUR.
-// Returns the EUR amount. If the currency is already EUR, returns as-is.
-// If conversion fails (unknown currency, API error), returns the original amount.
+// ConvertCurrency converts an amount from one currency to another.
+// Uses EUR as the base (ExchangeRate-API returns rates vs EUR).
+// Returns the original amount and currency if conversion fails.
+func ConvertCurrency(ctx context.Context, amount float64, from, to string) (float64, string) {
+	if from == to || from == "" || to == "" || amount == 0 {
+		return amount, to
+	}
+
+	// Ensure rates are cached.
+	_, _ = FetchCurrency(ctx, from)
+
+	currencyCache.RLock()
+	fromRate, fromOK := currencyCache.rates[from]
+	toRate, toOK := currencyCache.rates[to]
+	currencyCache.RUnlock()
+
+	// EUR is the base (rate = 1.0)
+	if from == "EUR" {
+		fromRate, fromOK = 1.0, true
+	}
+	if to == "EUR" {
+		toRate, toOK = 1.0, true
+	}
+
+	if !fromOK || !toOK || fromRate == 0 {
+		return amount, from // can't convert
+	}
+
+	// Convert: amount in "from" → EUR → "to"
+	// EUR amount = amount / fromRate, then target = EUR * toRate
+	return amount / fromRate * toRate, to
+}
+
+// ConvertToEUR is a convenience wrapper for ConvertCurrency(ctx, amount, from, "EUR").
 func ConvertToEUR(ctx context.Context, amount float64, fromCurrency string) (float64, string) {
-	if fromCurrency == "EUR" || fromCurrency == "" || amount == 0 {
-		return amount, "EUR"
-	}
-
-	info, err := FetchCurrency(ctx, fromCurrency)
-	if err != nil || info.ExchangeRate == 0 {
-		return amount, fromCurrency // can't convert, return as-is
-	}
-
-	// ExchangeRate is "1 EUR = X fromCurrency", so EUR = amount / rate
-	return amount / info.ExchangeRate, "EUR"
+	return ConvertCurrency(ctx, amount, fromCurrency, "EUR")
 }

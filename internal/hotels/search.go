@@ -105,13 +105,17 @@ func SearchHotels(ctx context.Context, location string, opts HotelSearchOptions)
 		return nil, fmt.Errorf("parse hotel results: %w", err)
 	}
 
-	// Convert prices to EUR if they came back in a different currency.
-	if len(hotels) > 0 && hotels[0].Currency != "EUR" && hotels[0].Currency != "" {
+	// Convert prices to the user's preferred currency if they came back differently.
+	targetCurrency := opts.Currency
+	if targetCurrency == "" {
+		targetCurrency = "EUR" // default
+	}
+	if len(hotels) > 0 && hotels[0].Currency != targetCurrency && hotels[0].Currency != "" {
 		for i := range hotels {
-			if hotels[i].Price > 0 && hotels[i].Currency != "EUR" {
-				eurPrice, _ := destinations.ConvertToEUR(ctx, hotels[i].Price, hotels[i].Currency)
-				hotels[i].Price = math.Round(eurPrice)
-				hotels[i].Currency = "EUR"
+			if hotels[i].Price > 0 && hotels[i].Currency != targetCurrency {
+				converted, _ := destinations.ConvertCurrency(ctx, hotels[i].Price, hotels[i].Currency, targetCurrency)
+				hotels[i].Price = math.Round(converted)
+				hotels[i].Currency = targetCurrency
 			}
 		}
 	}
@@ -167,7 +171,6 @@ func buildTravelURL(location string, opts HotelSearchOptions) string {
 	query.Set("dates", opts.CheckIn+","+opts.CheckOut)
 	query.Set("adults", fmt.Sprintf("%d", opts.Guests))
 	query.Set("hl", "en")
-	query.Set("gl", "nl")
 	query.Set("currency", opts.Currency)
 
 	return fmt.Sprintf("https://www.google.com/travel/hotels/%s?%s", encoded, query.Encode())
