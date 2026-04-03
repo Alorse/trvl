@@ -187,9 +187,9 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		allRoutes = append(allRoutes, r.routes...)
 	}
 
-	// Filter out zero-price routes that indicate sold-out inventory, while
-	// preserving providers like Transitous that do not expose pricing at all.
+	// Filter out zero-price routes and deduplicate (same provider+time+price).
 	allRoutes = filterUnavailableGroundRoutes(allRoutes)
+	allRoutes = deduplicateGroundRoutes(allRoutes)
 
 	// Apply filters
 	if opts.MaxPrice > 0 {
@@ -233,6 +233,19 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 	}
 
 	return result, nil
+}
+
+func deduplicateGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
+	seen := make(map[string]bool)
+	result := routes[:0]
+	for _, r := range routes {
+		key := fmt.Sprintf("%s|%s|%.2f|%s", r.Provider, r.Departure.Time, r.Price, r.Arrival.Time)
+		if !seen[key] {
+			seen[key] = true
+			result = append(result, r)
+		}
+	}
+	return result
 }
 
 func filterUnavailableGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
