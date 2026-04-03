@@ -40,8 +40,8 @@ Read `~/.claude/travel-profile.md` if it exists. Apply all constraints:
 - Detect current location (don't assume home base)
 - Use the output format the user wants (exact details, not summaries)
 
-**Check Google Calendar** for the travel dates:
-- Use `gws calendar agenda` or Google Calendar MCP to see events on departure/arrival days
+**Check Google Calendar** (if available) for the travel dates:
+- Use `gws calendar agenda`, Google Calendar MCP, or `gcal_list_events` if connected
 - If meetings exist: constrain flight times around them (2h buffer after last meeting for departure, 1h before first meeting for arrival)
 - If the user hasn't specified dates: check calendar for free windows and suggest them
 - Flag ANY conflicts: "You have a 10:00 meeting on April 18. The 08:30 flight won't work — I'm looking at 14:00+ departures."
