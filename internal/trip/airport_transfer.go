@@ -15,7 +15,7 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
-var airportTransferCityProviders = []string{"flixbus", "regiojet", "eurostar", "db", "sncf"}
+var airportTransferCityProviders = []string{"flixbus", "regiojet", "eurostar", "db", "sncf", "trainline"}
 
 // AirportTransferInput configures an airport-to-destination ground search.
 type AirportTransferInput struct {
@@ -52,6 +52,7 @@ type airportTransferDeps struct {
 	geocode          func(context.Context, string) (destinations.GeoResult, error)
 	searchTransitous func(context.Context, float64, float64, float64, float64, string) ([]models.GroundRoute, error)
 	searchGround     func(context.Context, string, string, string, ground.SearchOptions) (*models.GroundSearchResult, error)
+	estimateTaxi     func(context.Context, ground.TaxiEstimateInput) (models.GroundRoute, error)
 }
 
 type airportTransferSearchOutcome struct {
@@ -70,6 +71,7 @@ var defaultAirportTransferDeps = airportTransferDeps{
 	geocode:          destinations.Geocode,
 	searchTransitous: ground.SearchTransitous,
 	searchGround:     ground.SearchByName,
+	estimateTaxi:     ground.EstimateTaxiTransfer,
 }
 
 // SearchAirportTransfers finds airport-to-destination ground transport options.
@@ -122,43 +124,88 @@ func searchAirportTransfers(ctx context.Context, input AirportTransferInput, dep
 		ArrivalTime:     input.ArrivalTime,
 	}
 
-	exactEnabled, cityProviders := splitAirportTransferProviders(input.Providers)
-	if !exactEnabled && len(cityProviders) == 0 {
+	transitousEnabled, taxiEnabled, cityProviders := splitAirportTransferProviders(input.Providers)
+	if !transitousEnabled && !taxiEnabled && len(cityProviders) == 0 {
 		result.Error = "no providers selected"
 		return result, nil
 	}
 
-	outcomes := make(chan airportTransferSearchOutcome, 2)
+	outcomes := make(chan airportTransferSearchOutcome, 3)
 	var wg sync.WaitGroup
 
-	if exactEnabled {
+	if transitousEnabled || taxiEnabled {
 		originGeo, err := deps.geocode(ctx, buildAirportTransferOriginQuery(airportName))
 		if err != nil {
-			outcomes <- airportTransferSearchOutcome{
-				label: "exact airport routing",
-				exact: true,
-				err:   fmt.Errorf("geocode airport: %w", err),
+			if transitousEnabled {
+				outcomes <- airportTransferSearchOutcome{
+					label: "exact airport routing",
+					exact: true,
+					err:   fmt.Errorf("geocode airport: %w", err),
+				}
+			}
+			if taxiEnabled {
+				outcomes <- airportTransferSearchOutcome{
+					label: "taxi estimate",
+					exact: true,
+					err:   fmt.Errorf("geocode airport: %w", err),
+				}
 			}
 		} else {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				routes, err := deps.searchTransitous(ctx, originGeo.Lat, originGeo.Lon, destinationGeo.Lat, destinationGeo.Lon, input.Date)
-				if err == nil {
-					bookingURL := ground.BuildTransitousURL(originGeo.Lat, originGeo.Lon, destinationGeo.Lat, destinationGeo.Lon)
-					for i := range routes {
-						if routes[i].BookingURL == "" {
-							routes[i].BookingURL = bookingURL
+			if transitousEnabled {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					routes, err := deps.searchTransitous(ctx, originGeo.Lat, originGeo.Lon, destinationGeo.Lat, destinationGeo.Lon, input.Date)
+					if err == nil {
+						bookingURL := ground.BuildTransitousURL(originGeo.Lat, originGeo.Lon, destinationGeo.Lat, destinationGeo.Lon)
+						for i := range routes {
+							if routes[i].BookingURL == "" {
+								routes[i].BookingURL = bookingURL
+							}
 						}
 					}
+					outcomes <- airportTransferSearchOutcome{
+						label:  "exact airport routing",
+						exact:  true,
+						routes: routes,
+						err:    err,
+					}
+				}()
+			}
+			if taxiEnabled {
+				if deps.estimateTaxi == nil {
+					outcomes <- airportTransferSearchOutcome{
+						label: "taxi estimate",
+						exact: true,
+						err:   fmt.Errorf("taxi estimate provider not configured"),
+					}
+				} else {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						route, err := deps.estimateTaxi(ctx, ground.TaxiEstimateInput{
+							FromName:    airportName,
+							ToName:      input.Destination,
+							FromLat:     originGeo.Lat,
+							FromLon:     originGeo.Lon,
+							ToLat:       destinationGeo.Lat,
+							ToLon:       destinationGeo.Lon,
+							CountryCode: destinationGeo.CountryCode,
+							Currency:    input.Currency,
+						})
+						var routes []models.GroundRoute
+						if err == nil {
+							routes = []models.GroundRoute{route}
+						}
+						outcomes <- airportTransferSearchOutcome{
+							label:  "taxi estimate",
+							exact:  true,
+							routes: routes,
+							err:    err,
+						}
+					}()
 				}
-				outcomes <- airportTransferSearchOutcome{
-					label:  "exact airport routing",
-					exact:  true,
-					routes: routes,
-					err:    err,
-				}
-			}()
+			}
 		}
 	}
 
@@ -213,6 +260,7 @@ func searchAirportTransfers(ctx context.Context, input AirportTransferInput, dep
 	}
 
 	routes := mergeAirportTransferRoutes(exactRoutes, cityRoutes)
+	routes = filterAirportTransferRoutesByConstraints(routes, input.MaxPrice, input.Type)
 	if earliestDeparture >= 0 {
 		routes = filterAirportTransferRoutes(routes, earliestDeparture)
 	}
@@ -233,15 +281,16 @@ func searchAirportTransfers(ctx context.Context, input AirportTransferInput, dep
 	return result, nil
 }
 
-func splitAirportTransferProviders(providers []string) (bool, []string) {
+func splitAirportTransferProviders(providers []string) (bool, bool, []string) {
 	if len(providers) == 0 {
-		return true, append([]string(nil), airportTransferCityProviders...)
+		return true, true, append([]string(nil), airportTransferCityProviders...)
 	}
 
 	var (
-		exactEnabled  bool
-		cityProviders []string
-		seen          = make(map[string]bool)
+		transitousEnabled bool
+		taxiEnabled       bool
+		cityProviders     []string
+		seen              = make(map[string]bool)
 	)
 	for _, provider := range providers {
 		provider = strings.ToLower(strings.TrimSpace(provider))
@@ -250,12 +299,34 @@ func splitAirportTransferProviders(providers []string) (bool, []string) {
 		}
 		seen[provider] = true
 		if provider == "transitous" {
-			exactEnabled = true
+			transitousEnabled = true
+			continue
+		}
+		if provider == "taxi" {
+			taxiEnabled = true
 			continue
 		}
 		cityProviders = append(cityProviders, provider)
 	}
-	return exactEnabled, cityProviders
+	return transitousEnabled, taxiEnabled, cityProviders
+}
+
+func filterAirportTransferRoutesByConstraints(routes []airportTransferRoute, maxPrice float64, typeFilter string) []airportTransferRoute {
+	if maxPrice <= 0 && typeFilter == "" {
+		return routes
+	}
+
+	filtered := routes[:0]
+	for _, route := range routes {
+		if typeFilter != "" && !strings.EqualFold(route.route.Type, typeFilter) {
+			continue
+		}
+		if maxPrice > 0 && route.route.Price > 0 && route.route.Price > maxPrice {
+			continue
+		}
+		filtered = append(filtered, route)
+	}
+	return filtered
 }
 
 func parseAirportTransferClock(value string) (int, error) {
@@ -337,6 +408,11 @@ func sortAirportTransferRoutes(routes []airportTransferRoute) {
 	sort.SliceStable(routes, func(i, j int) bool {
 		if routes[i].exact != routes[j].exact {
 			return routes[i].exact
+		}
+		taxiI := strings.EqualFold(routes[i].route.Type, "taxi")
+		taxiJ := strings.EqualFold(routes[j].route.Type, "taxi")
+		if taxiI != taxiJ {
+			return !taxiI
 		}
 		pricedI := routes[i].route.Price > 0
 		pricedJ := routes[j].route.Price > 0

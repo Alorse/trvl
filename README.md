@@ -9,9 +9,9 @@
 
 ![trvl demo](demo.gif)
 
-> **16 travel tools for your AI assistant — flights, hotels, trains, buses, price alerts, destination intel. Free. No API keys. One binary.**
+> **17 travel tools for your AI assistant — flights, hotels, trains, buses, price alerts, destination intel. Free. No API keys. One binary.**
 >
-> Also works as a standalone CLI with 19 commands.
+> Also works as a standalone CLI with 22 commands.
 
 ### What it looks like
 
@@ -110,7 +110,7 @@ Now Claude knows about trvl in every project — just say "search flights" or "p
 
 ### 4. Ask your AI to search
 
-That's it. Your AI assistant now has 16 travel tools available. Just ask naturally:
+That's it. Your AI assistant now has 17 travel tools available. Just ask naturally:
 
 - *"Search flights from JFK to Tokyo on July 1st, business class"*
 - *"Find hotels in Paris for July 1-5, at least 4 stars"*
@@ -142,10 +142,11 @@ That's it. Your AI assistant now has 16 travel tools available. Just ask natural
 | **nearby_places** | Find points of interest near a location | Restaurants, attractions near hotel |
 | **travel_guide** | Wikivoyage travel guide for a city | Neighbourhoods, getting around, safety |
 | **local_events** | Find events during your trip dates | Concerts, festivals, exhibitions |
-| **search_ground** | Search buses and trains (6 providers) | Prague -> Vienna, May 3rd, trains only |
-| **search_airport_transfers** | Search airport-to-hotel or airport-to-city ground transport | CDG -> Hotel Lutetia Paris, after 14:30 |
+| **search_ground** | Search buses and trains (7 providers) | Prague -> Vienna, May 3rd, trains only |
+| **search_airport_transfers** | Search airport-to-hotel or airport-to-city ground transport, plus taxi estimates | CDG -> Hotel Lutetia Paris, after 14:30 |
 | **search_restaurants** | Find restaurants near a location (Google Maps) | Barcelona, italian cuisine |
 | **search_deals** | Travel deals from 4 RSS feeds (error fares, flash sales) | Deals from HEL under EUR 400 |
+| **plan_trip** | Plan a complete trip — flights + hotel in one parallel search | AMS→PRG, Jun 15–18, EUR |
 
 ### MCP Protocol Features (v2025-11-25)
 
@@ -165,7 +166,7 @@ That's it. Your AI assistant now has 16 travel tools available. Just ask natural
 | Feature | trvl | fli | Google Flights | Skyscanner | Kiwi |
 |---------|------|-----|---------------|------------|------|
 | Flight search | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Bus/train search | ✅ (6 providers: FlixBus, RegioJet, Eurostar, DB, SNCF, Transitous) | ❌ | ❌ | ❌ | ❌ |
+| Bus/train search | ✅ (7 providers: FlixBus, RegioJet, Eurostar, DB, SNCF, Trainline, Transitous) | ❌ | ❌ | ❌ | ❌ |
 | Price tracking | ✅ (watches with alerts) | ❌ | ❌ | ❌ | ❌ |
 | Hotel search | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Hotel reviews | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -207,7 +208,9 @@ https://raw.githubusercontent.com/MikkoParkkola/trvl/main/llms.txt
 
 ## CLI Usage
 
-trvl also works as a standalone CLI tool with 21 commands:
+trvl also works as a standalone CLI tool with 22 commands:
+
+All search commands accept `--currency <CODE>` (e.g. `--currency EUR`) to convert displayed prices. trvl detects the actual API currency and converts at the display layer — no hardcoded currencies.
 
 ### Flights
 
@@ -258,8 +261,9 @@ trvl prices "<hotel_id>" --checkin 2026-06-15 --checkout 2026-06-18
 ### Explore Destinations
 
 ```bash
-trvl explore HEL                                   # Cheapest destinations from Helsinki
-trvl explore JFK --from 2026-07-01 --to 2026-07-14 # With dates
+trvl explore HEL                                        # Cheapest destinations from Helsinki
+trvl explore JFK --from 2026-07-01 --to 2026-07-14      # With dates
+trvl explore AMS --currency EUR                         # Display prices in EUR
 ```
 
 ### Price Grid
@@ -274,6 +278,15 @@ trvl grid HEL NRT --depart-from 2026-07-01 --depart-to 2026-07-07 \
 ```bash
 trvl destination "Tokyo"                           # Weather, safety, holidays, currency
 trvl destination "Barcelona" --dates 2026-07-01,2026-07-08
+```
+
+### Plan a Trip
+
+Search flights and hotels in one command. Runs both searches in parallel and shows a cost summary.
+
+```bash
+trvl trip AMS PRG --depart 2026-06-15 --return 2026-06-18 --currency EUR
+trvl trip JFK LHR --depart 2026-08-01 --return 2026-08-10 --guests 2
 ```
 
 ### Trip Cost
@@ -303,18 +316,23 @@ trvl multi-city HEL --visit BCN,ROM,PAR --dates 2026-07-01,2026-07-21
 
 ### Buses & Trains
 
-Searches 6 providers in parallel: FlixBus (buses, pan-European), RegioJet (buses+trains, CZ/SK/AT/HU/DE/PL), Eurostar/Snap (trains, London↔Paris/Brussels/Amsterdam/Cologne), Deutsche Bahn (trains, all European rail), SNCF (trains, French TGV/TER), and Transitous.org (transit routing, pan-European).
+Searches 7 providers in parallel: FlixBus (buses, pan-European), RegioJet (buses+trains, CZ/SK/AT/HU/DE/PL), Eurostar/Snap (trains, London↔Paris/Brussels/Amsterdam/Cologne), Deutsche Bahn (trains, all European rail), SNCF (trains, French TGV/TER), Trainline (aggregated rail across major European operators), and Transitous.org (transit routing, pan-European). Airport transfers also add taxi fare estimates for door-to-door comparisons.
+
+Trainline and some other providers require browser cookie auth to bypass CAPTCHA. trvl loads cookies from your browser automatically via `internal/cookies`.
 
 ```bash
-trvl ground Prague Vienna 2026-07-01                  # All 6 providers
+trvl ground Prague Vienna 2026-07-01                  # All 7 providers
 trvl ground London Paris 2026-07-01                   # Eurostar + FlixBus + DB
 trvl bus Prague Krakow 2026-07-01                     # Same command, bus alias
 trvl train Prague Vienna 2026-07-01 --type train      # Trains only
 trvl ground Prague Vienna 2026-07-01 --provider regiojet  # RegioJet only
 trvl ground Paris Lyon 2026-07-01 --provider sncf     # SNCF TGV only
+trvl ground Berlin Munich 2026-07-01 --provider db    # DB ICE (e.g. EUR 47.99)
+trvl ground London Paris 2026-07-01 --provider trainline  # Trainline aggregated rail
 trvl ground Prague Vienna 2026-07-01 --max-price 20   # Under EUR 20
 trvl airport-transfer CDG "Hotel Lutetia Paris" 2026-07-01
 trvl airport-transfer LHR "Paddington Station" 2026-07-01 --arrival-after 14:30
+trvl airport-transfer CDG "Hotel Lutetia Paris" 2026-07-01 --provider taxi
 ```
 
 ### Price Watch
@@ -337,6 +355,7 @@ Aggregates error fares, flash sales, and deals from 4 RSS feeds (Secret Flying, 
 ```bash
 trvl deals                                            # All recent deals
 trvl deals --from HEL,AMS --max-price 400             # From my airports, under €400
+trvl deals --from Helsinki,Amsterdam,Prague            # City names also accepted
 trvl deals --type error_fare                           # Error fares only
 ```
 
@@ -355,8 +374,9 @@ Google's travel frontend uses an internal gRPC-over-HTTP protocol called **batch
 9. **Trains (Eurostar)** — `site-api.eurostar.com/gateway` GraphQL for London↔Paris/Brussels/Amsterdam/Cologne
 10. **Trains (Deutsche Bahn)** — DB Vendo API (`int.bahn.de/web/api`) for all European rail connections
 11. **Trains (SNCF)** — SNCF Connect API for French TGV, TER, and Intercity routes
-12. **Transit (Transitous)** — `routing.spicebus.org` MOTIS2 API for pan-European transit routing
-13. **Rate limiting** — 10 req/s token bucket with exponential backoff on 429/5xx
+12. **Trains (Trainline)** — Trainline aggregated rail API across major European operators; browser cookie auth for CAPTCHA bypass
+13. **Transit (Transitous)** — `routing.spicebus.org` MOTIS2 API for pan-European transit routing
+14. **Rate limiting** — 10 req/s token bucket with exponential backoff on 429/5xx
 
 No Selenium. No Puppeteer. No browser. Just HTTP.
 
@@ -381,10 +401,10 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | | |
 |---|---|
 | **Binary** | Single static ~15MB. Zero runtime dependencies. |
-| **Data** | Real-time from 7 Google endpoints + FlixBus + RegioJet + Eurostar + Deutsche Bahn + SNCF + Transitous + 11 free APIs + Google Maps |
-| **Auth** | None required. Optional free API keys for events/restaurant ratings. |
+| **Data** | Real-time from 7 Google endpoints + FlixBus + RegioJet + Eurostar + Deutsche Bahn + SNCF + Trainline + Transitous + 11 free APIs + Google Maps |
+| **Auth** | None required. Browser cookies loaded automatically for CAPTCHA-protected providers (Trainline, Eurostar, SNCF). |
 | **MCP** | Full v2025-11-25 — 17 tools, 4 prompts, resources, structured content, sampling |
-| **CLI** | 21 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
+| **CLI** | 22 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
 | **Booking links** | Every flight and hotel result includes a direct Google booking link |
 | **Travel hacks** | 30+ hacks auto-applied: nearby airports, throw-away returns, hotel splits |
 | **Personal profile** | Remembers your FF status, luggage needs, favourite hotels, departure preferences |

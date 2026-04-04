@@ -77,7 +77,7 @@ func searchAirportTransfersTool() ToolDef {
 	return ToolDef{
 		Name:        "search_airport_transfers",
 		Title:       "Airport Transfer Search",
-		Description: "Search airport-to-hotel or airport-to-city ground transport. Lists exact airport routing first, then broader city-level providers.",
+		Description: "Search airport-to-hotel or airport-to-city ground transport. Lists exact airport routing first, adds taxi fare estimates, then broader city-level providers.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
@@ -86,9 +86,9 @@ func searchAirportTransfersTool() ToolDef {
 				"date":         {Type: "string", Description: "Travel date (YYYY-MM-DD)"},
 				"arrival_time": {Type: "string", Description: "Only include routes departing at or after this local time (HH:MM)"},
 				"currency":     {Type: "string", Description: "Price currency (default: EUR)"},
-				"type":         {Type: "string", Description: "Filter: bus, train, or empty for all"},
+				"type":         {Type: "string", Description: "Filter: bus, train, taxi, tram, metro, mixed, or empty for all"},
 				"max_price":    {Type: "number", Description: "Maximum price filter (0 = no limit)"},
-				"provider":     {Type: "string", Description: "Restrict to provider: transitous, flixbus, regiojet, eurostar, db, sncf"},
+				"provider":     {Type: "string", Description: "Restrict to provider: transitous, taxi, flixbus, regiojet, eurostar, db, sncf, trainline"},
 			},
 			Required: []string{"airport_code", "destination", "date"},
 		},
@@ -213,12 +213,24 @@ func handleSearchAirportTransfers(args map[string]any, elicit ElicitFunc, sampli
 	if result.CityMatches > 0 {
 		summary += fmt.Sprintf("\n\nExact airport matches are listed first (%d exact, %d broader city).", result.ExactMatches, result.CityMatches)
 	}
+	if groundRoutesHaveProvider(result.Routes, "taxi") {
+		summary += "\n\nTaxi fares are estimates based on route distance and typical local tariffs."
+	}
 
 	content, err := buildAnnotatedContentBlocks(summary, result)
 	if err != nil {
 		return nil, nil, err
 	}
 	return content, result, nil
+}
+
+func groundRoutesHaveProvider(routes []models.GroundRoute, provider string) bool {
+	for _, route := range routes {
+		if strings.EqualFold(route.Provider, provider) {
+			return true
+		}
+	}
+	return false
 }
 
 func buildGroundRouteSummary(header string, routes []models.GroundRoute) string {

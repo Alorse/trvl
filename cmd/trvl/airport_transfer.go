@@ -27,13 +27,15 @@ func airportTransferCmd() *cobra.Command {
 		Long: `Search airport transfer options from an arrival airport to a hotel,
 district, or city destination.
 
-trvl combines exact airport-to-destination transit routing with broader
-airport-city ground providers, then lists the precise airport matches first.
+trvl combines exact airport-to-destination transit routing, taxi fare estimates,
+and broader airport-city ground providers, then lists the precise airport
+matches first.
 
 Examples:
   trvl airport-transfer CDG "Hotel Lutetia Paris" 2026-07-01
   trvl airport-transfer LHR "Paddington Station" 2026-07-01 --arrival-after 14:30
   trvl airport-transfer FCO "Rome Termini" 2026-07-01 --provider transitous
+  trvl airport-transfer CDG "Hotel Lutetia Paris" 2026-07-01 --provider taxi
   trvl airport-transfer AMS "Amsterdam Centraal" 2026-07-01 --max-price 25`,
 		Args: cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -68,9 +70,9 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&currency, "currency", "", "Convert prices to this currency (e.g. EUR). Empty = provider default")
-	cmd.Flags().StringVar(&providers, "provider", "", "Restrict to providers (transitous,flixbus,regiojet,eurostar,db,sncf)")
+	cmd.Flags().StringVar(&providers, "provider", "", "Restrict to providers (transitous,taxi,flixbus,regiojet,eurostar,db,sncf,trainline)")
 	cmd.Flags().Float64Var(&maxPrice, "max-price", 0, "Maximum price filter")
-	cmd.Flags().StringVar(&typeFilter, "type", "", "Filter by type (bus, train)")
+	cmd.Flags().StringVar(&typeFilter, "type", "", "Filter by type (bus, train, taxi, tram, metro, mixed)")
 	cmd.Flags().StringVar(&arrivalAfter, "arrival-after", "", "Only include routes departing at or after this local time (HH:MM)")
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -111,5 +113,18 @@ func printAirportTransferTable(ctx context.Context, targetCurrency string, resul
 		fmt.Println()
 		fmt.Fprintln(os.Stdout, "Note: exact airport-to-destination matches are listed first; broader airport-city options follow.")
 	}
+	if hasAirportTransferProvider(result.Routes, "taxi") {
+		fmt.Println()
+		fmt.Fprintln(os.Stdout, "Taxi fares are estimates based on route distance and typical local tariffs.")
+	}
 	return nil
+}
+
+func hasAirportTransferProvider(routes []models.GroundRoute, provider string) bool {
+	for _, route := range routes {
+		if strings.EqualFold(route.Provider, provider) {
+			return true
+		}
+	}
+	return false
 }
