@@ -17,6 +17,9 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// trainlineSearchURL — trainline.eu requires auth (422), thetrainline.com returns 404.
+// The API may need browser session tokens. Chrome TLS + headers bypass Datadome,
+// but the search endpoint itself rejects unauthenticated requests.
 const trainlineSearchURL = "https://www.trainline.eu/api/v5_1/search"
 
 // trainlineLimiter: 5 req/min to be respectful
@@ -208,6 +211,8 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 		req.Header.Set("Sec-Fetch-Site", "same-origin")
 		req.Header.Set("Origin", "https://www.trainline.eu")
 		req.Header.Set("Referer", "https://www.trainline.eu/")
+		req.Header.Set("x-not-a-bot", "i-am-human")
+		req.Header.Set("X-Requested-With", "XMLHttpRequest")
 		if cookieHeader != "" {
 			req.Header.Set("Cookie", cookieHeader)
 		}
