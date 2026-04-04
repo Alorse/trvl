@@ -1,5 +1,5 @@
 # Binaries
-trvl
+/trvl
 /dist/
 *.exe
 *.dll
