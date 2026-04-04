@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/cookies"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"golang.org/x/time/rate"
@@ -22,7 +23,8 @@ const trainlineSearchURL = "https://www.trainline.eu/api/v5_1/search"
 var trainlineLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
 
 // trainlineClient is a shared HTTP client for Trainline.
-var trainlineClient = &http.Client{Timeout: 30 * time.Second}
+// Uses Chrome TLS fingerprint via utls to bypass Datadome bot detection.
+var trainlineClient = batchexec.ChromeHTTPClient()
 
 // trainlineSearchRequest is the JSON request body for Trainline search.
 type trainlineSearchRequest struct {
@@ -95,41 +97,41 @@ type trainlineFolder struct {
 // trainlineStations maps city names to Trainline station IDs.
 // Station IDs from: https://github.com/trainline-eu/stations
 var trainlineStations = map[string]string{
-	// Major European hubs
-	"london":      "4916", // London St Pancras
-	"paris":       "4718", // Paris (all stations)
-	"amsterdam":   "5765", // Amsterdam Centraal
-	"brussels":    "4717", // Brussels Midi/Zuid
-	"berlin":      "4809", // Berlin Hbf
-	"munich":      "4877", // München Hbf
-	"frankfurt":   "4837", // Frankfurt Hbf
-	"hamburg":     "4844", // Hamburg Hbf
-	"cologne":     "4862", // Köln Hbf
-	"vienna":      "4958", // Wien Hbf
-	"zurich":      "378",  // Zürich HB
-	"milan":       "5388", // Milano Centrale
-	"rome":        "5409", // Roma Termini
-	"barcelona":   "6263", // Barcelona Sants
-	"madrid":      "6327", // Madrid Puerta de Atocha
-	"prague":      "5011", // Praha hl.n.
-	"warsaw":      "5156", // Warszawa Centralna
-	"budapest":    "5037", // Budapest Keleti
-	"copenhagen":  "5505", // København H
-	"stockholm":   "5576", // Stockholm Central
-	"rotterdam":   "5784", // Rotterdam Centraal
-	"lille":       "4656", // Lille Europe
-	"lyon":        "4670", // Lyon Part-Dieu
-	"marseille":   "4683", // Marseille Saint-Charles
-	"nice":        "4694", // Nice Ville
-	"strasbourg":  "4736", // Strasbourg
-	"toulouse":    "4745", // Toulouse Matabiau
-	"venice":      "5465", // Venezia Santa Lucia
-	"florence":    "5386", // Firenze S.M.N.
-	"salzburg":    "4953", // Salzburg Hbf
-	"innsbruck":   "4944", // Innsbruck Hbf
-	"geneva":      "351",  // Genève
-	"basel":       "312",  // Basel SBB
-	"antwerp":     "4727", // Antwerpen Centraal
+	// IDs from trainline.eu/api/v5/stations (verified 2026-04-04)
+	"london":     "8267",
+	"paris":      "4916",
+	"amsterdam":  "8657",
+	"brussels":   "5893",
+	"berlin":     "7527",
+	"munich":     "7480",
+	"frankfurt":  "7604",
+	"hamburg":    "7626",
+	"cologne":    "21178",
+	"vienna":     "22644",
+	"zurich":     "6401",
+	"milan":      "8490",
+	"rome":       "8544",
+	"barcelona":  "6617",
+	"madrid":     "6663",
+	"prague":     "17587",
+	"warsaw":     "10491",
+	"budapest":   "18819",
+	"copenhagen": "17515",
+	"stockholm":  "38711",
+	"rotterdam":  "23616",
+	"lille":      "4652",
+	"lyon":       "4718",
+	"marseille":  "4790",
+	"nice":       "4836",
+	"strasbourg": "153",
+	"toulouse":   "5306",
+	"venice":     "8574",
+	"florence":   "8434",
+	"salzburg":   "6994",
+	"innsbruck":  "10461",
+	"geneva":     "5335",
+	"basel":      "5877",
+	"antwerp":    "5929",
 }
 
 // LookupTrainlineStation resolves a city name to a Trainline station ID.
@@ -162,19 +164,22 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 	}
 	departureISO := dateTime.Add(6 * time.Hour).Format("2006-01-02T15:04:05+00:00")
 
-	reqBody := trainlineSearchRequest{
-		Search: trainlineSearch{
-			DepartureDate:      departureISO,
-			DepartureStationID: fromID,
-			ArrivalStationID:   toID,
-			Passengers: []trainlinePassenger{
-				{ID: "p1", Age: 30, Cards: []string{}, Label: "adult"},
+	// Build raw request to ensure null fields are properly serialized.
+	reqMap := map[string]any{
+		"search": map[string]any{
+			"departure_date":       departureISO,
+			"departure_station_id": fromID,
+			"arrival_station_id":   toID,
+			"return_date":          nil,
+			"exchangeable_part":    nil,
+			"via":                  nil,
+			"passengers": []map[string]any{
+				{"id": "0", "age": 30, "cards": []any{}, "label": "adult"},
 			},
-			Systems: []string{"sncf", "db", "trenitalia", "renfe", "busbud", "ntv", "westbahn", "ouigo", "thalys", "eurostar", "flixbus"},
 		},
 	}
 
-	body, err := json.Marshal(reqBody)
+	body, err := json.Marshal(reqMap)
 	if err != nil {
 		return nil, fmt.Errorf("trainline marshal: %w", err)
 	}
@@ -192,15 +197,24 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 		}
 		req.Header.Set("Content-Type", "application/json; charset=UTF-8")
 		req.Header.Set("Accept", "application/json")
-		req.Header.Set("User-Agent", "CaptainTrain/1574360965(web) (Ember 3.5.1)")
-		req.Header.Set("Host", "www.trainline.eu")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		// Note: don't set Accept-Encoding manually — Go handles it automatically
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+		req.Header.Set("Sec-Ch-Ua", `"Chromium";v="131", "Not_A Brand";v="24"`)
+		req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
+		req.Header.Set("Sec-Ch-Ua-Platform", `"macOS"`)
+		req.Header.Set("Sec-Fetch-Dest", "empty")
+		req.Header.Set("Sec-Fetch-Mode", "cors")
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+		req.Header.Set("Origin", "https://www.trainline.eu")
+		req.Header.Set("Referer", "https://www.trainline.eu/")
 		if cookieHeader != "" {
 			req.Header.Set("Cookie", cookieHeader)
 		}
 		return req, nil
 	}
 
-	slog.Debug("trainline search", "from", from, "to", to, "date", date)
+	slog.Debug("trainline search", "from", from, "to", to, "date", date, "body", string(body))
 
 	req, err := newTrainlineRequest("")
 	if err != nil {

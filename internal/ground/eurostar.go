@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/cookies"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"golang.org/x/time/rate"
@@ -23,9 +24,8 @@ const eurostarGateway = "https://site-api.eurostar.com/gateway"
 var eurostarLimiter = rate.NewLimiter(rate.Every(20*time.Second), 1)
 
 // eurostarClient is a dedicated HTTP client for Eurostar API calls.
-var eurostarClient = &http.Client{
-	Timeout: 30 * time.Second,
-}
+// Uses Chrome TLS fingerprint via utls to bypass Datadome bot detection.
+var eurostarClient = batchexec.ChromeHTTPClient()
 
 // EurostarStation holds metadata for a Eurostar station.
 type EurostarStation struct {

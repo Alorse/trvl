@@ -405,5 +405,23 @@ func (c *Client) PostCalendarGrid(ctx context.Context, encodedPayload string) (i
 	return status, body, err
 }
 
+// ChromeHTTPClient returns an *http.Client with Chrome TLS fingerprint impersonation.
+// Ground transport providers (Trainline, Eurostar, SNCF) can use this to bypass
+// Datadome/Cloudflare bot detection, which fingerprints the TLS ClientHello.
+// Go's default TLS fingerprint is instantly detectable; this uses utls to mimic
+// Chrome's ClientHello exactly.
+func ChromeHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialTLSContext:      dialTLSChromeHTTP1,
+			MaxIdleConns:        10,
+			IdleConnTimeout:     30 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			ForceAttemptHTTP2:   false,
+		},
+		Timeout: 30 * time.Second,
+	}
+}
+
 // ErrBlocked is returned when Google responds with 403 Forbidden.
 var ErrBlocked = errors.New("request blocked (403)")

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/cookies"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"golang.org/x/time/rate"
@@ -26,9 +27,8 @@ const sncfCalendarEndpoint = "https://www.sncf-connect.com/calendar/cdp/api/publ
 var sncfLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
 
 // sncfClient is a dedicated HTTP client for SNCF API calls.
-var sncfClient = &http.Client{
-	Timeout: 30 * time.Second,
-}
+// Uses Chrome TLS fingerprint via utls to bypass Cloudflare bot detection.
+var sncfClient = batchexec.ChromeHTTPClient()
 
 // SNCFStation holds metadata for an SNCF station.
 type SNCFStation struct {
