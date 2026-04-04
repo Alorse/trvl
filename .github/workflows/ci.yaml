@@ -8,7 +8,10 @@ on:
 
 jobs:
   test:
+    permissions:
+      contents: write
     strategy:
+      fail-fast: false
       matrix:
         go-version: ["1.25"]
         os: [ubuntu-latest, windows-latest]
@@ -42,8 +45,19 @@ jobs:
             echo "::error::Coverage ${COVERAGE}% is below 60% threshold"
             exit 1
           fi
-      - name: Coverage badge
+      - name: Check coverage wiki
         if: runner.os != 'Windows' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        id: coverage_wiki
+        run: |
+          if git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.wiki" HEAD >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping coverage badge because ${GITHUB_REPOSITORY}.wiki is not enabled"
+          fi
+      - name: Coverage badge
+        if: runner.os != 'Windows' && github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.coverage_wiki.outputs.exists == 'true'
+        continue-on-error: true
         uses: ncruces/go-coverage-report@v0
         with:
           coverage-file: coverage.out

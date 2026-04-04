@@ -21,21 +21,21 @@ import (
 //   - Date range: DepartFrom + DepartTo set → checks cheapest across range
 //   - Route watch: no dates at all → checks next 60 days for cheapest on any date
 type Watch struct {
-	ID          string    `json:"id"`
-	Type        string    `json:"type"` // "flight" or "hotel"
-	Origin      string    `json:"origin"`
-	Destination string    `json:"destination"`
-	DepartDate  string    `json:"depart_date,omitempty"`
-	ReturnDate  string    `json:"return_date,omitempty"`
-	DepartFrom  string    `json:"depart_from,omitempty"` // date range start (YYYY-MM-DD)
-	DepartTo    string    `json:"depart_to,omitempty"`   // date range end (YYYY-MM-DD)
-	BelowPrice  float64   `json:"below_price"`
-	Currency    string    `json:"currency"`
-	CreatedAt   time.Time `json:"created_at"`
-	LastCheck   time.Time `json:"last_check"`
-	LastPrice   float64   `json:"last_price"`
-	LowestPrice float64   `json:"lowest_price"`
-	CheapestDate string   `json:"cheapest_date,omitempty"` // which date had the lowest price
+	ID           string    `json:"id"`
+	Type         string    `json:"type"` // "flight" or "hotel"
+	Origin       string    `json:"origin"`
+	Destination  string    `json:"destination"`
+	DepartDate   string    `json:"depart_date,omitempty"`
+	ReturnDate   string    `json:"return_date,omitempty"`
+	DepartFrom   string    `json:"depart_from,omitempty"` // date range start (YYYY-MM-DD)
+	DepartTo     string    `json:"depart_to,omitempty"`   // date range end (YYYY-MM-DD)
+	BelowPrice   float64   `json:"below_price"`
+	Currency     string    `json:"currency"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastCheck    time.Time `json:"last_check"`
+	LastPrice    float64   `json:"last_price"`
+	LowestPrice  float64   `json:"lowest_price"`
+	CheapestDate string    `json:"cheapest_date,omitempty"` // which date had the lowest price
 }
 
 // IsRouteWatch returns true if this watch monitors a route without specific dates.
@@ -46,6 +46,50 @@ func (w Watch) IsRouteWatch() bool {
 // IsDateRange returns true if this watch monitors a date range.
 func (w Watch) IsDateRange() bool {
 	return w.DepartFrom != "" && w.DepartTo != ""
+}
+
+const watchDateLayout = "2006-01-02"
+
+// Validate rejects malformed or ambiguous watch date combinations before they
+// get persisted and later fail during background checks.
+func (w Watch) Validate() error {
+	if err := validateWatchDate("depart date", w.DepartDate); err != nil {
+		return err
+	}
+	if err := validateWatchDate("return date", w.ReturnDate); err != nil {
+		return err
+	}
+	if err := validateWatchDate("date range start", w.DepartFrom); err != nil {
+		return err
+	}
+	if err := validateWatchDate("date range end", w.DepartTo); err != nil {
+		return err
+	}
+
+	if w.DepartDate != "" && (w.DepartFrom != "" || w.DepartTo != "") {
+		return fmt.Errorf("cannot combine a specific depart date with a date range")
+	}
+	if (w.DepartFrom == "") != (w.DepartTo == "") {
+		return fmt.Errorf("date range requires both start and end dates")
+	}
+	if w.IsDateRange() {
+		from, _ := time.Parse(watchDateLayout, w.DepartFrom)
+		to, _ := time.Parse(watchDateLayout, w.DepartTo)
+		if from.After(to) {
+			return fmt.Errorf("date range start must be on or before end")
+		}
+	}
+	return nil
+}
+
+func validateWatchDate(label, value string) error {
+	if value == "" {
+		return nil
+	}
+	if _, err := time.Parse(watchDateLayout, value); err != nil {
+		return fmt.Errorf("%s must use YYYY-MM-DD", label)
+	}
+	return nil
 }
 
 // PricePoint records a single price observation for a watch.
@@ -134,6 +178,10 @@ func (s *Store) saveLocked() error {
 func (s *Store) Add(w Watch) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if err := w.Validate(); err != nil {
+		return "", err
+	}
 
 	w.ID = shortID()
 	w.CreatedAt = time.Now()

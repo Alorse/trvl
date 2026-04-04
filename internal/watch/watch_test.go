@@ -130,6 +130,67 @@ func TestStoreLoadEmpty(t *testing.T) {
 	}
 }
 
+func TestStoreAddRejectsMalformedDates(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	_, err := store.Add(Watch{
+		Type:        "flight",
+		Origin:      "HEL",
+		Destination: "BCN",
+		DepartDate:  "not-a-date",
+		Currency:    "EUR",
+	})
+	if err == nil {
+		t.Fatal("expected malformed depart date error")
+	}
+	if got := err.Error(); got != "depart date must use YYYY-MM-DD" {
+		t.Fatalf("unexpected error: %q", got)
+	}
+	if got := store.List(); len(got) != 0 {
+		t.Fatalf("expected invalid watch to be rejected, got %d stored watches", len(got))
+	}
+}
+
+func TestStoreAddRejectsPartialDateRange(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	_, err := store.Add(Watch{
+		Type:        "flight",
+		Origin:      "HEL",
+		Destination: "BCN",
+		DepartFrom:  "2026-07-01",
+		Currency:    "EUR",
+	})
+	if err == nil {
+		t.Fatal("expected partial date range error")
+	}
+	if got := err.Error(); got != "date range requires both start and end dates" {
+		t.Fatalf("unexpected error: %q", got)
+	}
+}
+
+func TestStoreAddRejectsInvertedDateRange(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	_, err := store.Add(Watch{
+		Type:        "flight",
+		Origin:      "HEL",
+		Destination: "BCN",
+		DepartFrom:  "2026-07-10",
+		DepartTo:    "2026-07-01",
+		Currency:    "EUR",
+	})
+	if err == nil {
+		t.Fatal("expected inverted date range error")
+	}
+	if got := err.Error(); got != "date range start must be on or before end" {
+		t.Fatalf("unexpected error: %q", got)
+	}
+}
+
 func TestPriceHistory(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
