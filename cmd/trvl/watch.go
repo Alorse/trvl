@@ -32,6 +32,7 @@ Examples:
 		watchListCmd(),
 		watchRemoveCmd(),
 		watchCheckCmd(),
+		watchDaemonCmd(),
 		watchHistoryCmd(),
 	)
 	return cmd
@@ -221,32 +222,20 @@ func watchCheckCmd() *cobra.Command {
 		Short: "Check all watches for price changes",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			store, err := watch.DefaultStore()
-			if err != nil {
-				return err
-			}
-			if err := store.Load(); err != nil {
-				return err
-			}
-
-			watches := store.List()
-			if len(watches) == 0 {
-				fmt.Println("No active watches to check.")
-				return nil
-			}
-
-			ctx, cancel := context.WithTimeout(cmd.Context(), 60*time.Second)
-			defer cancel()
-
-			checker := &liveChecker{}
-			results := watch.CheckAll(ctx, store, checker)
-
 			notifier := &watch.Notifier{
 				Out:      os.Stdout,
 				UseColor: models.UseColor,
 				Desktop:  true,
 			}
-			notifier.NotifyAll(results)
+
+			count, err := runWatchCheckCycle(cmd.Context(), &liveChecker{}, notifier)
+			if err != nil {
+				return err
+			}
+			if count == 0 {
+				fmt.Println("No active watches to check.")
+				return nil
+			}
 			return nil
 		},
 	}

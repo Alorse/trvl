@@ -42,7 +42,6 @@ capabilities/       mcp-gateway YAML files
 - [ ] **Non-European ground transport** — Amtrak (US), JR (Japan), KTX (Korea) providers
 - [ ] **Booking.com affiliate API** — apply at partnerships.booking.com, integrate hotel prices
 - [ ] **Skyscanner affiliate API** — apply at partners.skyscanner.net, add flight meta-search
-- [ ] **`trvl watch` daemon mode** — run price checks on a schedule (cron/interval)
 - [ ] **Calendar integration** — check Google/Apple Calendar for conflicts before suggesting dates
 - [ ] **Saved itinerary export** — export planned trips as ICS calendar events
 - [ ] **More airport names** — expand `internal/models/airports.go` beyond 200

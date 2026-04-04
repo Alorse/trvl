@@ -357,7 +357,7 @@ func TestDealsCmd_Flags(t *testing.T) {
 
 func TestWatchCmd_HasSubcommands(t *testing.T) {
 	cmd := watchCmd()
-	expected := []string{"add", "list", "remove", "check", "history"}
+	expected := []string{"add", "list", "remove", "check", "daemon", "history"}
 	names := make(map[string]bool)
 	for _, c := range cmd.Commands() {
 		names[c.Name()] = true
@@ -455,6 +455,37 @@ func TestWatchCheckCmd_NoArgs(t *testing.T) {
 	cmd.SetArgs([]string{"extra"})
 	if err := cmd.Execute(); err == nil {
 		t.Error("expected error with unexpected args")
+	}
+}
+
+func TestWatchDaemonCmd_NoArgs(t *testing.T) {
+	cmd := watchDaemonCmd()
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	cmd.SetArgs([]string{"extra"})
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected error with unexpected args")
+	}
+}
+
+func TestWatchDaemonCmd_Flags(t *testing.T) {
+	cmd := watchDaemonCmd()
+	flags := []struct {
+		name     string
+		defValue string
+	}{
+		{"every", "6h0m0s"},
+		{"run-now", "true"},
+	}
+	for _, tt := range flags {
+		f := cmd.Flags().Lookup(tt.name)
+		if f == nil {
+			t.Errorf("watch daemon missing --%s flag", tt.name)
+			continue
+		}
+		if f.DefValue != tt.defValue {
+			t.Errorf("watch daemon --%s default = %q, want %q", tt.name, f.DefValue, tt.defValue)
+		}
 	}
 }
 

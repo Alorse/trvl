@@ -322,6 +322,7 @@ Track flight and hotel prices over time. Get alerts when prices drop below a thr
 trvl watch add HEL BCN --depart 2026-07-01 --return 2026-07-08 --below 200
 trvl watch list                                       # Show all active watches
 trvl watch check                                      # Check current prices
+trvl watch daemon --every 6h                          # Keep checking on a schedule
 trvl watch history <id>                               # Price history for a watch
 trvl watch remove <id>                                # Remove a watch
 ```
@@ -380,7 +381,7 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | **Data** | Real-time from 7 Google endpoints + FlixBus + RegioJet + Eurostar + Deutsche Bahn + SNCF + Transitous + 11 free APIs + Google Maps |
 | **Auth** | None required. Optional free API keys for events/restaurant ratings. |
 | **MCP** | Full v2025-11-25 — 16 tools, 4 prompts, resources, structured content, sampling |
-| **CLI** | 20 commands (+ 5 watch subcommands) with table/JSON output, color, shell completion |
+| **CLI** | 20 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
 | **Booking links** | Every flight and hotel result includes a direct Google booking link |
 | **Travel hacks** | 30+ hacks auto-applied: nearby airports, throw-away returns, hotel splits |
 | **Personal profile** | Remembers your FF status, luggage needs, favourite hotels, departure preferences |
