@@ -15,11 +15,15 @@ Set CursorBlink false
 # ─────────────────────────────────────────────────────────
 
 Hide
-# Trip first — needs flights + hotels, give it fresh rate-limit budget
+# Explore first — lightweight, warms up currency detection cache
+Type "trvl explore AMS --from 2026-06-12 --to 2026-06-14 --currency EUR 2>/dev/null"
+Enter
+Sleep 45s
+# Trip — needs flights + hotels
 Type "trvl trip AMS PRG --depart 2026-06-15 --return 2026-06-18 --currency EUR 2>/dev/null"
 Enter
 Sleep 60s
-# Non-Google APIs next (RSS feeds, no rate-limit competition)
+# Non-Google APIs (RSS feeds, ground transport, destination)
 Type "trvl deals --from Amsterdam --hours 72 2>/dev/null"
 Enter
 Sleep 15s
@@ -29,10 +33,7 @@ Sleep 45s
 Type "trvl destination Prague 2>/dev/null"
 Enter
 Sleep 15s
-# Google APIs — spaced out after trip has its results cached
-Type "trvl explore AMS --currency EUR 2>/dev/null"
-Enter
-Sleep 45s
+# Remaining Google APIs — currency already cached from explore
 Type "trvl dates AMS PRG --from 2026-06-10 --to 2026-06-20 --currency EUR 2>/dev/null"
 Enter
 Sleep 15s
@@ -48,37 +49,21 @@ Sleep 500ms
 Show
 
 # ═══════════════════════════════════════════════════════════
-# ACT 1: Discovery — "Where should I go?"
+# ACT 1: "Where should I go this weekend?"
 # ═══════════════════════════════════════════════════════════
 
-Type "# Where's cheap from Amsterdam right now?"
+Type "# Where's cheap from Amsterdam this weekend?"
 Enter
 Sleep 300ms
-Type "trvl explore AMS --currency EUR"
+Type "trvl explore AMS --from 2026-06-12 --to 2026-06-14 --currency EUR"
 Enter
 Sleep 10s
 
-# clear before next command so deals table gets full screen
 Type "clear"
 Enter
 Sleep 300ms
 
-Type "# Any hot deals from Amsterdam?"
-Enter
-Sleep 300ms
-Type "trvl deals --from Amsterdam --hours 72"
-Enter
-Sleep 8s
-
-# ═══════════════════════════════════════════════════════════
-# ACT 2: Planning — "Prague! When's cheapest?"
-# ═══════════════════════════════════════════════════════════
-
-Type "clear"
-Enter
-Sleep 300ms
-
-Type "# Cheapest dates to fly AMS -> Prague"
+Type "# Prague looks good! Cheapest dates in June?"
 Enter
 Sleep 300ms
 Type "trvl dates AMS PRG --from 2026-06-10 --to 2026-06-20 --currency EUR"
@@ -97,25 +82,29 @@ Enter
 Sleep 10s
 
 # ═══════════════════════════════════════════════════════════
-# ACT 3: Booking — "Plan the whole trip in one search"
+# ACT 2: "Plan the whole trip — flights + hotel"
 # ═══════════════════════════════════════════════════════════
 
 Type "clear"
 Enter
 Sleep 300ms
 
-Type "# One search: flights + hotel + cost summary"
+Type "# One search: flights + hotel + total cost"
 Enter
 Sleep 300ms
 Type "trvl trip AMS PRG --depart 2026-06-15 --return 2026-06-18 --currency EUR"
 Enter
 Sleep 12s
 
+# ═══════════════════════════════════════════════════════════
+# ACT 3: "Find better prices with multi-airport search"
+# ═══════════════════════════════════════════════════════════
+
 Type "clear"
 Enter
 Sleep 300ms
 
-Type "# More options? Search AMS *and* EIN airports at once"
+Type "# Search AMS *and* Eindhoven at once — find the cheapest"
 Enter
 Sleep 300ms
 Type "trvl flights AMS,EIN PRG 2026-06-15 --stops 1 --currency EUR"
@@ -123,14 +112,14 @@ Enter
 Sleep 8s
 
 # ═══════════════════════════════════════════════════════════
-# ACT 4: Travel onward + monitor
+# ACT 4: "After Prague — ground transport + monitoring"
 # ═══════════════════════════════════════════════════════════
 
 Type "clear"
 Enter
 Sleep 300ms
 
-Type "# After Prague — train or bus to Vienna?"
+Type "# After Prague — bus or train to Vienna from EUR 9.90"
 Enter
 Sleep 300ms
 Type "trvl ground Prague Vienna 2026-06-18 --currency EUR"
@@ -141,7 +130,7 @@ Type "clear"
 Enter
 Sleep 300ms
 
-Type "# Track the route — alert me if price drops below 80"
+Type "# Track prices — alert me if flights drop below EUR 80"
 Enter
 Sleep 300ms
 Type "trvl watch add AMS PRG --below 80 --currency EUR"
@@ -152,7 +141,7 @@ Type ""
 Enter
 Sleep 500ms
 
-Type "# What's Prague like? Weather, holidays, currency, safety"
+Type "# What's Prague like? Weather, holidays, currency"
 Enter
 Sleep 300ms
 Type "trvl destination Prague"
