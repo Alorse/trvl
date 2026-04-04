@@ -124,8 +124,9 @@ func printDealsTable(ctx context.Context, targetCurrency string, result *deals.D
 		}
 
 		title := d.Title
-		if len(title) > 60 {
-			title = title[:57] + "..."
+		titleRunes := []rune(title)
+		if len(titleRunes) > 60 {
+			title = string(titleRunes[:57]) + "..."
 		}
 
 		sourceName := d.Source
