@@ -128,16 +128,19 @@ func (c *Client) SetRateLimit(rps float64) {
 // Not unit-testable: requires real TCP connection + TLS handshake with remote server.
 // Covered by integration tests (proof_test.go).
 func dialTLSChromeHTTP1(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("split host: %w", err)
+	}
+
+	return dialTLSChromeHTTP1WithConfig(ctx, network, addr, &utls.Config{ServerName: host})
+}
+
+func dialTLSChromeHTTP1WithConfig(ctx context.Context, network, addr string, tlsConfig *utls.Config) (net.Conn, error) {
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	rawConn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial tcp: %w", err)
-	}
-
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		rawConn.Close()
-		return nil, fmt.Errorf("split host: %w", err)
 	}
 
 	// Build a Chrome-like spec but with ALPN forced to HTTP/1.1.
@@ -154,9 +157,7 @@ func dialTLSChromeHTTP1(ctx context.Context, network, addr string) (net.Conn, er
 	}
 
 	// HelloCustom tells utls to use our spec verbatim instead of a preset.
-	uConn := utls.UClient(rawConn, &utls.Config{
-		ServerName: host,
-	}, utls.HelloCustom)
+	uConn := utls.UClient(rawConn, tlsConfig, utls.HelloCustom)
 
 	if err := uConn.ApplyPreset(&spec); err != nil {
 		uConn.Close()

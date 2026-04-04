@@ -2,12 +2,18 @@ package batchexec
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	utls "github.com/refraction-networking/utls"
 	"golang.org/x/time/rate"
 )
 
@@ -44,6 +50,63 @@ func TestSetRateLimit(t *testing.T) {
 	c.SetRateLimit(100.0)
 	if c.limiter.Limit() != rate.Limit(100.0) {
 		t.Errorf("limiter rate = %v, want 100.0", c.limiter.Limit())
+	}
+}
+
+func TestDialTLSChromeHTTP1WithConfig_UsesHTTP1ALPN(t *testing.T) {
+	var (
+		mu                sync.Mutex
+		clientHelloProtos []string
+	)
+
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	ts.TLS = &tls.Config{
+		NextProtos: []string{"h2", "http/1.1"},
+		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+			mu.Lock()
+			clientHelloProtos = append([]string(nil), info.SupportedProtos...)
+			mu.Unlock()
+			return nil, nil
+		},
+	}
+	ts.StartTLS()
+	defer ts.Close()
+
+	host, _, err := net.SplitHostPort(ts.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("SplitHostPort: %v", err)
+	}
+
+	pool := x509.NewCertPool()
+	pool.AddCert(ts.Certificate())
+
+	conn, err := dialTLSChromeHTTP1WithConfig(context.Background(), "tcp", ts.Listener.Addr().String(), &utls.Config{
+		ServerName: host,
+		RootCAs:    pool,
+	})
+	if err != nil {
+		t.Fatalf("dialTLSChromeHTTP1WithConfig: %v", err)
+	}
+	defer conn.Close()
+
+	uConn, ok := conn.(*utls.UConn)
+	if !ok {
+		t.Fatalf("conn type = %T, want *utls.UConn", conn)
+	}
+
+	state := uConn.ConnectionState()
+	if !state.HandshakeComplete {
+		t.Fatal("expected completed handshake")
+	}
+	if state.NegotiatedProtocol != "http/1.1" {
+		t.Fatalf("negotiated protocol = %q, want %q", state.NegotiatedProtocol, "http/1.1")
+	}
+
+	mu.Lock()
+	gotProtos := append([]string(nil), clientHelloProtos...)
+	mu.Unlock()
+	if !reflect.DeepEqual(gotProtos, []string{"http/1.1"}) {
+		t.Fatalf("client hello ALPN = %v, want %v", gotProtos, []string{"http/1.1"})
 	}
 }
 
@@ -347,8 +410,8 @@ func TestIsRetryable(t *testing.T) {
 		{401, false},
 		{403, false},
 		{404, false},
-		{429, true},  // rate limit
-		{500, true},  // server error
+		{429, true}, // rate limit
+		{500, true}, // server error
 		{502, true},
 		{503, true},
 		{504, true},
