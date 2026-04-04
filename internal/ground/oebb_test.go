@@ -180,12 +180,19 @@ func TestOebbParseDuration(t *testing.T) {
 		dur  string
 		want int
 	}{
+		// 6-char "HHMMSS" format (actual HAFAS response)
+		{"041300", 253}, // 4h 13m = 253 min
+		{"041700", 257}, // 4h 17m
+		{"051100", 311}, // 5h 11m
+		{"000000", 0},
+		// 7-char "DHHMMSS" format (legacy / overnight)
 		{"0035500", 235}, // 0d 3h 55m = 235 min
 		{"0010000", 60},  // 0d 1h 0m
 		{"0020000", 120}, // 0d 2h 0m
-		{"1000000", 1440}, // 1d 0h 0m
-		{"", 0},
+		{"1000000", 1440}, // 1d 0h 0m = 1440 min
 		{"0000000", 0},
+		// Edge cases
+		{"", 0},
 	}
 
 	for _, tt := range tests {
@@ -236,15 +243,16 @@ func TestParseOebbConnections_Basic(t *testing.T) {
 		},
 		OutConL: []oebbCon{
 			{
-				Dep: oebbConStop{DDateS: "20260715", DTimeS: "080000", LocX: 0},
-				Arr: oebbConStop{ADateS: "20260715", ATimeS: "123000", LocX: 1},
-				Dur: "0043000", // 4h 30m = 270 min
-				CHG: 0,
+				Date: "20260715",
+				Dep:  oebbConStop{DTimeS: "080000", LocX: 0},
+				Arr:  oebbConStop{ATimeS: "123000", LocX: 1},
+				Dur:  "043000", // 4h 30m = 270 min
+				CHG:  0,
 				SecL: []oebbSec{
 					{
 						Type: "JNY",
-						Dep:  oebbConStop{DDateS: "20260715", DTimeS: "080000", LocX: 0},
-						Arr:  oebbConStop{ADateS: "20260715", ATimeS: "123000", LocX: 1},
+						Dep:  oebbConStop{DTimeS: "080000", LocX: 0},
+						Arr:  oebbConStop{ATimeS: "123000", LocX: 1},
 						JnyL: &oebbJny{ProdX: 0},
 					},
 				},
@@ -313,21 +321,22 @@ func TestParseOebbConnections_MultiLeg(t *testing.T) {
 		},
 		OutConL: []oebbCon{
 			{
-				Dep: oebbConStop{DDateS: "20260715", DTimeS: "080000", LocX: 0},
-				Arr: oebbConStop{ADateS: "20260715", ATimeS: "130000", LocX: 2},
-				Dur: "0050000", // 5h
-				CHG: 1,
+				Date: "20260715",
+				Dep:  oebbConStop{DTimeS: "080000", LocX: 0},
+				Arr:  oebbConStop{ATimeS: "130000", LocX: 2},
+				Dur:  "050000", // 5h 0m = 300 min
+				CHG:  1,
 				SecL: []oebbSec{
 					{
 						Type: "JNY",
-						Dep:  oebbConStop{DDateS: "20260715", DTimeS: "080000", LocX: 0},
-						Arr:  oebbConStop{ADateS: "20260715", ATimeS: "103000", LocX: 1},
+						Dep:  oebbConStop{DTimeS: "080000", LocX: 0},
+						Arr:  oebbConStop{ATimeS: "103000", LocX: 1},
 						JnyL: &oebbJny{ProdX: 0},
 					},
 					{
 						Type: "JNY",
-						Dep:  oebbConStop{DDateS: "20260715", DTimeS: "110000", LocX: 1},
-						Arr:  oebbConStop{ADateS: "20260715", ATimeS: "130000", LocX: 2},
+						Dep:  oebbConStop{DTimeS: "110000", LocX: 1},
+						Arr:  oebbConStop{ATimeS: "130000", LocX: 2},
 						JnyL: &oebbJny{ProdX: 1},
 					},
 				},

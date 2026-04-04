@@ -207,16 +207,14 @@ type oebbCon struct {
 	SecL    []oebbSec    `json:"secL"`
 	TrfRes  *oebbTrfRes  `json:"trfRes,omitempty"`
 	CHG     int          `json:"chg"` // number of changes
-	Dur     string       `json:"dur"` // "dHHMMSS" format
+	Dur     string       `json:"dur"` // "HHMMSS" format (e.g. "041300" = 4h 13m)
+	Date    string       `json:"date"` // connection date "YYYYMMDD" (e.g. "20260410")
 }
 
 type oebbConStop struct {
-	// dTimeS/aTimeS = scheduled time (HHMMSS string)
+	// dTimeS/aTimeS = scheduled time (HHMMSS string), no date — use con.Date
 	DTimeS  string `json:"dTimeS,omitempty"`
 	ATimeS  string `json:"aTimeS,omitempty"`
-	// dDateS/aDateS = scheduled date (YYYYMMDD string)
-	DDateS  string `json:"dDateS,omitempty"`
-	ADateS  string `json:"aDateS,omitempty"`
 	LocX    int    `json:"locX"`
 }
 
@@ -334,8 +332,10 @@ func parseOebbConnections(res oebbTripRes, fromStation, toStation oebbStation, s
 
 	for _, con := range res.OutConL {
 		// Parse departure and arrival times.
-		depTime := oebbParseDateTime(con.Dep.DDateS, con.Dep.DTimeS)
-		arrTime := oebbParseDateTime(con.Arr.ADateS, con.Arr.ATimeS)
+		// HAFAS puts the date on the connection (con.Date = "YYYYMMDD"),
+		// not on the individual stop. Arrival may be next-day when time wraps past 2359.
+		depTime := oebbParseDateTime(con.Date, con.Dep.DTimeS)
+		arrTime := oebbParseDateTime(con.Date, con.Arr.ATimeS)
 
 		// Duration from "dHHMMSS" field, fallback to computed.
 		duration := oebbParseDuration(con.Dur)
@@ -380,8 +380,8 @@ func parseOebbConnections(res oebbTripRes, fromStation, toStation oebbStation, s
 			if sec.Type != "JNY" {
 				continue
 			}
-			legDep := oebbParseDateTime(sec.Dep.DDateS, sec.Dep.DTimeS)
-			legArr := oebbParseDateTime(sec.Arr.ADateS, sec.Arr.ATimeS)
+			legDep := oebbParseDateTime(con.Date, sec.Dep.DTimeS)
+			legArr := oebbParseDateTime(con.Date, sec.Arr.ATimeS)
 
 			legProvider := ""
 			if sec.JnyL != nil && sec.JnyL.ProdX >= 0 && sec.JnyL.ProdX < len(res.Common.ProdL) {
@@ -438,23 +438,23 @@ func parseOebbConnections(res oebbTripRes, fromStation, toStation oebbStation, s
 }
 
 // oebbParseDateTime converts HAFAS date (YYYYMMDD) + time (HHMMSS) to ISO 8601.
-// Time may be >235959 when it wraps to next day.
+// HAFAS puts the date on the connection, not the stop. Stops only carry HHMMSS.
+// Time may be ≥240000 when the journey crosses midnight (e.g. "250000" = 01:00 next day).
 func oebbParseDateTime(dateS, timeS string) string {
 	if dateS == "" || timeS == "" {
 		return ""
 	}
-	// Pad time to 6 digits.
+	// Pad time to 6 digits in case leading zeros were dropped.
 	for len(timeS) < 6 {
 		timeS = "0" + timeS
 	}
 
-	// Handle day-overflow in time (e.g. "250000" = 01:00 next day).
-	extra := 0
+	// Handle day-overflow: HAFAS encodes next-day arrivals as hour ≥ 24.
+	extraDays := 0
 	hh := 0
 	if len(timeS) >= 2 {
-		_, err := fmt.Sscanf(timeS[:2], "%d", &hh)
-		if err == nil && hh >= 24 {
-			extra = hh / 24
+		if _, err := fmt.Sscanf(timeS[:2], "%d", &hh); err == nil && hh >= 24 {
+			extraDays = hh / 24
 			hh = hh % 24
 			timeS = fmt.Sprintf("%02d%s", hh, timeS[2:])
 		}
@@ -464,28 +464,41 @@ func oebbParseDateTime(dateS, timeS string) string {
 	if err != nil {
 		return ""
 	}
-	t = t.Add(time.Duration(extra) * 24 * time.Hour)
+	if extraDays > 0 {
+		t = t.Add(time.Duration(extraDays) * 24 * time.Hour)
+	}
 	return t.Format("2006-01-02T15:04:05")
 }
 
-// oebbParseDuration parses the HAFAS "dHHMMSS" duration string to minutes.
+// oebbParseDuration parses the HAFAS duration string to minutes.
+// HAFAS returns "HHMMSS" (6 chars, e.g. "041300" = 4h 13m 0s = 253 min)
+// or occasionally "DHHMMSS" (7 chars with a leading day digit).
 func oebbParseDuration(dur string) int {
-	if len(dur) < 7 {
+	switch len(dur) {
+	case 6:
+		// "HHMMSS"
+		hh, mm := 0, 0
+		if _, err := fmt.Sscanf(dur[0:2], "%d", &hh); err != nil {
+			return 0
+		}
+		if _, err := fmt.Sscanf(dur[2:4], "%d", &mm); err != nil {
+			return 0
+		}
+		return hh*60 + mm
+	case 7:
+		// "DHHMMSS" where D is days digit
+		days := int(dur[0] - '0')
+		hh, mm := 0, 0
+		if _, err := fmt.Sscanf(dur[1:3], "%d", &hh); err != nil {
+			return 0
+		}
+		if _, err := fmt.Sscanf(dur[3:5], "%d", &mm); err != nil {
+			return 0
+		}
+		return days*24*60 + hh*60 + mm
+	default:
 		return 0
 	}
-	// Format: "dHHMMSS" where d is 0-9 days.
-	// e.g. "0035500" = 0 days, 3h 55m 0s = 235 minutes
-	days := int(dur[0] - '0')
-	hh, mm := 0, 0
-	_, err := fmt.Sscanf(dur[1:3], "%d", &hh)
-	if err != nil {
-		return 0
-	}
-	_, err = fmt.Sscanf(dur[3:5], "%d", &mm)
-	if err != nil {
-		return 0
-	}
-	return days*24*60 + hh*60 + mm
 }
 
 // buildOebbBookingURL constructs a fahrplan.oebb.at booking URL.
