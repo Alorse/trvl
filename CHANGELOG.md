@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `trvl trip` command: one-search trip planning (flights + hotels + ground in parallel)
+- Renfe Spanish Railways provider (11th ground transport provider): AVE high-speed and regional rail via Playwright browser scraper; fares EUR 36+ (`renfe.go`)
+- SNCF curl-based BFF fallback: shells out to macOS `curl` (BoringSSL TLS fingerprint bypasses Datadome) before trying Playwright scraper; tries three known BFF API paths (`sncf.go`)
 - VR Finnish Railways provider (10th ground transport provider) via Digitransit GraphQL API; fixed fares EUR 14+ (`digitransit.go`)
 - ÖBB Austrian Railways provider via browser automation (Playwright scraper); live Railjet fares EUR 38+ (`oebb.go`, `browser_scraper.go`)
 - NS Dutch Railways provider: schedule search via public API with embedded key (`ns.go`)
@@ -21,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - IATA alias map with 34 airport codes mapped to city names for deal filtering
 
 ### Changed
-- Ground transport expanded from 7 to 10 providers (added VR Finnish Railways, ÖBB Austrian Railways, NS Dutch Railways)
+- Ground transport expanded from 7 to 11 providers (added VR Finnish Railways, ÖBB Austrian Railways, NS Dutch Railways, Renfe Spanish Railways)
 - `--currency` flag now available on all 22 CLI commands (dates, explore, grid, ground, deals, weekend, suggest, multi-city — previously flights + hotels only)
 - Ground transport deduplication: same provider + time + price collapsed into one row (`7e82ede`)
 - Demo GIF rewritten as 4-act narrative: Discover / Plan / Book / Monitor (`85385b7`, `181eab3`)
