@@ -482,14 +482,14 @@ func TestDBBestPriceResponse_Decode(t *testing.T) {
 		wantCur   string
 	}{
 		{
-			name:      "preis field",
-			json:      `{"preis":{"betrag":39.90,"waehrung":"EUR"}}`,
+			name:      "interval with angebotsPreis",
+			json:      `{"tagesbestPreisIntervalle":[{"angebotsPreis":{"betrag":39.90,"waehrung":"EUR"}}]}`,
 			wantPrice: 39.90,
 			wantCur:   "EUR",
 		},
 		{
-			name:      "ab field",
-			json:      `{"ab":{"betrag":49.00,"waehrung":"EUR"}}`,
+			name:      "multiple intervals cheapest wins",
+			json:      `{"tagesbestPreisIntervalle":[{"angebotsPreis":{"betrag":74.99,"waehrung":"EUR"}},{"angebotsPreis":{"betrag":49.00,"waehrung":"EUR"}}]}`,
 			wantPrice: 49.00,
 			wantCur:   "EUR",
 		},
@@ -509,12 +509,13 @@ func TestDBBestPriceResponse_Decode(t *testing.T) {
 			}
 			gotPrice := 0.0
 			gotCur := ""
-			if r.Preis != nil && r.Preis.Betrag > 0 {
-				gotPrice = r.Preis.Betrag
-				gotCur = r.Preis.Waehrung
-			} else if r.Ab != nil && r.Ab.Betrag > 0 {
-				gotPrice = r.Ab.Betrag
-				gotCur = r.Ab.Waehrung
+			for _, itv := range r.TagesbestPreisIntervalle {
+				if itv.AngebotsPreis != nil && itv.AngebotsPreis.Betrag > 0 {
+					if gotPrice == 0 || itv.AngebotsPreis.Betrag < gotPrice {
+						gotPrice = itv.AngebotsPreis.Betrag
+						gotCur = itv.AngebotsPreis.Waehrung
+					}
+				}
 			}
 			if gotPrice != tt.wantPrice {
 				t.Errorf("price = %f, want %f", gotPrice, tt.wantPrice)
