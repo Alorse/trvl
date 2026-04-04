@@ -123,23 +123,29 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 	}
 
 	// Eurostar — only if both cities have Eurostar stations.
-	// Try Snap (last-minute deals) first — if no Snap fares, fall back to regular.
-	if (useProvider("eurostar") || useProvider("eurostar_snap")) && HasEurostarRoute(from, to) {
+	// Search both Snap (last-minute deals) and regular fares in parallel so the
+	// user sees both options (e.g. "eurostar snap GBP 39" and "eurostar GBP 130").
+	if (useProvider("eurostar") || useProvider("eurostar snap")) && HasEurostarRoute(from, to) {
+		// Eurostar cheapestFaresSearch needs a date range (not a single day).
+		// Use the requested date as start, +7 days as end.
+		endDate := date // fallback
+		if t, err := time.Parse("2006-01-02", date); err == nil {
+			endDate = t.AddDate(0, 0, 7).Format("2006-01-02")
+		}
+
+		// Snap fares goroutine.
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// Eurostar cheapestFaresSearch needs a date range (not a single day).
-			// Use the requested date as start, +7 days as end.
-			endDate := date // fallback
-			if t, err := time.Parse("2006-01-02", date); err == nil {
-				endDate = t.AddDate(0, 0, 7).Format("2006-01-02")
-			}
-			// Try Snap first (preferred — better value), fall back to regular.
 			routes, err := SearchEurostar(ctx, from, to, date, endDate, opts.Currency, true)
-			if err != nil || len(routes) == 0 {
-				slog.Debug("no eurostar snap fares, trying regular", "err", err)
-				routes, err = SearchEurostar(ctx, from, to, date, endDate, opts.Currency, false)
-			}
+			results <- providerResult{routes: routes, err: err, name: "eurostar snap"}
+		}()
+
+		// Regular fares goroutine.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			routes, err := SearchEurostar(ctx, from, to, date, endDate, opts.Currency, false)
 			results <- providerResult{routes: routes, err: err, name: "eurostar"}
 		}()
 	}

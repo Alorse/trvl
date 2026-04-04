@@ -411,7 +411,7 @@ func buildEurostarRoutes(gqlResp eurostarGQLResponse, fromStation, toStation Eur
 	defaultDuration := eurostarRouteDuration(fromStation.City, toStation.City)
 	provider := "eurostar"
 	if snapOnly {
-		provider = "eurostar_snap"
+		provider = "eurostar snap"
 	}
 
 	var routes []models.GroundRoute
