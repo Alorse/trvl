@@ -95,6 +95,12 @@ type sncfCalendarResponse struct {
 
 // SearchSNCF searches SNCF for cheapest fares between two stations.
 // from/to are city names (e.g. "Paris", "Lyon"). date is YYYY-MM-DD.
+//
+// The old sncf-connect.com calendar API (sncfCalendarEndpoint) now returns
+// 403/404 on all requests; the SPA uses an internal BFF that requires a live
+// browser session and Datadome cookies. We therefore use the Playwright browser
+// scraper as the primary method, with the calendar API as a best-effort fallback
+// for environments where Playwright is not available.
 func SearchSNCF(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
 	fromStation, ok := LookupSNCFStation(from)
 	if !ok {
@@ -109,9 +115,22 @@ func SearchSNCF(ctx context.Context, from, to, date, currency string) ([]models.
 		currency = "EUR"
 	}
 
-	// The calendar API expects the end-of-month date for the requested period.
-	// We use the requested date directly as the query date (API returns prices
-	// for the month containing that date).
+	slog.Debug("sncf search", "from", fromStation.City, "to", toStation.City, "date", date)
+
+	// Primary: browser scraper (page-context API approach, same as ÖBB).
+	// This navigates to sncf-connect.com, obtains the Datadome session, then
+	// calls the internal BFF endpoints from JavaScript context.
+	if bRoutes, bErr := BrowserScrapeRoutes(ctx, "sncf", from, to, date, currency); bErr == nil && len(bRoutes) > 0 {
+		return bRoutes, nil
+	} else if bErr != nil {
+		slog.Debug("sncf browser scraper failed, trying calendar API fallback", "err", bErr)
+	}
+
+	// Fallback: legacy calendar API (may return 403 in most environments).
+	if err := sncfLimiter.Wait(ctx); err != nil {
+		return nil, fmt.Errorf("sncf rate limiter: %w", err)
+	}
+
 	apiURL := fmt.Sprintf("%s/%s/%s/%s/26-NO_CARD/2/en?onlyDirectTrains=false&currency=%s",
 		sncfCalendarEndpoint,
 		fromStation.Code,
@@ -120,12 +139,6 @@ func SearchSNCF(ctx context.Context, from, to, date, currency string) ([]models.
 		url.QueryEscape(strings.ToUpper(currency)),
 	)
 
-	if err := sncfLimiter.Wait(ctx); err != nil {
-		return nil, fmt.Errorf("sncf rate limiter: %w", err)
-	}
-
-	// newSNCFRequest builds a GET request with standard SNCF headers.
-	// cookieHeader is optional; pass "" to omit.
 	newSNCFRequest := func(cookieHeader string) (*http.Request, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 		if err != nil {
@@ -141,8 +154,6 @@ func SearchSNCF(ctx context.Context, from, to, date, currency string) ([]models.
 		return req, nil
 	}
 
-	slog.Debug("sncf search", "from", fromStation.City, "to", toStation.City, "date", date)
-
 	req, err := newSNCFRequest("")
 	if err != nil {
 		return nil, err
@@ -150,29 +161,26 @@ func SearchSNCF(ctx context.Context, from, to, date, currency string) ([]models.
 
 	resp, err := sncfClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("sncf search: %w", err)
+		return nil, fmt.Errorf("sncf calendar api: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusForbidden {
-		firstBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound {
+		firstBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		resp.Body.Close()
 
-		// Attempt retry with browser cookies.
+		// Try once more with browser cookies before giving up.
 		cookieHeader := cookies.BrowserCookies("sncf-connect.com")
 		if cookieHeader != "" {
-			slog.Debug("retrying sncf with browser cookies")
+			slog.Debug("retrying sncf calendar api with browser cookies")
 			req2, err2 := newSNCFRequest(cookieHeader)
-			if err2 != nil {
-				return nil, fmt.Errorf("sncf retry build: %w", err2)
-			}
-			resp2, err2 := sncfClient.Do(req2)
-			if err2 != nil {
-				return nil, fmt.Errorf("sncf retry: %w", err2)
-			}
-			defer resp2.Body.Close()
-			if resp2.StatusCode == http.StatusOK {
-				return parseSNCFResponse(resp2.Body, fromStation, toStation, date, currency)
+			if err2 == nil {
+				if resp2, err2 := sncfClient.Do(req2); err2 == nil {
+					defer resp2.Body.Close()
+					if resp2.StatusCode == http.StatusOK {
+						return parseSNCFResponse(resp2.Body, fromStation, toStation, date, currency)
+					}
+				}
 			}
 		}
 
@@ -181,20 +189,12 @@ func SearchSNCF(ctx context.Context, from, to, date, currency string) ([]models.
 			slog.Warn("sncf requires browser verification", "captcha_url", captchaURL)
 		}
 
-		// Last resort: browser scraper via Playwright.
-		slog.Debug("sncf 403 — trying browser scraper fallback")
-		if bRoutes, bErr := BrowserScrapeRoutes(ctx, "sncf", from, to, date, currency); bErr == nil && len(bRoutes) > 0 {
-			return bRoutes, nil
-		} else if bErr != nil {
-			slog.Debug("sncf browser scraper failed", "err", bErr)
-		}
-
-		return nil, fmt.Errorf("sncf search: HTTP 403: %s", firstBody)
+		return nil, fmt.Errorf("sncf calendar api: HTTP %d (browser scraper also returned no results)", resp.StatusCode)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("sncf search: HTTP %d: %s", resp.StatusCode, respBody)
+		return nil, fmt.Errorf("sncf calendar api: HTTP %d: %s", resp.StatusCode, respBody)
 	}
 
 	return parseSNCFResponse(resp.Body, fromStation, toStation, date, currency)

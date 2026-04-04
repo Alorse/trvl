@@ -88,7 +88,7 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 	}
 
 	var wg sync.WaitGroup
-	results := make(chan providerResult, 9)
+	results := make(chan providerResult, 10)
 
 	useProvider := func(name string) bool {
 		if len(opts.Providers) == 0 {
@@ -201,6 +201,16 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 			defer wg.Done()
 			routes, err := SearchDigitransit(ctx, from, to, date, opts.Currency)
 			results <- providerResult{routes: routes, err: err, name: "vr"}
+		}()
+	}
+
+	// Renfe (Spain) — only if at least one city has a Renfe station (Spanish rail).
+	if useProvider("renfe") && HasRenfeRoute(from, to) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			routes, err := SearchRenfe(ctx, from, to, date, opts.Currency)
+			results <- providerResult{routes: routes, err: err, name: "renfe"}
 		}()
 	}
 

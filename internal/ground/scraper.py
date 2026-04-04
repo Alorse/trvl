@@ -66,6 +66,7 @@ def main():
         "trainline": scrape_trainline,
         "oebb": scrape_oebb,
         "sncf": scrape_sncf,
+        "renfe": scrape_renfe,
     }
 
     fn = scrapers.get(provider)
@@ -570,7 +571,35 @@ SNCF_STATION_CODES = {
     "milan": "ITMIL",
     "frankfurt": "DEFRA",
     "london": "GBSPX",
+    "amsterdam": "NLASD",
+    "madrid": "ESMAD",
 }
+
+# Known SNCF internal API paths to try in order.
+# sncf-connect.com is a SPA; it calls a BFF (backend-for-frontend) at /bff/api/*.
+_SNCF_API_PATHS = [
+    ("/bff/api/v1/itinerary-search", "POST", lambda fc, tc, d: {
+        "passengers": [{"type": "ADULT", "fareType": "NO_CARD"}],
+        "origin": fc,
+        "destination": tc,
+        "date": f"{d}T06:00:00",
+        "directTrainsOnly": False,
+        "currency": "EUR",
+    }),
+    ("/bff/api/v1/trainschedules", "POST", lambda fc, tc, d: {
+        "origin": fc,
+        "destination": tc,
+        "departureDate": f"{d}T06:00:00",
+        "passengers": [{"type": "ADULT", "discountCards": []}],
+        "directOnly": False,
+    }),
+    ("/bff/api/v1/travel-proposals", "POST", lambda fc, tc, d: {
+        "origin": fc,
+        "destination": tc,
+        "outwardDate": d,
+        "passengers": [{"type": "ADULT"}],
+    }),
+]
 
 
 def scrape_sncf(page, from_city, to_city, date, currency):
@@ -579,101 +608,466 @@ def scrape_sncf(page, from_city, to_city, date, currency):
     if not from_code or not to_code:
         raise ValueError(f"no SNCF station code for {from_city!r} or {to_city!r}")
 
-    url = f"https://www.sncf-connect.com/en-en/results/train/{from_code}/{to_code}/{date}"
-
     _apply_stealth(page)
-    page.goto(url, timeout=30000, wait_until="domcontentloaded")
+
+    # Navigate to homepage to establish Datadome session/cookies.
+    page.goto("https://www.sncf-connect.com/en-en", wait_until="networkidle", timeout=25000)
     _dismiss_cookies(page)
 
-    result_selectors = [
-        "[class*='journey']",
-        "[class*='Journey']",
-        "[class*='result']",
-        "[class*='Result']",
-        "[data-testid*='journey']",
-        "[data-testid*='result']",
-    ]
-    loaded_sel = None
-    for sel in result_selectors:
+    booking_url = (
+        f"https://www.sncf-connect.com/en-en/result/train"
+        f"/{from_code}/{to_code}/{date}"
+    )
+
+    # Intercept XHR calls made by the SPA to discover the live API path/shape.
+    api_responses = {}
+    def _capture_response(resp):
+        url = resp.url
+        if "/bff/api/" in url or "/api/railway/" in url or "/api/v" in url:
+            if resp.status == 200:
+                try:
+                    body = resp.json()
+                    api_responses[url] = body
+                except Exception:
+                    pass
+    page.on("response", _capture_response)
+
+    # Navigate to the search results page to trigger real API calls.
+    try:
+        page.goto(booking_url, wait_until="networkidle", timeout=30000)
+        page.wait_for_timeout(3000)  # Allow SPA to finish rendering
+    except Exception:
+        pass
+
+    # If we captured any real API responses from XHR, parse them first.
+    for resp_url, resp_data in api_responses.items():
+        routes = _parse_sncf_response(resp_data, from_city, to_city, date, currency, booking_url)
+        if routes:
+            return routes
+
+    # Fallback: call known BFF endpoints directly from page context
+    # (session cookies are already established from the navigation above).
+    for api_path, method, body_fn in _SNCF_API_PATHS:
         try:
-            page.wait_for_selector(sel, timeout=20000)
-            loaded_sel = sel
-            break
+            body_json = json.dumps(body_fn(from_code, to_code, date))
+            result = page.evaluate(f"""
+            async () => {{
+                const r = await fetch('{api_path}', {{
+                    method: '{method}',
+                    headers: {{'Content-Type': 'application/json', 'Accept': 'application/json'}},
+                    body: {json.dumps(body_json)}
+                }});
+                if (r.status !== 200) return JSON.stringify({{_httpError: r.status}});
+                const d = await r.json();
+                return JSON.stringify(d);
+            }}
+            """)
+            data = json.loads(result)
+            if data.get("_httpError"):
+                continue
+            routes = _parse_sncf_response(data, from_city, to_city, date, currency, booking_url)
+            if routes:
+                return routes
         except Exception:
             continue
 
-    if loaded_sel is None:
-        raise RuntimeError(f"no result cards found on SNCF page (title: {page.title()!r})")
+    raise RuntimeError(
+        f"sncf: no results from API (checked {len(_SNCF_API_PATHS)} endpoints + XHR intercept). "
+        f"The BFF API path may have changed."
+    )
 
+
+def _parse_sncf_response(data, from_city, to_city, date, currency, booking_url):
+    """Parse any SNCF BFF/API JSON response, tolerating different response shapes."""
     routes = []
-    cards = page.query_selector_all(loaded_sel)
 
-    for card in cards[:10]:
-        try:
-            route = _parse_sncf_card(card, from_city, to_city, date, currency, from_code, to_code)
+    # Try common top-level keys that contain journey arrays.
+    for key in ["journeys", "proposals", "trainSchedules", "results", "trips",
+                "travelProposals", "connections", "outwardJourneys"]:
+        items = data.get(key, [])
+        if not isinstance(items, list) or not items:
+            continue
+        for item in items[:8]:
+            route = _extract_sncf_route(item, from_city, to_city, date, currency, booking_url)
             if route:
                 routes.append(route)
-        except Exception:
-            continue
+        if routes:
+            return routes
+
+    # Some responses nest under a "data" key.
+    if isinstance(data.get("data"), dict):
+        return _parse_sncf_response(data["data"], from_city, to_city, date, currency, booking_url)
 
     return routes
 
 
-def _parse_sncf_card(card, from_city, to_city, date, currency, from_code, to_code):
-    text = card.inner_text()
-    if not text:
-        return None
-
-    # SNCF prices in EUR with French locale (e.g. "29,00 €" or "€29.00").
+def _extract_sncf_route(item, from_city, to_city, date, currency, booking_url):
+    """Extract a single route from a SNCF journey/proposal dict."""
+    # Price — try several common field names and shapes.
     price = 0.0
-    price_m = re.search(
-        r"(\d+)[,.](\d{2})\s*€|€\s*(\d+)[,.](\d{2})", text
-    )
-    if price_m:
-        if price_m.group(1):
-            price = float(f"{price_m.group(1)}.{price_m.group(2)}")
-        else:
-            price = float(f"{price_m.group(3)}.{price_m.group(4)}")
+    cur = currency or "EUR"
+    for pk in ["price", "minPrice", "cheapestPrice", "amount", "totalPrice", "priceInCents"]:
+        val = item.get(pk)
+        if val is None:
+            continue
+        if isinstance(val, dict):
+            raw = val.get("amount", val.get("value", val.get("cents", 0)))
+            cur = val.get("currency", val.get("currencyCode", cur))
+            if isinstance(raw, (int, float)) and raw > 0:
+                price = raw / 100 if "cent" in pk.lower() or "cent" in str(val).lower() else float(raw)
+        elif isinstance(val, (int, float)) and val > 0:
+            price = val / 100 if "cent" in pk.lower() else float(val)
+        if price > 0:
+            break
 
     if price <= 0:
         return None
 
-    times = re.findall(r"\b(\d{1,2}[hH]\d{2}|\d{1,2}:\d{2})\b", text)
-    # Normalise "14h30" -> "14:30"
-    times = [t.replace("h", ":").replace("H", ":") for t in times]
-    departure = times[0] if len(times) >= 1 else ""
-    arrival = times[1] if len(times) >= 2 else ""
+    # Departure/arrival times.
+    dep_time = ""
+    arr_time = ""
+    for dk in ["departureDate", "departureTime", "departure", "startTime", "dep",
+               "scheduledDepartureTime"]:
+        if item.get(dk):
+            dep_time = str(item[dk])[:19]
+            break
+    for ak in ["arrivalDate", "arrivalTime", "arrival", "endTime", "arr",
+               "scheduledArrivalTime"]:
+        if item.get(ak):
+            arr_time = str(item[ak])[:19]
+            break
 
-    dep_iso = f"{date}T{departure}:00" if departure else date
-    arr_iso = f"{date}T{arrival}:00" if arrival else date
-
+    # Duration in minutes.
     duration = 0
-    dur_m = re.search(r"(\d+)\s*h(?:rs?)?\s*(?:(\d+)\s*m(?:in)?s?)?", text, re.IGNORECASE)
-    if dur_m:
-        duration = int(dur_m.group(1)) * 60 + int(dur_m.group(2) or 0)
+    for dur_key in ["duration", "travelTime", "durationInMinutes", "journeyDuration"]:
+        val = item.get(dur_key)
+        if isinstance(val, (int, float)) and val > 0:
+            # Could be seconds, minutes, or milliseconds.
+            if val > 86400:       # milliseconds
+                duration = int(val) // 60000
+            elif val > 1440:      # seconds
+                duration = int(val) // 60
+            else:                 # already minutes
+                duration = int(val)
+            break
+        if isinstance(val, str):
+            duration = _parse_iso_duration(val)
+            if duration > 0:
+                break
 
+    # Transfers / changes.
     transfers = 0
-    if re.search(r"\bdirect\b|\bsans changement\b", text, re.IGNORECASE):
-        transfers = 0
-    else:
-        chg_m = re.search(r"(\d+)\s+(?:change|correspondance)", text, re.IGNORECASE)
-        if chg_m:
-            transfers = int(chg_m.group(1))
+    for tk in ["transfers", "changes", "numberOfChanges", "numChanges", "stops"]:
+        val = item.get(tk)
+        if isinstance(val, int):
+            transfers = max(0, val)
+            break
+    # Check sections/legs count as a fallback.
+    for lk in ["sections", "legs", "segments"]:
+        val = item.get(lk)
+        if isinstance(val, list) and len(val) > 1:
+            transfers = len(val) - 1
+            break
+
+    if not dep_time:
+        return None
 
     return {
-        "price": price,
-        "currency": "EUR",
-        "departure": dep_iso,
-        "arrival": arr_iso,
+        "price": float(price),
+        "currency": cur,
+        "departure": dep_time,
+        "arrival": arr_time,
         "duration": duration,
         "type": "train",
         "provider": "sncf",
         "transfers": transfers,
-        "booking_url": (
-            f"https://www.sncf-connect.com/en-en/result/train"
-            f"/{from_code}/{to_code}/{date}"
-        ),
+        "booking_url": booking_url,
     }
+
+
+# ---------------------------------------------------------------------------
+# Renfe (Spain)  — experimental
+# ---------------------------------------------------------------------------
+
+RENFE_STATIONS = {
+    # Spain
+    "madrid":    "MAD",
+    "barcelona": "BCN",
+    "seville":   "SVQ",
+    "sevilla":   "SVQ",
+    "valencia":  "VLC",
+    "malaga":    "AGP",
+    "bilbao":    "BIO",
+    "zaragoza":  "ZAZ",
+    "cordoba":   "XWA",
+    "alicante":  "ALC",
+    "granada":   "GRX",
+    "pamplona":  "PNA",
+    "san sebastian": "EAS",
+    "donostia":  "EAS",
+    "valladolid": "VLL",
+    "murcia":    "MJV",
+    "palma":     "PMI",
+    # International
+    "paris":     "PAR",
+    "marseille": "MRS",
+    "lyon":      "LYS",
+}
+
+# Renfe uses numeric station codes in their API but exposes city codes on the website.
+# The horarios.renfe.com endpoint uses different codes — we try the venta.renfe.com BFF.
+_RENFE_STATION_NUMERIC = {
+    "MAD": "60000",   # Madrid Atocha / Puerta de Atocha
+    "BCN": "71801",   # Barcelona Sants
+    "SVQ": "51300",   # Sevilla Santa Justa
+    "VLC": "65000",   # Valencia Joaquin Sorolla
+    "AGP": "61400",   # Malaga Maria Zambrano
+    "BIO": "70200",   # Bilbao Abando
+    "ZAZ": "65100",   # Zaragoza Delicias
+    "XWA": "51600",   # Cordoba
+    "ALC": "65200",   # Alicante
+    "GRX": "61500",   # Granada
+    "PNA": "70600",   # Pamplona Irunlarrea
+    "EAS": "70100",   # San Sebastian Donostia
+    "VLL": "62200",   # Valladolid Campo Grande
+}
+
+
+def scrape_renfe(page, from_city, to_city, date, currency):
+    from_code = RENFE_STATIONS.get(from_city.lower())
+    to_code = RENFE_STATIONS.get(to_city.lower())
+    if not from_code or not to_code:
+        raise ValueError(f"no Renfe station code for {from_city!r} or {to_city!r}")
+
+    from_num = _RENFE_STATION_NUMERIC.get(from_code)
+    to_num = _RENFE_STATION_NUMERIC.get(to_code)
+
+    _apply_stealth(page)
+
+    # Navigate to renfe.com to get session cookies and bypass bot detection.
+    page.goto("https://www.renfe.com/es/en", wait_until="networkidle", timeout=25000)
+    _dismiss_cookies(page)
+
+    booking_url = (
+        f"https://www.renfe.com/es/en/viajar/is-ir/buscar-billetes"
+        f"?origen={from_code}&destino={to_code}&fechaIda={date}&nroPasajeros=1"
+    )
+
+    # Intercept API calls triggered by the Renfe SPA.
+    api_responses = {}
+    def _capture(resp):
+        if resp.status == 200 and (
+            "venta.renfe.com" in resp.url or
+            "/api/" in resp.url or
+            "horarios.renfe.com" in resp.url
+        ):
+            try:
+                body = resp.json()
+                api_responses[resp.url] = body
+            except Exception:
+                pass
+    page.on("response", _capture)
+
+    # Navigate to the results page to trigger real API calls.
+    try:
+        page.goto(booking_url, wait_until="networkidle", timeout=30000)
+        page.wait_for_timeout(3000)
+    except Exception:
+        pass
+
+    # Parse any intercepted API responses.
+    for resp_url, resp_data in api_responses.items():
+        routes = _parse_renfe_response(resp_data, from_city, to_city, date, currency, booking_url)
+        if routes:
+            return routes
+
+    # Fallback: try known Renfe API endpoints from page context.
+    # Format YYYYMMDD for the horarios API.
+    date_compact = date.replace("-", "")
+
+    api_attempts = []
+
+    # venta.renfe.com availability endpoint.
+    if from_num and to_num:
+        api_attempts.append((
+            "POST",
+            "https://venta.renfe.com/vol/buscarTren.do",
+            json.dumps({
+                "origenEstacion": from_num,
+                "destinoEstacion": to_num,
+                "fechaViaje": date_compact,
+                "tipoBusqueda": "O",
+                "numAdultos": 1,
+                "numNinos": 0,
+                "numJovenes": 0,
+                "numMayores": 0,
+                "codPromocion": "",
+            }),
+        ))
+
+    # horarios.renfe.com timetable (public, no auth, JSON).
+    api_attempts.append((
+        "GET",
+        (
+            f"https://horarios.renfe.com/cer/hjcer310.jsp"
+            f"?nucleo=10&i=s&o={from_code}&d={to_code}"
+            f"&df={date_compact}&ho=00&hd=24&TXTInfo="
+        ),
+        None,
+    ))
+
+    for method, url_str, body_str in api_attempts:
+        try:
+            if method == "POST":
+                js = f"""
+                async () => {{
+                    const r = await fetch({json.dumps(url_str)}, {{
+                        method: 'POST',
+                        headers: {{'Content-Type': 'application/json', 'Accept': 'application/json'}},
+                        body: {json.dumps(body_str)}
+                    }});
+                    if (r.status !== 200) return JSON.stringify({{_httpError: r.status}});
+                    const d = await r.json();
+                    return JSON.stringify(d);
+                }}
+                """
+            else:
+                js = f"""
+                async () => {{
+                    const r = await fetch({json.dumps(url_str)}, {{
+                        headers: {{'Accept': 'application/json, text/javascript, */*'}}
+                    }});
+                    if (r.status !== 200) return JSON.stringify({{_httpError: r.status}});
+                    const t = await r.text();
+                    try {{ return JSON.stringify(JSON.parse(t)); }}
+                    catch(e) {{ return JSON.stringify({{_raw: t.substring(0, 3000)}}); }}
+                }}
+                """
+            result = page.evaluate(js)
+            data = json.loads(result)
+            if data.get("_httpError"):
+                continue
+            if data.get("_raw"):
+                # horarios API returns JSONP or HTML — skip for now.
+                continue
+            routes = _parse_renfe_response(data, from_city, to_city, date, currency, booking_url)
+            if routes:
+                return routes
+        except Exception:
+            continue
+
+    raise RuntimeError(
+        f"renfe: no results found for {from_city}->{to_city} on {date}. "
+        f"API endpoint or session may have changed."
+    )
+
+
+def _parse_renfe_response(data, from_city, to_city, date, currency, booking_url):
+    """Parse Renfe API JSON response."""
+    routes = []
+    # Renfe venta API returns a list of trains or nested under keys.
+    items = data if isinstance(data, list) else None
+    if items is None:
+        for key in ["trenes", "trains", "servicios", "journeys", "results", "viajes"]:
+            v = data.get(key, [])
+            if isinstance(v, list) and v:
+                items = v
+                break
+    if not items:
+        if isinstance(data.get("data"), (dict, list)):
+            return _parse_renfe_response(
+                data["data"] if isinstance(data["data"], dict) else {"results": data["data"]},
+                from_city, to_city, date, currency, booking_url,
+            )
+        return routes
+
+    for item in items[:8]:
+        if not isinstance(item, dict):
+            continue
+        # Price.
+        price = 0.0
+        cur = currency or "EUR"
+        for pk in ["precioMasBarato", "precio", "price", "importe", "amount", "tarifa"]:
+            val = item.get(pk)
+            if isinstance(val, (int, float)) and val > 0:
+                price = float(val)
+                break
+            if isinstance(val, dict):
+                raw = val.get("importe", val.get("amount", val.get("value", 0)))
+                if isinstance(raw, (int, float)) and raw > 0:
+                    price = float(raw)
+                    cur = val.get("moneda", val.get("currency", cur))
+                    break
+        if price <= 0:
+            continue
+
+        # Times.
+        dep_time = ""
+        arr_time = ""
+        for dk in ["horaSalida", "salida", "departureTime", "departure", "horaDep"]:
+            if item.get(dk):
+                raw = str(item[dk])
+                # Renfe times may be "HHMM" or "HH:MM" or ISO.
+                if len(raw) == 4 and raw.isdigit():
+                    dep_time = f"{date}T{raw[:2]}:{raw[2:]}:00"
+                elif len(raw) == 5 and ":" in raw:
+                    dep_time = f"{date}T{raw}:00"
+                else:
+                    dep_time = raw[:19]
+                break
+        for ak in ["horaLlegada", "llegada", "arrivalTime", "arrival", "horaArr"]:
+            if item.get(ak):
+                raw = str(item[ak])
+                if len(raw) == 4 and raw.isdigit():
+                    arr_time = f"{date}T{raw[:2]}:{raw[2:]}:00"
+                elif len(raw) == 5 and ":" in raw:
+                    arr_time = f"{date}T{raw}:00"
+                else:
+                    arr_time = raw[:19]
+                break
+
+        if not dep_time:
+            continue
+
+        duration = 0
+        for dur_key in ["duracion", "duration", "travelTime"]:
+            val = item.get(dur_key)
+            if isinstance(val, (int, float)) and val > 0:
+                duration = int(val) if val <= 1440 else int(val) // 60
+                break
+            if isinstance(val, str):
+                duration = _parse_iso_duration(val)
+                if not duration:
+                    # Format "HH:MM" or "H:MM"
+                    parts = val.split(":")
+                    if len(parts) == 2:
+                        try:
+                            duration = int(parts[0]) * 60 + int(parts[1])
+                        except ValueError:
+                            pass
+                if duration:
+                    break
+
+        transfers = 0
+        for tk in ["transbordos", "cambios", "transfers", "changes"]:
+            val = item.get(tk)
+            if isinstance(val, int):
+                transfers = max(0, val)
+                break
+
+        routes.append({
+            "price": price,
+            "currency": cur,
+            "departure": dep_time,
+            "arrival": arr_time,
+            "duration": duration,
+            "type": "train",
+            "provider": "renfe",
+            "transfers": transfers,
+            "booking_url": booking_url,
+        })
+
+    return routes
 
 
 # ---------------------------------------------------------------------------
