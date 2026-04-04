@@ -14,8 +14,8 @@ func TestTripCostInput_Defaults(t *testing.T) {
 	if in.Guests != 1 {
 		t.Errorf("Guests = %d, want 1", in.Guests)
 	}
-	if in.Currency != "EUR" {
-		t.Errorf("Currency = %q, want EUR", in.Currency)
+	if in.Currency != "" {
+		t.Errorf("Currency = %q, want empty (API default)", in.Currency)
 	}
 }
 

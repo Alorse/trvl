@@ -128,7 +128,7 @@ Examples:
 	cmd.Flags().StringVar(&departFrom, "from", "", "Date range start (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&departTo, "to", "", "Date range end (YYYY-MM-DD)")
 	cmd.Flags().Float64Var(&belowPrice, "below", 0, "Alert when price drops below this amount")
-	cmd.Flags().StringVar(&currency, "currency", "EUR", "Currency code")
+	cmd.Flags().StringVar(&currency, "currency", "", "Currency for price alerts (e.g. EUR). Empty = API default")
 	cmd.Flags().StringVar(&watchType, "type", "flight", "Watch type: flight or hotel")
 	// --depart is optional: route watches monitor next 60 days without specific dates
 

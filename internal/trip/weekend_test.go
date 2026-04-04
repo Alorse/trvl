@@ -170,7 +170,7 @@ func TestBuildWeekendResult_BasicSort(t *testing.T) {
 	opts := WeekendOptions{Nights: 2}
 	opts.defaults()
 
-	result := buildWeekendResult("HEL", "July 2026", opts, dests)
+	result := buildWeekendResult("HEL", "July 2026", opts, dests, "PLN")
 
 	if !result.Success {
 		t.Fatal("expected success")
@@ -206,7 +206,7 @@ func TestBuildWeekendResult_BudgetFilter(t *testing.T) {
 	opts := WeekendOptions{Nights: 2, MaxBudget: 200}
 	opts.defaults()
 
-	result := buildWeekendResult("HEL", "July 2026", opts, dests)
+	result := buildWeekendResult("HEL", "July 2026", opts, dests, "PLN")
 
 	if result.Count != 1 {
 		t.Errorf("count = %d, want 1 (expensive filtered out)", result.Count)
@@ -220,7 +220,7 @@ func TestBuildWeekendResult_EmptyDestinations(t *testing.T) {
 	opts := WeekendOptions{Nights: 2}
 	opts.defaults()
 
-	result := buildWeekendResult("HEL", "July 2026", opts, nil)
+	result := buildWeekendResult("HEL", "July 2026", opts, nil, "PLN")
 
 	if !result.Success {
 		t.Fatal("expected success even with empty destinations")
@@ -243,7 +243,7 @@ func TestBuildWeekendResult_Max10(t *testing.T) {
 	opts := WeekendOptions{Nights: 2}
 	opts.defaults()
 
-	result := buildWeekendResult("HEL", "July 2026", opts, dests)
+	result := buildWeekendResult("HEL", "July 2026", opts, dests, "PLN")
 
 	if result.Count != 10 {
 		t.Errorf("count = %d, want 10 (capped)", result.Count)
@@ -257,7 +257,7 @@ func TestBuildWeekendResult_FallbackCityName(t *testing.T) {
 	opts := WeekendOptions{Nights: 2}
 	opts.defaults()
 
-	result := buildWeekendResult("HEL", "July 2026", opts, dests)
+	result := buildWeekendResult("HEL", "July 2026", opts, dests, "PLN")
 
 	// BCN should resolve to "Barcelona" via LookupAirportName.
 	if result.Destinations[0].Destination != "Barcelona" {
@@ -272,10 +272,10 @@ func TestBuildWeekendResult_CurrencyIsEUR(t *testing.T) {
 	opts := WeekendOptions{Nights: 1}
 	opts.defaults()
 
-	result := buildWeekendResult("HEL", "July 2026", opts, dests)
+	result := buildWeekendResult("HEL", "July 2026", opts, dests, "PLN")
 
-	if result.Destinations[0].Currency != "EUR" {
-		t.Errorf("currency = %q, want EUR", result.Destinations[0].Currency)
+	if result.Destinations[0].Currency != "PLN" {
+		t.Errorf("currency = %q, want PLN", result.Destinations[0].Currency)
 	}
 }
 
@@ -286,7 +286,7 @@ func TestBuildWeekendResult_AirlineNamePreserved(t *testing.T) {
 	opts := WeekendOptions{Nights: 2}
 	opts.defaults()
 
-	result := buildWeekendResult("HEL", "July 2026", opts, dests)
+	result := buildWeekendResult("HEL", "July 2026", opts, dests, "PLN")
 
 	if result.Destinations[0].AirlineName != "Finnair" {
 		t.Errorf("airline = %q, want Finnair", result.Destinations[0].AirlineName)
@@ -300,7 +300,7 @@ func TestBuildWeekendResult_BudgetFilterRemovesAll(t *testing.T) {
 	opts := WeekendOptions{Nights: 2, MaxBudget: 100}
 	opts.defaults()
 
-	result := buildWeekendResult("HEL", "July 2026", opts, dests)
+	result := buildWeekendResult("HEL", "July 2026", opts, dests, "PLN")
 
 	if result.Count != 0 {
 		t.Errorf("count = %d, want 0 (all filtered by budget)", result.Count)

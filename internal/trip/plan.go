@@ -78,9 +78,7 @@ func (in *PlanInput) defaults() {
 	if in.Guests <= 0 {
 		in.Guests = 1
 	}
-	if in.Currency == "" {
-		in.Currency = "EUR"
-	}
+	// Currency left empty = use whatever the APIs report.
 }
 
 // PlanTrip searches flights and hotels in parallel and returns the top options

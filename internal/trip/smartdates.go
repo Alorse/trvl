@@ -162,9 +162,13 @@ func assembleDateResult(origin, dest string, target time.Time, dateResult *model
 	// Build insights.
 	insights := buildInsights(validDates, target, avgPrice)
 
-	currency := "EUR"
-	if len(validDates) > 0 && validDates[0].Currency != "" {
-		currency = validDates[0].Currency
+	// Use whatever currency the API returned — no hardcoded default.
+	currency := ""
+	for _, d := range validDates {
+		if d.Currency != "" {
+			currency = d.Currency
+			break
+		}
 	}
 
 	return &SmartDateResult{

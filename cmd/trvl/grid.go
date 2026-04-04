@@ -118,7 +118,13 @@ func printGridTable(ctx context.Context, targetCurrency string, result *models.P
 			if p, ok := priceMap[key]; ok {
 				cur := currencyMap[key]
 				if cur == "" {
-					cur = "EUR"
+					// Use currency from any other cell in the grid.
+					for _, v := range currencyMap {
+						if v != "" {
+							cur = v
+							break
+						}
+					}
 				}
 				if targetCurrency != "" && cur != targetCurrency && p > 0 {
 					converted, convertedCur := destinations.ConvertCurrency(ctx, p, cur, targetCurrency)

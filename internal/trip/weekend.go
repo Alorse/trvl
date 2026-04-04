@@ -8,6 +8,7 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/explore"
+	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -102,7 +103,7 @@ func estimateHotelFromPriceLevel(flightPrice float64) float64 {
 
 // buildWeekendResult assembles a WeekendResult from explore destinations.
 // It sorts by price, estimates hotels, filters by budget, and returns the result.
-func buildWeekendResult(origin, displayMonth string, opts WeekendOptions, dests []models.ExploreDestination) *WeekendResult {
+func buildWeekendResult(origin, displayMonth string, opts WeekendOptions, dests []models.ExploreDestination, apiCurrency string) *WeekendResult {
 	// Sort by price and take top 10.
 	sort.Slice(dests, func(i, j int) bool {
 		return dests[i].Price < dests[j].Price
@@ -133,7 +134,7 @@ func buildWeekendResult(origin, displayMonth string, opts WeekendOptions, dests 
 			FlightPrice:   d.Price,
 			HotelEstimate: hotelTotal,
 			TotalEstimate: total,
-			Currency:      "EUR",
+			Currency:      apiCurrency,
 			Stops:         d.Stops,
 			AirlineName:   d.AirlineName,
 		})
@@ -184,5 +185,11 @@ func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions
 		return nil, fmt.Errorf("explore destinations: %w", err)
 	}
 
-	return buildWeekendResult(origin, displayMonth, opts, exploreResult.Destinations), nil
+	// Detect the actual API currency (explore returns prices without labels).
+	apiCurrency := ""
+	if len(exploreResult.Destinations) > 0 {
+		apiCurrency = flights.DetectSourceCurrency(ctx, origin, exploreResult.Destinations[0].AirportCode)
+	}
+
+	return buildWeekendResult(origin, displayMonth, opts, exploreResult.Destinations, apiCurrency), nil
 }

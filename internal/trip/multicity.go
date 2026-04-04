@@ -65,6 +65,7 @@ func OptimizeMultiCity(ctx context.Context, homeAirport string, cities []string,
 	// Legs needed: home->each city, each city->each other city, each city->home.
 	allCodes := append([]string{homeAirport}, cities...)
 	priceCache := make(map[string]float64)
+	currencyCache := make(map[string]string)
 
 	for _, from := range allCodes {
 		for _, to := range allCodes {
@@ -75,16 +76,19 @@ func OptimizeMultiCity(ctx context.Context, homeAirport string, cities []string,
 			if _, ok := priceCache[key]; ok {
 				continue
 			}
-			price := fetchCheapestPrice(ctx, from, to, opts.DepartDate)
-			priceCache[key] = price
+			pc := fetchCheapestPrice(ctx, from, to, opts.DepartDate)
+			priceCache[key] = pc.price
+			if pc.currency != "" {
+				currencyCache[key] = pc.currency
+			}
 		}
 	}
 
-	return optimizeRoute(homeAirport, cities, priceCache), nil
+	return optimizeRoute(homeAirport, cities, priceCache, currencyCache), nil
 }
 
 // optimizeRoute finds the cheapest routing order given pre-fetched prices.
-func optimizeRoute(homeAirport string, cities []string, priceCache map[string]float64) *MultiCityResult {
+func optimizeRoute(homeAirport string, cities []string, priceCache map[string]float64, currencyCache map[string]string) *MultiCityResult {
 	perms := permutations(cities)
 
 	var bestOrder []string
@@ -106,14 +110,20 @@ func optimizeRoute(homeAirport string, cities []string, priceCache map[string]fl
 	route := append([]string{homeAirport}, bestOrder...)
 	route = append(route, homeAirport)
 
+	// Build segments — use the actual currency from each flight search.
 	var segments []Segment
+	detectedCurrency := ""
 	for i := 0; i < len(route)-1; i++ {
 		key := route[i] + "->" + route[i+1]
+		cur := currencyCache[key]
+		if cur != "" && detectedCurrency == "" {
+			detectedCurrency = cur
+		}
 		segments = append(segments, Segment{
 			From:     route[i],
 			To:       route[i+1],
 			Price:    priceCache[key],
-			Currency: "EUR",
+			Currency: cur,
 		})
 	}
 
@@ -123,7 +133,7 @@ func optimizeRoute(homeAirport string, cities []string, priceCache map[string]fl
 		OptimalOrder: bestOrder,
 		Segments:     segments,
 		TotalCost:    bestCost,
-		Currency:     "EUR",
+		Currency:     detectedCurrency,
 		WorstCost:    worstCost,
 		Savings:      worstCost - bestCost,
 		Permutations: len(perms),
@@ -145,13 +155,19 @@ func routeCost(home string, perm []string, prices map[string]float64) float64 {
 
 // fetchCheapestPrice searches for the cheapest one-way flight between two airports.
 // Returns 9999 if the search fails (so the route is deprioritized but not excluded).
-func fetchCheapestPrice(ctx context.Context, from, to, date string) float64 {
+// priceAndCurrency holds a price with its source currency.
+type priceAndCurrency struct {
+	price    float64
+	currency string
+}
+
+func fetchCheapestPrice(ctx context.Context, from, to, date string) priceAndCurrency {
 	result, err := flights.SearchFlights(ctx, from, to, date, flights.SearchOptions{
 		SortBy: models.SortCheapest,
 		Adults: 1,
 	})
 	if err != nil || !result.Success || len(result.Flights) == 0 {
-		return 9999
+		return priceAndCurrency{price: 9999}
 	}
 
 	cheapest := result.Flights[0]
@@ -161,9 +177,9 @@ func fetchCheapestPrice(ctx context.Context, from, to, date string) float64 {
 		}
 	}
 	if cheapest.Price <= 0 {
-		return 9999
+		return priceAndCurrency{price: 9999}
 	}
-	return cheapest.Price
+	return priceAndCurrency{price: cheapest.Price, currency: cheapest.Currency}
 }
 
 // permutations generates all permutations of a string slice.

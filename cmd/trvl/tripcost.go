@@ -67,7 +67,7 @@ Examples:
 	cmd.Flags().StringVar(&departDate, "depart", "", "Departure date (YYYY-MM-DD, required)")
 	cmd.Flags().StringVar(&returnDate, "return", "", "Return date (YYYY-MM-DD, required)")
 	cmd.Flags().IntVar(&guests, "guests", 1, "Number of guests")
-	cmd.Flags().StringVar(&currency, "currency", "EUR", "Currency for totals (e.g. EUR, USD). Passed to search APIs")
+	cmd.Flags().StringVar(&currency, "currency", "", "Convert prices to this currency (e.g. EUR). Empty = API default")
 	cmd.Flags().StringVar(&format, "format", "table", "Output format: table, json")
 
 	_ = cmd.MarkFlagRequired("depart")

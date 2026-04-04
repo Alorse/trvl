@@ -57,9 +57,7 @@ func (in *TripCostInput) defaults() {
 	if in.Guests <= 0 {
 		in.Guests = 1
 	}
-	if in.Currency == "" {
-		in.Currency = "EUR"
-	}
+	// Currency left empty = use whatever the APIs report.
 }
 
 // CalculateTripCost estimates the total cost of a trip by searching for the

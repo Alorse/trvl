@@ -235,7 +235,7 @@ func TestOptimizeRoute_TwoCities(t *testing.T) {
 		"A->H": 110,
 	}
 
-	result := optimizeRoute("H", []string{"A", "B"}, prices)
+	result := optimizeRoute("H", []string{"A", "B"}, prices, map[string]string{})
 
 	if !result.Success {
 		t.Fatal("expected success")
@@ -281,7 +281,7 @@ func TestOptimizeRoute_SingleCity(t *testing.T) {
 		"A->H": 150,
 	}
 
-	result := optimizeRoute("H", []string{"A"}, prices)
+	result := optimizeRoute("H", []string{"A"}, prices, map[string]string{})
 
 	if !result.Success {
 		t.Fatal("expected success")
@@ -306,7 +306,7 @@ func TestOptimizeRoute_ThreeCities(t *testing.T) {
 		"C->A": 90, "C->B": 70,
 	}
 
-	result := optimizeRoute("H", []string{"A", "B", "C"}, prices)
+	result := optimizeRoute("H", []string{"A", "B", "C"}, prices, map[string]string{})
 
 	if !result.Success {
 		t.Fatal("expected success")
@@ -328,8 +328,8 @@ func TestOptimizeRoute_ThreeCities(t *testing.T) {
 	if result.WorstCost != 500 {
 		t.Errorf("worst cost = %v, want 500", result.WorstCost)
 	}
-	if result.Currency != "EUR" {
-		t.Errorf("currency = %q, want EUR", result.Currency)
+	if result.Currency != "" {
+		t.Errorf("currency = %q, want empty (no currency cache)", result.Currency)
 	}
 }
 
@@ -340,7 +340,7 @@ func TestOptimizeRoute_AllSamePrice(t *testing.T) {
 		"A->B": 100, "B->A": 100,
 	}
 
-	result := optimizeRoute("H", []string{"A", "B"}, prices)
+	result := optimizeRoute("H", []string{"A", "B"}, prices, map[string]string{})
 
 	if result.TotalCost != 300 {
 		t.Errorf("total = %v, want 300", result.TotalCost)

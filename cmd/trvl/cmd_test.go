@@ -403,7 +403,7 @@ func TestWatchAddCmd_Flags(t *testing.T) {
 		{"from", ""},
 		{"to", ""},
 		{"below", "0"},
-		{"currency", "EUR"},
+		{"currency", ""},
 		{"type", "flight"},
 	}
 	for _, tt := range flags {
@@ -892,7 +892,7 @@ func TestTripCostCmd_Flags(t *testing.T) {
 		{"depart", ""},
 		{"return", ""},
 		{"guests", "1"},
-		{"currency", "EUR"},
+		{"currency", ""},
 		{"format", "table"},
 	}
 	for _, tt := range flags {
