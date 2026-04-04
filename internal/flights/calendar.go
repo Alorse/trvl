@@ -366,6 +366,13 @@ func scanForPrices(v any, results *[]models.DatePriceResult) {
 	}
 }
 
+// DetectSourceCurrency is the exported variant of detectSourceCurrency.
+// It uses a date 7 days from now by default.
+func DetectSourceCurrency(ctx context.Context, origin, dest string) string {
+	date := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
+	return detectSourceCurrency(ctx, origin, dest, date)
+}
+
 // detectSourceCurrency does a quick flight search to discover the raw currency
 // that the Google API returns for this IP location. It reads the currency
 // directly from the raw parsed data, BEFORE any conversion.

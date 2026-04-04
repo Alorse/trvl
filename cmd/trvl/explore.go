@@ -12,6 +12,7 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/explore"
+	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/spf13/cobra"
 )
@@ -124,7 +125,8 @@ Examples:
 }
 
 // printExploreTable renders explore results as an ASCII table.
-// If targetCurrency is set, converts prices (explore API returns EUR by default).
+// The explore API returns prices in the IP-local currency (no currency label).
+// We detect the actual currency via a quick flight search, then convert if needed.
 func printExploreTable(ctx context.Context, targetCurrency string, result *models.ExploreResult, origin string) error {
 	if !result.Success {
 		fmt.Fprintf(os.Stderr, "Explore failed: %s\n", result.Error)
@@ -136,22 +138,28 @@ func printExploreTable(ctx context.Context, targetCurrency string, result *model
 		return nil
 	}
 
-	// Explore results default to EUR (no per-item Currency field).
-	const defaultCurrency = "EUR"
-
-	// Convert prices if --currency specified and differs from default.
-	if targetCurrency != "" && targetCurrency != defaultCurrency {
-		for i := range result.Destinations {
-			if result.Destinations[i].Price > 0 {
-				converted, _ := destinations.ConvertCurrency(ctx, result.Destinations[i].Price, defaultCurrency, targetCurrency)
-				result.Destinations[i].Price = math.Round(converted)
-			}
+	// Detect the actual currency the API returned (same IP = same currency).
+	// Use a quick flight search to the first destination to discover it.
+	sourceCurrency := "EUR" // fallback
+	if len(result.Destinations) > 0 {
+		detected := flights.DetectSourceCurrency(ctx, origin, result.Destinations[0].AirportCode)
+		if detected != "" {
+			sourceCurrency = detected
 		}
 	}
 
-	displayCurrency := defaultCurrency
+	// Convert prices if --currency specified and differs from source.
+	displayCurrency := sourceCurrency
 	if targetCurrency != "" {
 		displayCurrency = targetCurrency
+		if targetCurrency != sourceCurrency {
+			for i := range result.Destinations {
+				if result.Destinations[i].Price > 0 {
+					converted, _ := destinations.ConvertCurrency(ctx, result.Destinations[i].Price, sourceCurrency, targetCurrency)
+					result.Destinations[i].Price = math.Round(converted)
+				}
+			}
+		}
 	}
 
 	fmt.Printf("Found %d destinations from %s\n\n", result.Count, origin)
