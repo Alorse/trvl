@@ -134,7 +134,7 @@ func TestParsePriceGridResponse_ValidData(t *testing.T) {
 				t.Errorf("cell price: got %v, want 250", c.Price)
 			}
 			if c.Currency != "" { // Currency stamped by SearchPriceGrid, not parser
-				t.Errorf("cell currency: got %q, want EUR", c.Currency)
+				t.Errorf("cell currency: got %q, want empty (stamped later)", c.Currency)
 			}
 			break
 		}
