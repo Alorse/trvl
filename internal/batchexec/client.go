@@ -8,6 +8,7 @@ package batchexec
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/cache"
 	utls "github.com/refraction-networking/utls"
+	"golang.org/x/net/http2"
 	"golang.org/x/time/rate"
 )
 
@@ -405,22 +407,91 @@ func (c *Client) PostCalendarGrid(ctx context.Context, encodedPayload string) (i
 	return status, body, err
 }
 
-// ChromeHTTPClient returns an *http.Client with Chrome TLS fingerprint impersonation.
-// Ground transport providers (Trainline, Eurostar, SNCF) can use this to bypass
-// Datadome/Cloudflare bot detection, which fingerprints the TLS ClientHello.
-// Go's default TLS fingerprint is instantly detectable; this uses utls to mimic
-// Chrome's ClientHello exactly.
+// ChromeHTTPClient returns an *http.Client with Chrome TLS fingerprint impersonation
+// and HTTP/2 support via golang.org/x/net/http2.
+//
+// Datadome and similar bot-detection systems fingerprint the TLS ClientHello
+// (JA3/JA4) and also verify that the client negotiates HTTP/2 — real Chrome
+// always advertises "h2" first in ALPN and uses HTTP/2. Forcing HTTP/1.1 ALPN
+// is itself a detectable signal.
+//
+// This client uses HelloChrome_Auto (currently Chrome 133) with its native ALPN
+// ["h2", "http/1.1"] and then uses http2.Transport to actually speak HTTP/2 when
+// the server negotiates it, with an http1.1 fallback via net/http Transport.
+//
+// Coverage exclusion: creates raw TLS connections with Chrome fingerprint.
+// Not unit-testable: requires real TCP + TLS handshake. Covered by integration tests.
 func ChromeHTTPClient() *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			DialTLSContext:      dialTLSChromeHTTP1,
-			MaxIdleConns:        10,
-			IdleConnTimeout:     30 * time.Second,
-			TLSHandshakeTimeout: 10 * time.Second,
-			ForceAttemptHTTP2:   false,
+	dialTLS := dialTLSChromeH2
+
+	h2Transport := &http2.Transport{
+		DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+			return dialTLS(ctx, network, addr)
 		},
-		Timeout: 30 * time.Second,
 	}
+
+	h1Transport := &http.Transport{
+		DialTLSContext:      dialTLS,
+		MaxIdleConns:        10,
+		IdleConnTimeout:     30 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		ForceAttemptHTTP2:   false,
+	}
+
+	return &http.Client{
+		Transport: &chromeRoundTripper{h2: h2Transport, h1: h1Transport},
+		Timeout:   30 * time.Second,
+	}
+}
+
+// chromeRoundTripper dispatches requests to the HTTP/2 or HTTP/1.1 transport
+// depending on which protocol was negotiated during the TLS handshake.
+// http2.Transport.RoundTrip handles the ALPN check internally and returns
+// ErrSkipAltSvc / connection errors when h2 is not negotiated; we fall back
+// to the plain http1 transport in that case.
+type chromeRoundTripper struct {
+	h2 *http2.Transport
+	h1 *http.Transport
+}
+
+func (t *chromeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Try h2 first. If the server did not negotiate h2 the transport returns
+	// an error and we fall through to h1.
+	resp, err := t.h2.RoundTrip(req)
+	if err == nil {
+		return resp, nil
+	}
+	slog.Debug("chrome h2 failed, falling back to h1", "err", err)
+	return t.h1.RoundTrip(req)
+}
+
+// dialTLSChromeH2 dials and performs a Chrome-like TLS handshake advertising
+// both "h2" and "http/1.1" in ALPN — exactly as Chrome 133 does.
+// It uses the HelloChrome_Auto (Chrome 133) spec verbatim, without modifying ALPN.
+func dialTLSChromeH2(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("split host: %w", err)
+	}
+
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	rawConn, err := dialer.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, fmt.Errorf("dial tcp: %w", err)
+	}
+
+	// Use HelloChrome_Auto (Chrome 133) spec as-is.
+	// It advertises ["h2", "http/1.1"] in ALPN, which matches what real Chrome sends.
+	// We do NOT override ALPN here — that was the bug in the HTTP/1.1-only path.
+	uConn := utls.UClient(rawConn, &utls.Config{ServerName: host}, utls.HelloChrome_Auto)
+
+	if err := uConn.HandshakeContext(ctx); err != nil {
+		uConn.Close()
+		return nil, fmt.Errorf("utls handshake: %w", err)
+	}
+
+	slog.Debug("chrome tls handshake", "proto", uConn.ConnectionState().NegotiatedProtocol)
+	return uConn, nil
 }
 
 // ErrBlocked is returned when Google responds with 403 Forbidden.

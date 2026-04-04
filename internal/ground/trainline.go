@@ -209,7 +209,18 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Accept-Language", "en-GB")
+		req.Header.Set("Accept-Language", "en-GB,en;q=0.9")
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+		req.Header.Set("Origin", "https://www.thetrainline.com")
+		req.Header.Set("Referer", "https://www.thetrainline.com/")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
+		// Client Hints that Datadome explicitly requests via accept-ch.
+		req.Header.Set("sec-ch-ua", `"Chromium";v="133", "Not(A:Brand";v="99"`)
+		req.Header.Set("sec-ch-ua-mobile", "?0")
+		req.Header.Set("sec-ch-ua-platform", `"macOS"`)
+		req.Header.Set("sec-fetch-dest", "empty")
+		req.Header.Set("sec-fetch-mode", "cors")
+		req.Header.Set("sec-fetch-site", "same-origin")
 		req.Header.Set("x-version", "4.46.32109")
 		if cookieHeader != "" {
 			req.Header.Set("Cookie", cookieHeader)
@@ -234,10 +245,12 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 		firstBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		resp.Body.Close()
 
-		cookieHeader := cookies.BrowserCookies("thetrainline.com")
-		if cookieHeader != "" {
-			slog.Debug("retrying trainline with browser cookies")
-			req2, err2 := newTrainlineRequest(cookieHeader)
+		// Try 1: extract the datadome cookie that Datadome sets on the 403 response
+		// and immediately retry. Datadome uses this to verify cookie support —
+		// presenting their own seeded cookie on the next request is a positive signal.
+		if ddCookie := extractDatadomeCookie(resp.Cookies()); ddCookie != "" {
+			slog.Debug("retrying trainline with datadome seed cookie")
+			req2, err2 := newTrainlineRequest(ddCookie)
 			if err2 != nil {
 				return nil, fmt.Errorf("trainline retry build: %w", err2)
 			}
@@ -248,6 +261,27 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 			defer resp2.Body.Close()
 			if resp2.StatusCode == http.StatusOK {
 				return readAndParseTrainlineResponse(resp2.Body, from, to, date, currency)
+			}
+			body2, _ := io.ReadAll(io.LimitReader(resp2.Body, 2048))
+			slog.Debug("datadome seed cookie retry still blocked", "status", resp2.StatusCode, "body", string(body2))
+		}
+
+		// Try 2: use a real browser session cookie extracted from Brave/Chrome.
+		// Requires the user to have visited thetrainline.com in their browser.
+		cookieHeader := cookies.BrowserCookies("thetrainline.com")
+		if cookieHeader != "" {
+			slog.Debug("retrying trainline with browser cookies")
+			req3, err3 := newTrainlineRequest(cookieHeader)
+			if err3 != nil {
+				return nil, fmt.Errorf("trainline retry build: %w", err3)
+			}
+			resp3, err3 := trainlineClient.Do(req3)
+			if err3 != nil {
+				return nil, fmt.Errorf("trainline retry: %w", err3)
+			}
+			defer resp3.Body.Close()
+			if resp3.StatusCode == http.StatusOK {
+				return readAndParseTrainlineResponse(resp3.Body, from, to, date, currency)
 			}
 		}
 
@@ -349,5 +383,18 @@ func parseTrainlineResults(resp trainlineJourneySearchResponse, from, to, date, 
 
 	slog.Debug("trainline results", "count", len(routes))
 	return routes, nil
+}
+
+// extractDatadomeCookie extracts the "datadome" cookie value from a set of
+// response cookies and returns it as a Cookie header value.
+// Datadome sets this cookie on 403 responses; presenting it on the next
+// request proves cookie support and may allow subsequent requests through.
+func extractDatadomeCookie(cookies []*http.Cookie) string {
+	for _, c := range cookies {
+		if c.Name == "datadome" && c.Value != "" {
+			return "datadome=" + c.Value
+		}
+	}
+	return ""
 }
 
