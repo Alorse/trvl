@@ -318,6 +318,27 @@ func SearchOebb(ctx context.Context, from, to, date, currency string) ([]models.
 
 	routes := parseOebbConnections(svc.Res, fromStation, toStation, date, currency)
 	slog.Debug("oebb results", "outConL", len(svc.Res.OutConL), "parsed", len(routes))
+
+	// ÖBB HAFAS often omits fares (trfReq causes API errors). If no priced
+	// routes came back, try the browser scraper against shop.oebbtickets.at
+	// which renders real prices.
+	hasPrices := false
+	for _, r := range routes {
+		if r.Price > 0 {
+			hasPrices = true
+			break
+		}
+	}
+	if !hasPrices {
+		slog.Debug("oebb no prices from HAFAS — trying browser scraper")
+		if bRoutes, bErr := BrowserScrapeRoutes(ctx, "oebb", from, to, date, currency); bErr == nil && len(bRoutes) > 0 {
+			// Merge: browser routes take precedence for pricing; keep HAFAS for schedule detail.
+			return bRoutes, nil
+		} else if bErr != nil {
+			slog.Debug("oebb browser scraper failed", "err", bErr)
+		}
+	}
+
 	return routes, nil
 }
 

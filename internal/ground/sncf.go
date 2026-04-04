@@ -180,6 +180,15 @@ func SearchSNCF(ctx context.Context, from, to, date, currency string) ([]models.
 		if isCaptcha {
 			slog.Warn("sncf requires browser verification", "captcha_url", captchaURL)
 		}
+
+		// Last resort: browser scraper via Playwright.
+		slog.Debug("sncf 403 — trying browser scraper fallback")
+		if bRoutes, bErr := BrowserScrapeRoutes(ctx, "sncf", from, to, date, currency); bErr == nil && len(bRoutes) > 0 {
+			return bRoutes, nil
+		} else if bErr != nil {
+			slog.Debug("sncf browser scraper failed", "err", bErr)
+		}
+
 		return nil, fmt.Errorf("sncf search: HTTP 403: %s", firstBody)
 	}
 

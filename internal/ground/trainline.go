@@ -288,6 +288,15 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 		if isCaptcha {
 			slog.Warn("trainline requires browser verification", "captcha_url", captchaURL)
 		}
+
+		// Last resort: browser scraper via Playwright.
+		slog.Debug("trainline 403 — trying browser scraper fallback")
+		if bRoutes, bErr := BrowserScrapeRoutes(ctx, "trainline", from, to, date, currency); bErr == nil && len(bRoutes) > 0 {
+			return bRoutes, nil
+		} else if bErr != nil {
+			slog.Debug("trainline browser scraper failed", "err", bErr)
+		}
+
 		return nil, fmt.Errorf("trainline: HTTP 403: %s", firstBody)
 	}
 
