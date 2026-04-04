@@ -58,6 +58,26 @@ def main():
     date = inp.get("date", "")
     currency = inp.get("currency", "EUR").upper()
 
+    # Token-capture modes: only need playwright, not from/to/date.
+    # Output shape differs from route scrapers — callers handle these directly.
+    if provider == "sncf_key":
+        try:
+            with sync_playwright() as pw:
+                key = capture_sncf_key(pw)
+            print(json.dumps({"key": key or ""}), flush=True)
+        except Exception as e:
+            print(json.dumps({"key": "", "error": str(e)}), flush=True)
+        return
+
+    if provider == "trainline_cookie":
+        try:
+            with sync_playwright() as pw:
+                cookie = capture_trainline_cookie(pw)
+            print(json.dumps({"cookie": cookie or ""}), flush=True)
+        except Exception as e:
+            print(json.dumps({"cookie": "", "error": str(e)}), flush=True)
+        return
+
     if not all([provider, from_city, to_city, date]):
         out([], "missing required fields: provider, from, to, date")
         return
@@ -160,6 +180,128 @@ TRAINLINE_STATIONS = {
     "basel": "5877",
     "antwerp": "5929",
 }
+
+
+def capture_sncf_key(pw):
+    """Navigate to sncf-connect.com homepage and capture x-bff-key from network requests.
+
+    Launches a fresh browser, listens for any outgoing request that carries the
+    x-bff-key header (injected by the SNCF SPA), and returns the key value.
+    Returns an empty string if the key is not found within the timeout.
+    """
+    browser = pw.chromium.launch(
+        headless=True,
+        args=["--no-sandbox", "--disable-blink-features=AutomationControlled",
+              "--disable-dev-shm-usage"],
+    )
+    context = browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        ),
+        extra_http_headers={
+            "sec-ch-ua": '"Chromium";v="131", "Not_A Brand";v="24"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"macOS"',
+        },
+        locale="en-GB",
+        viewport={"width": 1280, "height": 800},
+    )
+    context.add_init_script("""
+        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+        Object.defineProperty(navigator, 'languages', {get: () => ['en-GB', 'en']});
+        window.chrome = {runtime: {}};
+    """)
+    page = context.new_page()
+    _apply_stealth(page)
+
+    bff_key = {"value": ""}
+
+    def _on_request(req):
+        key = req.headers.get("x-bff-key", "")
+        if key and not bff_key["value"]:
+            bff_key["value"] = key
+
+    page.on("request", _on_request)
+
+    try:
+        page.goto("https://www.sncf-connect.com/en-en",
+                  wait_until="domcontentloaded", timeout=20000)
+        page.wait_for_timeout(5000)
+    except Exception:
+        pass
+
+    # If not found on homepage, try navigating to the search UI which triggers
+    # more SPA API calls that include the key.
+    if not bff_key["value"]:
+        try:
+            page.goto("https://www.sncf-connect.com/en-en/search",
+                      wait_until="domcontentloaded", timeout=15000)
+            page.wait_for_timeout(3000)
+        except Exception:
+            pass
+
+    browser.close()
+    return bff_key["value"]
+
+
+def capture_trainline_cookie(pw):
+    """Visit thetrainline.com and capture the datadome cookie value.
+
+    Returns the cookie string in the format suitable for a Cookie header
+    (e.g. "datadome=<value>"), or an empty string if not found.
+    """
+    browser = pw.chromium.launch(
+        headless=True,
+        args=["--no-sandbox", "--disable-blink-features=AutomationControlled",
+              "--disable-dev-shm-usage"],
+    )
+    context = browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        ),
+        extra_http_headers={
+            "sec-ch-ua": '"Chromium";v="131", "Not_A Brand";v="24"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"macOS"',
+            "Accept-Language": "en-GB,en;q=0.9",
+        },
+        locale="en-GB",
+        viewport={"width": 1280, "height": 800},
+    )
+    context.add_init_script("""
+        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+        Object.defineProperty(navigator, 'languages', {get: () => ['en-GB', 'en']});
+        window.chrome = {runtime: {}};
+    """)
+    page = context.new_page()
+    _apply_stealth(page)
+
+    try:
+        page.goto("https://www.thetrainline.com",
+                  wait_until="domcontentloaded", timeout=20000)
+        # Allow Datadome challenge scripts to execute and set cookies.
+        page.wait_for_timeout(4000)
+        _dismiss_cookies(page)
+        # Extra dwell to ensure any async cookie-setting completes.
+        page.wait_for_timeout(1000)
+    except Exception:
+        pass
+
+    # Extract all cookies from the browser context and find datadome.
+    all_cookies = context.cookies()
+    cookie_parts = []
+    for c in all_cookies:
+        if "thetrainline.com" in c.get("domain", ""):
+            cookie_parts.append(f"{c['name']}={c['value']}")
+
+    browser.close()
+
+    # Return the full Cookie header string; datadome must be included.
+    return "; ".join(cookie_parts)
 
 
 def scrape_trainline(page, from_city, to_city, date, currency):

@@ -129,17 +129,58 @@ var sncfBFFPaths = []struct {
 	},
 }
 
+// captureSNCFKey launches the Playwright helper to navigate sncf-connect.com
+// and extract the x-bff-key header that the SPA injects into all BFF requests.
+// Returns empty string if Playwright is unavailable or the key is not found.
+func captureSNCFKey(ctx context.Context) string {
+	scriptPath := scraperScriptPath()
+	input := `{"provider":"sncf_key"}`
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 35*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(timeoutCtx, "python3", scriptPath)
+	cmd.Stdin = strings.NewReader(input)
+	output, err := cmd.Output()
+	if err != nil {
+		slog.Debug("captureSNCFKey: scraper error", "err", err)
+		return ""
+	}
+
+	var result struct {
+		Key   string `json:"key"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		slog.Debug("captureSNCFKey: parse error", "err", err)
+		return ""
+	}
+	if result.Error != "" {
+		slog.Debug("captureSNCFKey: script error", "err", result.Error)
+	}
+	return result.Key
+}
+
 // sncfViaCurl tries to call SNCF's BFF API by shelling out to the system curl
 // binary. macOS curl uses the system's native TLS stack (BoringSSL / Secure
 // Transport) which produces a real browser-like ClientHello that Datadome does
 // not flag as a bot — unlike Go's crypto/tls or even utls.
 //
-// No x-bff-key is passed because we have no live browser session to capture it
-// from. Some BFF endpoints return data without the key; others return 401. We
-// try all three known paths and return the first successful parse.
+// It first attempts to capture the x-bff-key via a Playwright browser session
+// so that authenticated BFF endpoints can be reached. Falls back to keyless
+// requests which still work on some endpoints.
 func sncfViaCurl(ctx context.Context, fromCode, toCode, date, currency string) ([]models.GroundRoute, error) {
 	// Build a booking URL using the station codes directly.
 	bookingURL := buildSNCFBookingURL(fromCode, toCode, date)
+
+	// Attempt to capture the live x-bff-key from a real browser session.
+	// This is best-effort; curl requests proceed with or without it.
+	bffKey := captureSNCFKey(ctx)
+	if bffKey != "" {
+		slog.Debug("sncfViaCurl: captured x-bff-key")
+	} else {
+		slog.Debug("sncfViaCurl: no x-bff-key captured, proceeding without")
+	}
 
 	// Shared Chrome-like headers for all requests.
 	commonArgs := []string{
@@ -156,6 +197,9 @@ func sncfViaCurl(ctx context.Context, fromCode, toCode, date, currency string) (
 		"-H", "sec-fetch-dest: empty",
 		"-H", "sec-fetch-mode: cors",
 		"-H", "sec-fetch-site: same-origin",
+	}
+	if bffKey != "" {
+		commonArgs = append(commonArgs, "-H", "x-bff-key: "+bffKey)
 	}
 
 	for _, bffPath := range sncfBFFPaths {

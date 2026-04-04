@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -147,6 +148,150 @@ type trainlinePrice struct {
 	Currency string  `json:"currency"`
 }
 
+// captureTrainlineCookie launches the Playwright helper to visit thetrainline.com
+// and capture all session cookies (including the Datadome cookie) from the live
+// browser context. Returns a ready-to-use Cookie header string, or empty string
+// on failure.
+func captureTrainlineCookie(ctx context.Context) string {
+	scriptPath := scraperScriptPath()
+	input := `{"provider":"trainline_cookie"}`
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 40*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(timeoutCtx, "python3", scriptPath)
+	cmd.Stdin = strings.NewReader(input)
+	output, err := cmd.Output()
+	if err != nil {
+		slog.Debug("captureTrainlineCookie: scraper error", "err", err)
+		return ""
+	}
+
+	var result struct {
+		Cookie string `json:"cookie"`
+		Error  string `json:"error"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		slog.Debug("captureTrainlineCookie: parse error", "err", err)
+		return ""
+	}
+	if result.Error != "" {
+		slog.Debug("captureTrainlineCookie: script error", "err", result.Error)
+	}
+	return result.Cookie
+}
+
+// trainlineViaCurl calls /api/journey-search/ using the system curl binary with
+// a cookie jar. macOS curl uses BoringSSL / Secure Transport which produces a
+// browser-like TLS ClientHello that often passes Datadome's TLS fingerprint
+// check. We first visit the homepage with curl to seed the cookie jar (so the
+// datadome cookie is associated with the same TLS session), then POST to the API.
+func trainlineViaCurl(ctx context.Context, fromID, toID, date, currency string) ([]models.GroundRoute, error) {
+	dateTime, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return nil, fmt.Errorf("trainlineViaCurl invalid date %q: %w", date, err)
+	}
+	departureISO := dateTime.Add(6 * time.Hour).Format("2006-01-02T15:04:05")
+
+	originURN := trainlineURN(fromID)
+	destURN := trainlineURN(toID)
+
+	reqBody := trainlineJourneySearchRequest{
+		Passengers:      []trainlinePassenger{{DateOfBirth: "1996-01-01", CardIDs: []any{}}},
+		IsEurope:        true,
+		Cards:           []any{},
+		Type:            "single",
+		MaximumJourneys: 5,
+		IncludeRealtime: true,
+		TransportModes:  []string{"mixed"},
+		DirectSearch:    false,
+		Composition:     []string{"through", "interchangeSplit"},
+		AutoApplyCorporateCodes: false,
+		Origin:          originURN,
+		Destination:     destURN,
+		TransitDefinitions: []trainlineTransitDef{
+			{
+				Direction:   "outward",
+				Origin:      originURN,
+				Destination: destURN,
+				JourneyDate: trainlineJourneyDate{
+					Type: "departAfter",
+					Time: departureISO,
+				},
+			},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("trainlineViaCurl marshal: %w", err)
+	}
+
+	// Common browser-like headers shared between the seed and API requests.
+	commonHeaders := []string{
+		"-H", "Accept-Language: en-GB,en;q=0.9",
+		"-H", `sec-ch-ua: "Chromium";v="133", "Not(A:Brand";v="99"`,
+		"-H", "sec-ch-ua-mobile: ?0",
+		"-H", `sec-ch-ua-platform: "macOS"`,
+		"-H", "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+	}
+
+	// Step 1: Seed the cookie jar by visiting the homepage so Datadome sets its
+	// cookie bound to this exact curl TLS session.
+	cookieJarFile := fmt.Sprintf("/tmp/trainline-cookies-%d.txt", time.Now().UnixNano())
+	seedArgs := append([]string{
+		"-s", "--http2",
+		"-L", // follow redirects
+		"-c", cookieJarFile, // write cookies
+		"-b", cookieJarFile, // send cookies
+		"-H", "Accept: text/html,application/xhtml+xml",
+		"-H", "sec-fetch-dest: document",
+		"-H", "sec-fetch-mode: navigate",
+		"-H", "sec-fetch-site: none",
+		"https://www.thetrainline.com",
+		"-o", "/dev/null",
+	}, commonHeaders...)
+
+	seedCmd := exec.CommandContext(ctx, "curl", seedArgs...)
+	if seedErr := seedCmd.Run(); seedErr != nil {
+		slog.Debug("trainlineViaCurl: seed request failed", "err", seedErr)
+		// Continue anyway — the API call may still work.
+	} else {
+		slog.Debug("trainlineViaCurl: homepage seed complete", "jar", cookieJarFile)
+	}
+
+	// Step 2: POST to the journey-search API using the seeded cookie jar.
+	apiArgs := append([]string{
+		"-s", "--http2",
+		"-X", "POST",
+		"-c", cookieJarFile,
+		"-b", cookieJarFile,
+		trainlineSearchURL,
+		"-H", "Content-Type: application/json",
+		"-H", "Accept: application/json",
+		"-H", "sec-fetch-dest: empty",
+		"-H", "sec-fetch-mode: cors",
+		"-H", "sec-fetch-site: same-origin",
+		"-H", "x-version: 4.46.32109",
+		"-H", "Origin: https://www.thetrainline.com",
+		"-H", "Referer: https://www.thetrainline.com/",
+		"-d", string(bodyBytes),
+	}, commonHeaders...)
+
+	apiCmd := exec.CommandContext(ctx, "curl", apiArgs...)
+	curlOut, err := apiCmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("trainlineViaCurl curl: %w", err)
+	}
+
+	trimmed := strings.TrimSpace(string(curlOut))
+	if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
+		return nil, fmt.Errorf("trainlineViaCurl: non-JSON response (%.80s)", trimmed)
+	}
+
+	return readAndParseTrainlineResponse(strings.NewReader(trimmed), "", "", date, currency)
+}
+
 // SearchTrainline searches thetrainline.com for train connections between two cities.
 func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
 	fromID, ok := LookupTrainlineStation(from)
@@ -156,6 +301,23 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 	toID, ok := LookupTrainlineStation(to)
 	if !ok {
 		return nil, fmt.Errorf("no Trainline station for %q", to)
+	}
+
+	// Primary: curl with Playwright-captured datadome cookie.
+	// macOS curl's BoringSSL TLS fingerprint often passes Datadome's check.
+	if cRoutes, cErr := trainlineViaCurl(ctx, fromID, toID, date, currency); cErr == nil && len(cRoutes) > 0 {
+		// Populate city names that the curl path cannot fill in.
+		for i := range cRoutes {
+			if cRoutes[i].Departure.City == "" {
+				cRoutes[i].Departure.City = from
+			}
+			if cRoutes[i].Arrival.City == "" {
+				cRoutes[i].Arrival.City = to
+			}
+		}
+		return cRoutes, nil
+	} else {
+		slog.Debug("trainline curl failed, falling back to Go HTTP client", "err", cErr)
 	}
 
 	dateTime, err := time.Parse("2006-01-02", date)
