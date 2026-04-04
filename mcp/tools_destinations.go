@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -416,4 +417,141 @@ func tripCostSummary(result *trip.TripCostResult, origin, dest string, guests in
 		result.Currency, result.Total, result.PerPerson, result.PerDay))
 
 	return strings.Join(parts, ". ") + "."
+}
+
+// --- Plan Trip tool ---
+
+func planTripOutputSchema() interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"success":     map[string]interface{}{"type": "boolean"},
+			"origin":      map[string]interface{}{"type": "string"},
+			"destination": map[string]interface{}{"type": "string"},
+			"depart_date": map[string]interface{}{"type": "string"},
+			"return_date": map[string]interface{}{"type": "string"},
+			"nights":      map[string]interface{}{"type": "integer"},
+			"guests":      map[string]interface{}{"type": "integer"},
+			"outbound_flights": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"price":        map[string]interface{}{"type": "number"},
+						"currency":     map[string]interface{}{"type": "string"},
+						"airline":      map[string]interface{}{"type": "string"},
+						"flight_number": map[string]interface{}{"type": "string"},
+						"stops":        map[string]interface{}{"type": "integer"},
+						"duration_min": map[string]interface{}{"type": "integer"},
+						"departure":    map[string]interface{}{"type": "string"},
+						"arrival":      map[string]interface{}{"type": "string"},
+						"route":        map[string]interface{}{"type": "string"},
+					},
+				},
+			},
+			"return_flights": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"price":        map[string]interface{}{"type": "number"},
+						"currency":     map[string]interface{}{"type": "string"},
+						"airline":      map[string]interface{}{"type": "string"},
+						"flight_number": map[string]interface{}{"type": "string"},
+						"stops":        map[string]interface{}{"type": "integer"},
+						"duration_min": map[string]interface{}{"type": "integer"},
+						"departure":    map[string]interface{}{"type": "string"},
+						"arrival":      map[string]interface{}{"type": "string"},
+						"route":        map[string]interface{}{"type": "string"},
+					},
+				},
+			},
+			"hotels": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"name":      map[string]interface{}{"type": "string"},
+						"rating":    map[string]interface{}{"type": "number"},
+						"reviews":   map[string]interface{}{"type": "integer"},
+						"per_night": map[string]interface{}{"type": "number"},
+						"total":     map[string]interface{}{"type": "number"},
+						"currency":  map[string]interface{}{"type": "string"},
+						"amenities": map[string]interface{}{"type": "string"},
+					},
+				},
+			},
+			"summary": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"flights_total": map[string]interface{}{"type": "number"},
+					"hotel_total":   map[string]interface{}{"type": "number"},
+					"grand_total":   map[string]interface{}{"type": "number"},
+					"per_person":    map[string]interface{}{"type": "number"},
+					"per_day":       map[string]interface{}{"type": "number"},
+					"currency":      map[string]interface{}{"type": "string"},
+				},
+			},
+			"error": map[string]interface{}{"type": "string"},
+		},
+		"required": []string{"success", "origin", "destination"},
+	}
+}
+
+func planTripTool() ToolDef {
+	return ToolDef{
+		Name:        "plan_trip",
+		Title:       "Plan Complete Trip",
+		Description: "Plan a complete trip with outbound flights, return flights, and hotel options in one search. Returns top 5 options for each plus a total cost summary.",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"origin":      {Type: "string", Description: "Origin IATA airport code (e.g. AMS, HEL)"},
+				"destination": {Type: "string", Description: "Destination IATA airport code (e.g. PRG, BCN)"},
+				"depart_date": {Type: "string", Description: "Departure date (YYYY-MM-DD)"},
+				"return_date": {Type: "string", Description: "Return date (YYYY-MM-DD)"},
+				"guests":      {Type: "integer", Description: "Number of guests (default: 1)"},
+				"currency":    {Type: "string", Description: "Target currency (e.g. EUR, USD)"},
+			},
+			Required: []string{"origin", "destination", "depart_date", "return_date"},
+		},
+		OutputSchema: planTripOutputSchema(),
+		Annotations: &ToolAnnotations{
+			Title:          "Plan Complete Trip",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  true,
+		},
+	}
+}
+
+func handlePlanTrip(args map[string]any, elicit ElicitFunc, sampling SamplingFunc) ([]ContentBlock, interface{}, error) {
+	origin := strings.ToUpper(argString(args, "origin"))
+	dest := strings.ToUpper(argString(args, "destination"))
+	departDate := argString(args, "depart_date")
+	returnDate := argString(args, "return_date")
+
+	if origin == "" || dest == "" || departDate == "" || returnDate == "" {
+		return nil, nil, fmt.Errorf("origin, destination, depart_date, and return_date are required")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	input := trip.PlanInput{
+		Origin:      origin,
+		Destination: dest,
+		DepartDate:  departDate,
+		ReturnDate:  returnDate,
+		Guests:      argInt(args, "guests", 1),
+		Currency:    argString(args, "currency"),
+	}
+
+	result, err := trip.PlanTrip(ctx, input)
+	if err != nil {
+		return []ContentBlock{{Type: "text", Text: fmt.Sprintf("Trip planning failed: %v", err)}}, nil, nil
+	}
+
+	data, _ := json.MarshalIndent(result, "", "  ")
+	return []ContentBlock{{Type: "text", Text: string(data)}}, result, nil
 }

@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-04-04
+
+### Added
+- `trvl trip` command: one-search trip planning (flights + hotels + ground in parallel)
+- Trainline provider: 7th ground transport provider (`f92d7bd`)
+- Airport transfer search as ground sub-command (`f58bb49`)
+- `trvl watch` daemon mode: background polling on a configurable schedule (`7d07e89`)
+- `internal/cookies` package: browser cookie auth for CAPTCHA-protected providers (SNCF, Trainline) (`f529104`)
+- `ResolveLocationName`: IATA code → human-readable city name in hotels and ground results
+- `DetectSourceCurrency`: session-cached currency detection (single API call, reused across renders)
+- IATA alias map with 34 airport codes mapped to city names for deal filtering
+
+### Changed
+- `--currency` flag now available on all 20 CLI commands (dates, explore, grid, ground, deals, weekend, suggest, multi-city — previously flights + hotels only)
+- Ground transport deduplication: same provider + time + price collapsed into one row (`7e82ede`)
+- Demo GIF rewritten as 4-act narrative: Discover / Plan / Book / Monitor (`85385b7`, `181eab3`)
+- `DetectSourceCurrency` result cached per session — eliminates repeated API calls on calendar/grid renders
+
+### Fixed
+- Hardcoded EUR removed from entire codebase — API source currency detected and stamped at response layer (`c9b7ab0`, `c40cd02`, `acd3f8a`)
+- Grid, explore, and calendar were mislabelling PLN (and other currencies) as EUR (`71c95e2`, `19f9423`, `d875abb`)
+- DB trains: endpoint corrected, real prices extracted from `angebote.preise.gesamt.ab` (`b402c4c`)
+- Ground date filtering: RegioJet multi-day results now filtered to requested departure date (`38aa83c`)
+- Ground train-type recognition: RegioJet vehicleTypes mapping corrected (trains no longer classified as buses)
+- Deal city-name filtering: substring + IATA alias match (e.g. "Paris" matches CDG/ORY deals) (`38aa83c`)
+- UTF-8 deal title truncation: byte-slice cut replaced with rune-safe truncation
+
 ## [0.3.0] - 2026-04-03
 
 ### Added
@@ -83,6 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Single static binary, zero runtime dependencies
 - MIT license
 
+[0.4.0]: https://github.com/MikkoParkkola/trvl/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/MikkoParkkola/trvl/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/MikkoParkkola/trvl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/MikkoParkkola/trvl/releases/tag/v0.1.0

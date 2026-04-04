@@ -81,7 +81,9 @@ func eurostarGraphQLQuery(originUIC, destUIC, startDate, endDate, currency strin
 	if snapOnly {
 		productFilter = `productFamiliesSearch: "SNAP"`
 	}
-	return fmt.Sprintf(`{
+	// Wrapped in explicit `query` keyword to ensure compatibility with all GraphQL
+	// gateway implementations (anonymous shorthand `{ ... }` is rejected by some).
+	return fmt.Sprintf(`query {
   cheapestFaresSearch(
     cheapestFaresLists: [{
       origin: %q
@@ -151,9 +153,14 @@ func SearchEurostar(ctx context.Context, from, to, startDate, endDate, currency 
 			return nil, err
 		}
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Accept-Language", "en-GB,en;q=0.9")
 		req.Header.Set("Origin", "https://www.eurostar.com")
 		req.Header.Set("Referer", "https://www.eurostar.com/")
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+		req.Header.Set("x-api-key", "")        // placeholder — Eurostar may require this; harmless if empty
+		req.Header.Set("x-locale", "en-GB")    // locale hint used by Eurostar's BFF
+		req.Header.Set("x-version", "1.0.0")   // version header observed in browser traffic
 		if cookieHeader != "" {
 			req.Header.Set("Cookie", cookieHeader)
 		}
@@ -192,8 +199,17 @@ func SearchEurostar(ctx context.Context, from, to, startDate, endDate, currency 
 			}
 			defer resp2.Body.Close()
 			if resp2.StatusCode == http.StatusOK {
+				body2, err3 := io.ReadAll(io.LimitReader(resp2.Body, 1024*1024))
+				if err3 != nil {
+					return nil, fmt.Errorf("eurostar read (cookie retry): %w", err3)
+				}
+				preview2 := body2
+				if len(preview2) > 500 {
+					preview2 = preview2[:500]
+				}
+				slog.Debug("eurostar response (cookie retry)", "status", resp2.StatusCode, "body_len", len(body2), "body_preview", string(preview2))
 				var gqlResp eurostarGQLResponse
-				if err3 := json.NewDecoder(resp2.Body).Decode(&gqlResp); err3 != nil {
+				if err3 = json.Unmarshal(body2, &gqlResp); err3 != nil {
 					return nil, fmt.Errorf("eurostar decode: %w", err3)
 				}
 				if len(gqlResp.Errors) > 0 {
@@ -201,6 +217,9 @@ func SearchEurostar(ctx context.Context, from, to, startDate, endDate, currency 
 				}
 				return buildEurostarRoutes(gqlResp, fromStation, toStation, currency, snapOnly)
 			}
+			// Cookie retry did not yield 200; log and fall through to 403 error.
+			retryBody, _ := io.ReadAll(io.LimitReader(resp2.Body, 512))
+			slog.Debug("eurostar cookie retry non-200", "status", resp2.StatusCode, "body", string(retryBody))
 		}
 
 		isCaptcha, captchaURL := cookies.IsCaptchaResponse(http.StatusForbidden, firstBody)
@@ -215,8 +234,18 @@ func SearchEurostar(ctx context.Context, from, to, startDate, endDate, currency 
 		return nil, fmt.Errorf("eurostar search: HTTP %d: %s", resp.StatusCode, respBody)
 	}
 
+	rawBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024))
+	if err != nil {
+		return nil, fmt.Errorf("eurostar read body: %w", err)
+	}
+	preview := rawBody
+	if len(preview) > 500 {
+		preview = preview[:500]
+	}
+	slog.Debug("eurostar response", "status", resp.StatusCode, "body_len", len(rawBody), "body_preview", string(preview))
+
 	var gqlResp eurostarGQLResponse
-	if err := json.NewDecoder(resp.Body).Decode(&gqlResp); err != nil {
+	if err := json.Unmarshal(rawBody, &gqlResp); err != nil {
 		return nil, fmt.Errorf("eurostar decode: %w", err)
 	}
 

@@ -16,12 +16,13 @@ cmd/trvl                          CLI entry point (cobra)
   |     +-- internal/jsonutil
   |     +-- internal/models
   |
-  +-- internal/ground             Bus + train search (6 providers in parallel)
+  +-- internal/ground             Bus + train search (7 providers in parallel)
   |     +-- flixbus.go            FlixBus REST API (global.api.flixbus.com)
   |     +-- regiojet.go           RegioJet REST API (brn-ybus-pubapi.sa.cz)
   |     +-- eurostar.go           Eurostar GraphQL (site-api.eurostar.com)
   |     +-- deutschebahn.go       DB Vendo API (int.bahn.de/web/api)
   |     +-- sncf.go               SNCF Connect API
+  |     +-- trainline.go          Trainline aggregated rail API (browser cookie auth)
   |     +-- transitous.go         Transitous/MOTIS2 (routing.spicebus.org)
   |     +-- search.go             Parallel dispatch + result merging
   |     +-- internal/models
@@ -35,7 +36,8 @@ cmd/trvl                          CLI entry point (cobra)
   |     +-- internal/jsonutil
   |     +-- internal/models
   |
-  +-- internal/trip               Trip planning (cost, multi-city, weekend, smart dates)
+  +-- internal/trip               Trip planning (cost, multi-city, weekend, smart dates, plan)
+  |     +-- plan.go               Parallel flights+hotel search with cost summary (trvl trip)
   |     +-- internal/flights
   |     +-- internal/hotels
   |     +-- internal/explore
@@ -50,9 +52,10 @@ cmd/trvl                          CLI entry point (cobra)
   |
   +-- internal/models             Shared types: Flight, Hotel, GroundRoute, Airport, formatting
   +-- internal/cache              TTL cache (5m flights, 10m hotels, 1h destinations)
+  +-- internal/cookies            Browser cookie loader for CAPTCHA-protected providers (Trainline, Eurostar, SNCF)
   +-- internal/jsonutil           Safe nested JSON array access
 
-mcp/                              MCP server (16 tools, stdio + HTTP)
+mcp/                              MCP server (17 tools, stdio + HTTP)
   +-- internal/flights
   +-- internal/hotels
   +-- internal/ground
@@ -131,8 +134,9 @@ User: "ground Prague Vienna 2026-07-01"
           +---> eurostar.go      Station lookup -> GraphQL query (1 req/20s limit)
           +---> deutschebahn.go  Location search -> journey query (1 req/2s limit)
           +---> sncf.go          Station search -> offer query (1 req/6s limit)
+          +---> trainline.go     Station search -> journey query (browser cookie auth)
           +---> transitous.go    Geocode -> MOTIS2 routing (1 req/6s limit)
-          |     (all 6 run in parallel via goroutines)
+          |     (all 7 run in parallel via goroutines)
           v
     merge + sort + filter        Combine results, apply --max-price / --type filters
           |
@@ -190,7 +194,7 @@ if useProvider("amtrak") {
 }
 ```
 
-Also update the results channel buffer from `make(chan providerResult, 6)` to 7.
+Also update the results channel buffer from `make(chan providerResult, 7)` to 8.
 
 ### 3. Add tests
 
@@ -234,11 +238,11 @@ The tradeoff is maintenance: when Google changes their protocol (rare but possib
 
 ### Why parallel provider search?
 
-When you search "Prague to Vienna", trvl queries all 6 ground providers simultaneously:
+When you search "Prague to Vienna", trvl queries all 7 ground providers simultaneously:
 
 ```
-Sequential: FlixBus(2s) + RegioJet(1s) + DB(3s) + SNCF(2s) + Eurostar(1s) + Transitous(1s) = 10s
-Parallel:   max(FlixBus, RegioJet, DB, SNCF, Eurostar, Transitous)                          = 3s
+Sequential: FlixBus(2s) + RegioJet(1s) + DB(3s) + SNCF(2s) + Eurostar(1s) + Trainline(2s) + Transitous(1s) = 12s
+Parallel:   max(FlixBus, RegioJet, DB, SNCF, Eurostar, Trainline, Transitous)                               = 3s
 ```
 
 Parallel search gives you the best price across all providers in the time it takes to query the slowest one. The implementation is straightforward Go concurrency: one goroutine per provider, results collected via a channel, merged and sorted after all complete.
@@ -252,7 +256,7 @@ MCP (Model Context Protocol) is how AI assistants call external tools. trvl as a
 - **Progressive disclosure**: Every response includes suggestions for follow-up searches ("Try nearby airports", "Check flexible dates"). The AI can chain these automatically.
 - **No integration work**: Adding trvl to any MCP client is one config line. No REST API to host, no webhook to configure, no OAuth to set up.
 
-trvl also works as a standalone CLI (20 commands) for users who prefer the terminal or want to script searches.
+trvl also works as a standalone CLI (22 commands) for users who prefer the terminal or want to script searches.
 
 ### Why a monorepo with internal packages?
 
