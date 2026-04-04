@@ -3,6 +3,7 @@ package ground
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,7 +17,16 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const dbJourneysEndpoint = "https://app.vendo.noncd.db.de/mob/angebote/fahrplan"
+const dbJourneysEndpoint = "https://app.services-bahn.de/mob/angebote/fahrplan"
+
+// generateCorrelationID creates a DB-compatible correlation ID (uuid_uuid format).
+func generateCorrelationID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%x-%x-%x-%x-%x_%x-%x-%x-%x-%x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16],
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
 
 // dbLimiter enforces a conservative rate limit: 30 req/min (half of the actual 60/min limit).
 var dbLimiter = rate.NewLimiter(rate.Every(2*time.Second), 1)
@@ -284,7 +294,7 @@ func SearchDeutscheBahn(ctx context.Context, from, to, date, currency string) ([
 	req.Header.Set("Accept", contentType)
 	req.Header.Set("Accept-Language", "en")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36")
-	req.Header.Set("X-Correlation-ID", fmt.Sprintf("trvl-%d", time.Now().UnixNano()))
+	req.Header.Set("X-Correlation-ID", generateCorrelationID())
 
 	slog.Debug("db search", "from", fromStation.City, "to", toStation.City, "date", date)
 
@@ -299,16 +309,25 @@ func SearchDeutscheBahn(ctx context.Context, from, to, date, currency string) ([
 		return nil, fmt.Errorf("db search: HTTP %d: %s", resp.StatusCode, respBody)
 	}
 
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
+	if err != nil {
+		return nil, fmt.Errorf("db read: %w", err)
+	}
+	slog.Debug("db response", "status", resp.StatusCode, "body_len", len(respBody))
+
 	var dbResp dbJourneysResponse
-	if err := json.NewDecoder(resp.Body).Decode(&dbResp); err != nil {
+	if err := json.Unmarshal(respBody, &dbResp); err != nil {
 		return nil, fmt.Errorf("db decode: %w", err)
 	}
+
+	slog.Debug("db parsed", "verbindungen", len(dbResp.Verbindungen), "body_len", len(respBody))
 
 	if dbResp.FehlerNachricht != nil && dbResp.FehlerNachricht.Code != "" {
 		return nil, fmt.Errorf("db api error: %s: %s", dbResp.FehlerNachricht.Code, dbResp.FehlerNachricht.Ueberschrift)
 	}
 
 	routes := parseDBVerbindungen(dbResp.Verbindungen, fromStation, toStation, currency)
+	slog.Debug("db routes", "count", len(routes))
 	return routes, nil
 }
 

@@ -88,7 +88,7 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 	}
 
 	var wg sync.WaitGroup
-	results := make(chan providerResult, 6)
+	results := make(chan providerResult, 7)
 
 	useProvider := func(name string) bool {
 		if len(opts.Providers) == 0 {
@@ -157,6 +157,16 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 			defer wg.Done()
 			routes, err := SearchSNCF(ctx, from, to, date, opts.Currency)
 			results <- providerResult{routes: routes, err: err, name: "sncf"}
+		}()
+	}
+
+	// Trainline — train aggregator (covers SNCF, Eurostar, DB, Trenitalia, etc.)
+	if useProvider("trainline") && HasTrainlineStation(from) && HasTrainlineStation(to) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			routes, err := SearchTrainline(ctx, from, to, date, opts.Currency)
+			results <- providerResult{routes: routes, err: err, name: "trainline"}
 		}()
 	}
 
@@ -251,7 +261,8 @@ func deduplicateGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
 func filterUnavailableGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
 	filtered := routes[:0]
 	for _, route := range routes {
-		if route.Price > 0 || strings.EqualFold(route.Provider, "transitous") {
+		// Keep routes with prices, plus schedule-only providers (transitous, db).
+		if route.Price > 0 || strings.EqualFold(route.Provider, "transitous") || strings.EqualFold(route.Provider, "db") {
 			filtered = append(filtered, route)
 		}
 	}
