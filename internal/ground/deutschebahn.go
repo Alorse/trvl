@@ -344,10 +344,15 @@ func parseDBVerbindungen(verbindungen []dbVerbindung, fromStation, toStation DBS
 			continue
 		}
 
-		// Extract price.
+		// Extract price from angebote.preise.gesamt.ab (primary) or top-level fallbacks.
 		price := 0.0
 		priceCurrency := strings.ToUpper(currency)
-		if v.AngebotsPreis != nil && v.AngebotsPreis.Betrag > 0 {
+		if v.Angebote != nil && v.Angebote.Preise != nil && v.Angebote.Preise.Gesamt != nil && v.Angebote.Preise.Gesamt.Ab != nil && v.Angebote.Preise.Gesamt.Ab.Betrag > 0 {
+			price = v.Angebote.Preise.Gesamt.Ab.Betrag
+			if v.Angebote.Preise.Gesamt.Ab.Waehrung != "" {
+				priceCurrency = strings.ToUpper(v.Angebote.Preise.Gesamt.Ab.Waehrung)
+			}
+		} else if v.AngebotsPreis != nil && v.AngebotsPreis.Betrag > 0 {
 			price = v.AngebotsPreis.Betrag
 			if v.AngebotsPreis.Waehrung != "" {
 				priceCurrency = v.AngebotsPreis.Waehrung
