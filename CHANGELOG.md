@@ -9,16 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `trvl trip` command: one-search trip planning (flights + hotels + ground in parallel)
-- Trainline provider: 7th ground transport provider (`f92d7bd`)
+- VR Finnish Railways provider (10th ground transport provider) via Digitransit GraphQL API; fixed fares EUR 14+ (`digitransit.go`)
+- ÖBB Austrian Railways provider via browser automation (Playwright scraper); live Railjet fares EUR 38+ (`oebb.go`, `browser_scraper.go`)
+- NS Dutch Railways provider: schedule search via public API with embedded key (`ns.go`)
+- Trainline provider: aggregated rail across major European operators (`f92d7bd`)
 - Airport transfer search as ground sub-command (`f58bb49`)
 - `trvl watch` daemon mode: background polling on a configurable schedule (`7d07e89`)
-- `internal/cookies` package: browser cookie auth for CAPTCHA-protected providers (SNCF, Trainline) (`f529104`)
+- `internal/cookies` package: browser cookie auth for CAPTCHA-protected providers (SNCF, Trainline, ÖBB) (`f529104`)
 - `ResolveLocationName`: IATA code → human-readable city name in hotels and ground results
 - `DetectSourceCurrency`: session-cached currency detection (single API call, reused across renders)
 - IATA alias map with 34 airport codes mapped to city names for deal filtering
 
 ### Changed
-- `--currency` flag now available on all 20 CLI commands (dates, explore, grid, ground, deals, weekend, suggest, multi-city — previously flights + hotels only)
+- Ground transport expanded from 7 to 10 providers (added VR Finnish Railways, ÖBB Austrian Railways, NS Dutch Railways)
+- `--currency` flag now available on all 22 CLI commands (dates, explore, grid, ground, deals, weekend, suggest, multi-city — previously flights + hotels only)
 - Ground transport deduplication: same provider + time + price collapsed into one row (`7e82ede`)
 - Demo GIF rewritten as 4-act narrative: Discover / Plan / Book / Monitor (`85385b7`, `181eab3`)
 - `DetectSourceCurrency` result cached per session — eliminates repeated API calls on calendar/grid renders
