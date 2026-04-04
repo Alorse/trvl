@@ -255,8 +255,11 @@ type dbHalt struct {
 
 // dbBestPriceResponse represents the response from the tagesbestpreis endpoint.
 type dbBestPriceResponse struct {
-	Preis *dbPreis `json:"preis,omitempty"`
-	Ab    *dbPreis `json:"ab,omitempty"`
+	TagesbestPreisIntervalle []dbBestPriceInterval `json:"tagesbestPreisIntervalle"`
+}
+
+type dbBestPriceInterval struct {
+	AngebotsPreis *dbPreis `json:"angebotsPreis,omitempty"`
 }
 
 // fetchDBBestPrice queries the DB tagesbestpreis endpoint for cross-border routes
@@ -269,10 +272,15 @@ func fetchDBBestPrice(ctx context.Context, fromEVA, toEVA, date string) (float64
 	// reiseDatum must be a full datetime; use 06:00 departure.
 	reiseDatum := date + "T06:00:00"
 
-	// Format A — matches the fahrplan request structure.
+	// Format A — matches the fahrplan request structure (with required fields).
 	reqBodyA := map[string]any{
-		"autonomeReservierung": false,
-		"klasse":               "KLASSE_2",
+		"autonomeReservierung":          false,
+		"klasse":                        "KLASSE_2",
+		"reservierungsKontingenteVorhanden": false,
+		"fahrverguenstigungen": map[string]any{
+			"deutschlandTicketVorhanden":       false,
+			"nurDeutschlandTicketVerbindungen": false,
+		},
 		"reisendenProfil": map[string]any{
 			"reisende": []map[string]any{
 				{
@@ -285,6 +293,7 @@ func fetchDBBestPrice(ctx context.Context, fromEVA, toEVA, date string) (float64
 			"wunsch": map[string]any{
 				"abgangsLocationId": fromLid,
 				"zielLocationId":    toLid,
+				"verkehrsmittel":    []string{"ALL"},
 				"zeitWunsch": map[string]any{
 					"reiseDatum":   reiseDatum,
 					"zeitPunktArt": "ABFAHRT",
@@ -307,7 +316,7 @@ func fetchDBBestPrice(ctx context.Context, fromEVA, toEVA, date string) (float64
 		"reiseDatum": date,
 	}
 
-	contentType := "application/x.db.vendo.mob.tagesbestpreis.v1+json"
+	contentType := "application/x.db.vendo.mob.verbindungssuche.v9+json"
 
 	for _, reqBody := range []map[string]any{reqBodyA, reqBodyB} {
 		body, err := json.Marshal(reqBody)
@@ -349,13 +358,20 @@ func fetchDBBestPrice(ctx context.Context, fromEVA, toEVA, date string) (float64
 			continue
 		}
 
-		if bpResp.Preis != nil && bpResp.Preis.Betrag > 0 {
-			return bpResp.Preis.Betrag, strings.ToUpper(bpResp.Preis.Waehrung)
+		// Find cheapest price across all intervals.
+		var bestPrice float64
+		var bestCur string
+		for _, itv := range bpResp.TagesbestPreisIntervalle {
+			if itv.AngebotsPreis != nil && itv.AngebotsPreis.Betrag > 0 {
+				if bestPrice == 0 || itv.AngebotsPreis.Betrag < bestPrice {
+					bestPrice = itv.AngebotsPreis.Betrag
+					bestCur = strings.ToUpper(itv.AngebotsPreis.Waehrung)
+				}
+			}
 		}
-		if bpResp.Ab != nil && bpResp.Ab.Betrag > 0 {
-			return bpResp.Ab.Betrag, strings.ToUpper(bpResp.Ab.Waehrung)
+		if bestPrice > 0 {
+			return bestPrice, bestCur
 		}
-		// Got 200 but no parseable price — don't try format B.
 		break
 	}
 
