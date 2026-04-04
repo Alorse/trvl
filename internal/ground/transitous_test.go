@@ -9,9 +9,9 @@ import (
 
 func TestClassifyTransitousType(t *testing.T) {
 	tests := []struct {
-		name  string
-		legs  []transitousLeg
-		want  string
+		name string
+		legs []transitousLeg
+		want string
 	}{
 		{
 			"train only",
@@ -174,25 +174,7 @@ func TestBuildTransitousURL(t *testing.T) {
 }
 
 func TestTransitousRateLimiterConfiguration(t *testing.T) {
-	r := transitousLimiter.Reserve()
-	if !r.OK() {
-		t.Fatal("limiter should allow at least one reservation")
-	}
-	delay := r.Delay()
-	if delay > 0 {
-		t.Errorf("first reservation should have zero delay, got %v", delay)
-	}
-	r.Cancel()
-
-	r2 := transitousLimiter.Reserve()
-	if !r2.OK() {
-		t.Fatal("second reservation should be OK")
-	}
-	delay2 := r2.Delay()
-	if delay2 < 4*time.Second || delay2 > 8*time.Second {
-		t.Errorf("second reservation delay = %v, want ~6s", delay2)
-	}
-	r2.Cancel()
+	assertLimiterConfiguration(t, transitousLimiter, 6*time.Second, 1)
 }
 
 func TestSearchTransitous_Integration(t *testing.T) {

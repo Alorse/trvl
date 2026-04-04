@@ -66,8 +66,8 @@ func TestHasEurostarRoute(t *testing.T) {
 		{"Paris", "Brussels", true},
 		{"Amsterdam", "London", true},
 		{"Cologne", "Lille", true},
-		{"London", "Prague", false},   // Prague has no station
-		{"Prague", "Vienna", false},   // Neither has a station
+		{"London", "Prague", false}, // Prague has no station
+		{"Prague", "Vienna", false}, // Neither has a station
 		{"", "Paris", false},
 		{"London", "", false},
 	}
@@ -146,50 +146,15 @@ func TestBuildEurostarBookingURL(t *testing.T) {
 }
 
 func TestEurostarRateLimiterConfiguration(t *testing.T) {
-	// The eurostar limiter should be configured for ~3 req/min.
-	// rate.Every(20s) = 1 token per 20s = 3 per minute.
-	// We verify by checking that the limiter allows a request immediately
-	// (it starts with burst=1 token available).
-	r := eurostarLimiter.Reserve()
-	if !r.OK() {
-		t.Fatal("limiter should allow at least one reservation")
-	}
-	delay := r.Delay()
-	if delay > 0 {
-		t.Errorf("first reservation should have zero delay, got %v", delay)
-	}
-	r.Cancel()
-
-	// A second reservation right after should be delayed ~20s.
-	// We just check it's non-zero (don't actually wait).
-	r2 := eurostarLimiter.Reserve()
-	if !r2.OK() {
-		t.Fatal("second reservation should be OK")
-	}
-	delay2 := r2.Delay()
-	// Should be around 20s, but allow some tolerance.
-	if delay2 < 15*time.Second || delay2 > 25*time.Second {
-		t.Errorf("second reservation delay = %v, want ~20s", delay2)
-	}
-	r2.Cancel()
+	assertLimiterConfiguration(t, eurostarLimiter, 20*time.Second, 1)
 }
 
 func TestFlixbusRateLimiterConfiguration(t *testing.T) {
-	// FlixBus limiter: 10 req/s, burst 1.
-	r := flixbusLimiter.Reserve()
-	if !r.OK() {
-		t.Fatal("limiter should allow reservation")
-	}
-	r.Cancel()
+	assertLimiterConfiguration(t, flixbusLimiter, 100*time.Millisecond, 1)
 }
 
 func TestRegiojetRateLimiterConfiguration(t *testing.T) {
-	// RegioJet limiter: 10 req/s, burst 1.
-	r := regiojetLimiter.Reserve()
-	if !r.OK() {
-		t.Fatal("limiter should allow reservation")
-	}
-	r.Cancel()
+	assertLimiterConfiguration(t, regiojetLimiter, 100*time.Millisecond, 1)
 }
 
 func TestEurostarNotSearchedForNonEurostarCities(t *testing.T) {

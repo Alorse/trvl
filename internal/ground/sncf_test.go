@@ -72,11 +72,11 @@ func TestHasSNCFRoute(t *testing.T) {
 		to   string
 		want bool
 	}{
-		{"Paris", "Lyon", true},           // Both French
-		{"Paris", "Brussels", true},       // One French
-		{"Brussels", "Paris", true},       // One French (reversed)
-		{"Brussels", "Geneva", false},     // Neither French
-		{"Paris", "Prague", false},        // Prague not in station list
+		{"Paris", "Lyon", true},       // Both French
+		{"Paris", "Brussels", true},   // One French
+		{"Brussels", "Paris", true},   // One French (reversed)
+		{"Brussels", "Geneva", false}, // Neither French
+		{"Paris", "Prague", false},    // Prague not in station list
 		{"", "Paris", false},
 		{"Paris", "", false},
 	}
@@ -140,27 +140,7 @@ func TestBuildSNCFBookingURL(t *testing.T) {
 }
 
 func TestSNCFRateLimiterConfiguration(t *testing.T) {
-	// The SNCF limiter should be configured for ~10 req/min.
-	// rate.Every(6s) = 1 token per 6s = 10 per minute.
-	r := sncfLimiter.Reserve()
-	if !r.OK() {
-		t.Fatal("limiter should allow at least one reservation")
-	}
-	delay := r.Delay()
-	if delay > 0 {
-		t.Errorf("first reservation should have zero delay, got %v", delay)
-	}
-	r.Cancel()
-
-	r2 := sncfLimiter.Reserve()
-	if !r2.OK() {
-		t.Fatal("second reservation should be OK")
-	}
-	delay2 := r2.Delay()
-	if delay2 < 4*time.Second || delay2 > 8*time.Second {
-		t.Errorf("second reservation delay = %v, want ~6s", delay2)
-	}
-	r2.Cancel()
+	assertLimiterConfiguration(t, sncfLimiter, 6*time.Second, 1)
 }
 
 func TestSearchSNCF_Integration(t *testing.T) {

@@ -256,27 +256,7 @@ func TestBuildDBBookingURL_ShortTime(t *testing.T) {
 }
 
 func TestDBRateLimiterConfiguration(t *testing.T) {
-	// DB limiter: rate.Every(2s) = 30 req/min, burst 1.
-	r := dbLimiter.Reserve()
-	if !r.OK() {
-		t.Fatal("limiter should allow at least one reservation")
-	}
-	delay := r.Delay()
-	if delay > 0 {
-		t.Errorf("first reservation should have zero delay, got %v", delay)
-	}
-	r.Cancel()
-
-	// A second reservation right after should be delayed ~2s.
-	r2 := dbLimiter.Reserve()
-	if !r2.OK() {
-		t.Fatal("second reservation should be OK")
-	}
-	delay2 := r2.Delay()
-	if delay2 < 1*time.Second || delay2 > 3*time.Second {
-		t.Errorf("second reservation delay = %v, want ~2s", delay2)
-	}
-	r2.Cancel()
+	assertLimiterConfiguration(t, dbLimiter, 2*time.Second, 1)
 }
 
 func TestAllDBStationsHaveRequiredFields(t *testing.T) {
