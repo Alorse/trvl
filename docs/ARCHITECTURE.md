@@ -16,14 +16,20 @@ cmd/trvl                          CLI entry point (cobra)
   |     +-- internal/jsonutil
   |     +-- internal/models
   |
-  +-- internal/ground             Bus + train search (7 providers in parallel)
+  +-- internal/ground             Bus + train search (11 providers in parallel)
   |     +-- flixbus.go            FlixBus REST API (global.api.flixbus.com)
   |     +-- regiojet.go           RegioJet REST API (brn-ybus-pubapi.sa.cz)
   |     +-- eurostar.go           Eurostar GraphQL (site-api.eurostar.com)
   |     +-- deutschebahn.go       DB Vendo API (int.bahn.de/web/api)
-  |     +-- sncf.go               SNCF Connect API
+  |     +-- oebb.go               ÖBB Austrian Railways (Playwright browser scraper)
+  |     +-- ns.go                 NS Dutch Railways (public API, embedded key)
+  |     +-- digitransit.go        VR Finnish Railways via Digitransit GraphQL
+  |     +-- sncf.go               SNCF Connect API (curl BFF fallback + Playwright)
   |     +-- trainline.go          Trainline aggregated rail API (browser cookie auth)
+  |     +-- renfe.go              Renfe Spanish Railways (Playwright browser scraper)
   |     +-- transitous.go         Transitous/MOTIS2 (routing.spicebus.org)
+  |     +-- taxi.go               Taxi fare estimates for airport transfers
+  |     +-- browser_scraper.go    Shared Playwright browser automation
   |     +-- search.go             Parallel dispatch + result merging
   |     +-- internal/models
   |
@@ -55,7 +61,7 @@ cmd/trvl                          CLI entry point (cobra)
   +-- internal/cookies            Browser cookie loader for CAPTCHA-protected providers (Trainline, Eurostar, SNCF)
   +-- internal/jsonutil           Safe nested JSON array access
 
-mcp/                              MCP server (17 tools, stdio + HTTP)
+mcp/                              MCP server (18 tools, stdio + HTTP)
   +-- internal/flights
   +-- internal/hotels
   +-- internal/ground
@@ -133,10 +139,14 @@ User: "ground Prague Vienna 2026-07-01"
           +---> regiojet.go      Location resolve -> route search (10 req/s limit)
           +---> eurostar.go      Station lookup -> GraphQL query (1 req/20s limit)
           +---> deutschebahn.go  Location search -> journey query (1 req/2s limit)
-          +---> sncf.go          Station search -> offer query (1 req/6s limit)
+          +---> oebb.go          Browser session -> Railjet journey (Playwright)
+          +---> ns.go            Station lookup -> journey query (embedded key)
+          +---> digitransit.go   GraphQL query -> VR fare lookup (public key)
+          +---> sncf.go          curl BFF -> offer query (1 req/6s limit)
           +---> trainline.go     Station search -> journey query (browser cookie auth)
+          +---> renfe.go         Browser session -> AVE journey (Playwright)
           +---> transitous.go    Geocode -> MOTIS2 routing (1 req/6s limit)
-          |     (all 7 run in parallel via goroutines)
+          |     (all 11 run in parallel via goroutines)
           v
     merge + sort + filter        Combine results, apply --max-price / --type filters
           |
@@ -194,7 +204,7 @@ if useProvider("amtrak") {
 }
 ```
 
-Also update the results channel buffer from `make(chan providerResult, 7)` to 8.
+Also update the results channel buffer in `search.go` if needed (currently `make(chan providerResult, 10)`).
 
 ### 3. Add tests
 
@@ -238,11 +248,11 @@ The tradeoff is maintenance: when Google changes their protocol (rare but possib
 
 ### Why parallel provider search?
 
-When you search "Prague to Vienna", trvl queries all 7 ground providers simultaneously:
+When you search "Prague to Vienna", trvl queries all 11 ground providers simultaneously:
 
 ```
-Sequential: FlixBus(2s) + RegioJet(1s) + DB(3s) + SNCF(2s) + Eurostar(1s) + Trainline(2s) + Transitous(1s) = 12s
-Parallel:   max(FlixBus, RegioJet, DB, SNCF, Eurostar, Trainline, Transitous)                               = 3s
+Sequential: FlixBus(2s) + RegioJet(1s) + DB(3s) + ÖBB(4s) + NS(1s) + VR(1s) + SNCF(2s) + Trainline(2s) + Renfe(4s) + Eurostar(1s) + Transitous(1s) = 22s
+Parallel:   max(all 11 providers)                                                                                                                        = 4s
 ```
 
 Parallel search gives you the best price across all providers in the time it takes to query the slowest one. The implementation is straightforward Go concurrency: one goroutine per provider, results collected via a channel, merged and sorted after all complete.
@@ -269,12 +279,14 @@ Go's `internal/` convention enforces that packages under `internal/` cannot be i
 
 ## External dependencies
 
-trvl has 3 direct dependencies (and 5 transitive):
+trvl has 5 direct dependencies (and 5 transitive):
 
 | Dependency | Purpose |
 |-----------|---------|
 | `github.com/refraction-networking/utls` | Chrome TLS fingerprint impersonation |
 | `github.com/spf13/cobra` | CLI command framework |
 | `golang.org/x/time` | Token-bucket rate limiter (`rate.Limiter`) |
+| `golang.org/x/net` | HTTP/2 and proxy support |
+| `golang.org/x/term` | Terminal width detection for table formatting |
 
 Everything else is Go stdlib: `net/http`, `encoding/json`, `sync`, `context`, `time`, `sort`, `strings`, `fmt`.

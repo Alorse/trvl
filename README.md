@@ -9,7 +9,7 @@
 
 ![trvl demo](demo.gif)
 
-> **17 travel tools for your AI assistant — flights, hotels, trains, buses, price alerts, destination intel. Free. No API keys. One binary.**
+> **18 travel tools for your AI assistant — flights, hotels, trains, buses, price alerts, destination intel. Free. One binary.**
 >
 > Also works as a standalone CLI with 22 commands.
 
@@ -34,7 +34,7 @@
 > ```
 > Want me to check nearby restaurants or events that weekend?
 
-trvl is an [MCP server](https://modelcontextprotocol.io/) + CLI that gives Claude, Cursor, Windsurf, and any MCP-compatible AI assistant direct access to Google Flights, Google Hotels, and European ground transport data. It searches, optimizes, and applies travel hacks automatically — no API keys, no monthly fees, no scraping.
+trvl is an [MCP server](https://modelcontextprotocol.io/) + CLI that gives Claude, Cursor, Windsurf, and any MCP-compatible AI assistant direct access to Google Flights, Google Hotels, and European ground transport data. It searches, optimizes, and applies travel hacks automatically — no personal API keys required, no monthly fees, no scraping.
 
 ## Quick Setup (30 seconds)
 
@@ -110,7 +110,7 @@ Now Claude knows about trvl in every project — just say "search flights" or "p
 
 ### 4. Ask your AI to search
 
-That's it. Your AI assistant now has 17 travel tools available. Just ask naturally:
+That's it. Your AI assistant now has 18 travel tools available. Just ask naturally:
 
 - *"Search flights from JFK to Tokyo on July 1st, business class"*
 - *"Find hotels in Paris for July 1-5, at least 4 stars"*
@@ -154,12 +154,32 @@ That's it. Your AI assistant now has 17 travel tools available. Just ask natural
 |---------|---------|
 | **Structured content** | Typed JSON (`structuredContent`) alongside human-readable summaries |
 | **Content annotations** | `audience: ["user"]` for summaries, `audience: ["assistant"]` for data |
-| **Output schemas** | Full JSON Schema validation for all 17 tool responses |
+| **Output schemas** | Full JSON Schema validation for all 18 tool responses |
 | **Prompts** | `plan-trip`, `find-cheapest-dates`, `compare-hotels`, `where-should-i-go` |
 | **Resources** | Airport codes (50 major hubs), flight/hotel usage guides |
 | **Elicitation** | Interactive parameter collection when dates are missing |
 | **Progressive disclosure** | Suggestions for follow-up searches in every response |
 | **Booking links** | Direct Google Flights/Hotels links in results |
+
+## Ground Transport Providers
+
+trvl searches 11 ground transport providers in parallel, covering most of Europe:
+
+| Provider | Protocol | Coverage | Starting price | Auth |
+|----------|----------|----------|----------------|------|
+| **Eurostar** | GraphQL | London ↔ Paris/Brussels/Amsterdam/Cologne | GBP 39+ | Browser cookies (Datadome) |
+| **Deutsche Bahn** | REST (Vendo) | All European rail connections | EUR 37+ | None |
+| **ÖBB** | Browser scraper | Austrian Railjet + cross-border (AT/DE/HU/IT) | EUR 38+ | Playwright session |
+| **VR (via Digitransit)** | GraphQL | Finnish rail network | EUR 14+ | Public API key (embedded) |
+| **NS** | REST | Dutch rail network | EUR 5+ | Public subscription key (embedded) |
+| **Renfe** | Browser scraper | Spanish AVE high-speed + regional | EUR 36+ | Playwright session |
+| **SNCF** | REST (BFF) | French TGV, TER, Intercity | Varies | Browser cookies (Datadome), curl fallback |
+| **Trainline** | REST | Aggregated: SNCF, DB, Eurostar, Trenitalia, … | Varies | Browser cookies (Datadome) |
+| **FlixBus** | REST | Pan-European buses (40+ countries) | EUR 5+ | None |
+| **RegioJet** | REST | CZ/SK/AT/HU/DE/PL buses + trains | EUR 5+ | None |
+| **Transitous** | MOTIS2 REST | Pan-European transit (schedule-based fallback) | — | None |
+
+Two providers (NS, Digitransit/VR) use public API keys that are embedded in the binary — no signup or personal key is required from the user.
 
 ## How trvl Compares
 
@@ -384,7 +404,7 @@ Google's travel frontend uses an internal gRPC-over-HTTP protocol called **batch
 15. **Trains (Trainline)** — Trainline aggregated rail API across major European operators; browser cookie auth for CAPTCHA bypass
 16. **Transit (Transitous)** — `routing.spicebus.org` MOTIS2 API for pan-European transit routing
 17. **Trains (Renfe)** — Spanish AVE high-speed and regional rail via Playwright browser scraper; fares EUR 36+
-18. **Rate limiting** — 10 req/s token bucket with exponential backoff on 429/5xx
+18. **Rate limiting** — per-provider token buckets (10 req/s FlixBus/RegioJet; 1 req/2s DB; 1 req/6s SNCF/Transitous; 1 req/20s Eurostar) with exponential backoff on 429/5xx
 
 Most providers use pure HTTP — no Selenium, no Puppeteer. ÖBB, SNCF, and Renfe use an optional Playwright browser scraper for providers that require a live browser session (falls back gracefully if Playwright is not installed).
 
@@ -409,9 +429,9 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | | |
 |---|---|
 | **Binary** | Single static ~15MB. Zero runtime dependencies. |
-| **Data** | Real-time from 7 Google endpoints + FlixBus + RegioJet + Eurostar + Deutsche Bahn + ÖBB + NS + VR + SNCF + Trainline + Transitous + Renfe + 11 free APIs + Google Maps |
-| **Auth** | None required. Browser cookies loaded automatically for CAPTCHA-protected providers (Trainline, Eurostar, SNCF, ÖBB). |
-| **MCP** | Full v2025-11-25 — 17 tools, 4 prompts, resources, structured content, sampling |
+| **Data** | Real-time from Google Flights/Hotels/Explore/Maps + 11 ground providers (FlixBus, RegioJet, Eurostar, DB, ÖBB, NS, VR, SNCF, Trainline, Transitous, Renfe) + 5 free destination APIs |
+| **Auth** | No personal API keys required. Two providers (NS, Digitransit/VR) use public keys embedded in the binary. Browser cookies loaded automatically for CAPTCHA-protected providers (Trainline, Eurostar, SNCF, ÖBB). |
+| **MCP** | Full v2025-11-25 — 18 tools, 4 prompts, resources, structured content, sampling |
 | **CLI** | 22 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
 | **Booking links** | Every flight and hotel result includes a direct Google booking link |
 | **Travel hacks** | 30+ hacks auto-applied: nearby airports, throw-away returns, hotel splits |
