@@ -420,13 +420,10 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 		return nil, fmt.Errorf("no Trainline station for %q", to)
 	}
 
-	// Try 1: HTML page scrape — GET the results page, extract prices from embedded JSON.
-	// No Playwright required; works as long as the Chrome TLS fingerprint is accepted.
-	if htmlRoutes, htmlErr := trainlineViaHTMLScrape(ctx, from, to, date, currency); htmlErr == nil && len(htmlRoutes) > 0 {
-		return htmlRoutes, nil
-	} else {
-		slog.Debug("trainline HTML scrape failed, falling back to curl", "err", htmlErr)
-	}
+	// NOTE: HTML scrape disabled — the page embeds exchange rates (9.9, 33.46, 46.94)
+	// which are NOT train prices. The journey-search API requires a datadome cookie
+	// that can only be obtained by executing Datadome's JavaScript challenge in a browser.
+	// When the user visits thetrainline.com once, the cookie is captured automatically.
 
 	// Try 2: curl with Playwright-captured datadome cookie.
 	// macOS curl's BoringSSL TLS fingerprint often passes Datadome's check.
