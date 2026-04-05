@@ -312,84 +312,38 @@ def scrape_trainline(page, from_city, to_city, date, currency):
 
     _apply_stealth(page)
 
-    # Navigate to homepage first — establishes Datadome cookies / session.
-    # Use domcontentloaded to avoid waiting for analytics/tracking requests that
-    # keep the page in non-idle state indefinitely.
-    page.goto("https://www.thetrainline.com", wait_until="domcontentloaded", timeout=25000)
-    page.wait_for_timeout(2000)  # Allow Datadome challenge scripts to run
+    # Navigate directly to the RESULTS page. The SPA makes its own API calls
+    # (which pass Datadome because they come from the page's own JS, not from
+    # page.evaluate). The price calendar renders even when the results list
+    # shows "Something went wrong".
+    url = (
+        f"https://www.thetrainline.com/book/results?"
+        f"journeySearchType=single"
+        f"&origin=urn%3Atrainline%3Ageneric%3Aloc%3A{from_id}"
+        f"&destination=urn%3Atrainline%3Ageneric%3Aloc%3A{to_id}"
+        f"&outwardDate={date}T08%3A00%3A00"
+        f"&outwardDateType=departAfter"
+        f"&passengers%5B%5D=1996-01-01"
+        f"&lang=en&transportModes%5B%5D=mixed"
+    )
+    page.goto(url, wait_until="domcontentloaded", timeout=25000)
     _dismiss_cookies(page)
+    page.wait_for_timeout(15000)  # Wait for SPA + API calls + render
 
-    # Call the journey-search API from the authenticated page context.
-    result = page.evaluate(f"""
-    async () => {{
-        const r = await fetch('/api/journey-search/', {{
-            method: 'POST',
-            headers: {{
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'x-version': '4.46.32109'
-            }},
-            body: JSON.stringify({{
-                passengers: [{{dateOfBirth: '1996-01-01', cardIds: []}}],
-                isEurope: true,
-                cards: [],
-                transitDefinitions: [{{
-                    direction: 'outward',
-                    origin: 'urn:trainline:generic:loc:{from_id}',
-                    destination: 'urn:trainline:generic:loc:{to_id}',
-                    journeyDate: {{type: 'departAfter', time: '{date}T06:00:00'}}
-                }}],
-                type: 'single',
-                maximumJourneys: 5,
-                includeRealtime: true,
-                transportModes: ['mixed'],
-                directSearch: false
-            }})
-        }});
-
-        if (r.status !== 200) {{
-            const t = await r.text();
-            return JSON.stringify({{error: 'HTTP ' + r.status + ': ' + t.substring(0, 200)}});
-        }}
-
-        const d = await r.json();
-        const journeys = (d.data && d.data.journeySearch && d.data.journeySearch.journeys)
-            ? Object.values(d.data.journeySearch.journeys)
-            : (d.journeys || []);
-        const legs = (d.data && d.data.journeySearch && d.data.journeySearch.legs) || {{}};
-        const fares = (d.data && d.data.journeySearch && d.data.journeySearch.journeyFares) || {{}};
-
-        return JSON.stringify({{
-            count: journeys.length,
-            journeys: journeys.slice(0, 8).map(j => {{
-                const legCount = (j.legs || []).length;
-                const fareEntry = fares[j.id];
-                let price = null;
-                let priceCur = '{currency}';
-                if (fareEntry && fareEntry.fares && fareEntry.fares.length > 0) {{
-                    const cheapest = fareEntry.fares.reduce((a, b) =>
-                        (a.price && b.price && a.price.amount < b.price.amount) ? a : b);
-                    if (cheapest.price) {{
-                        price = cheapest.price.amount / 100;
-                        priceCur = cheapest.price.currencyCode || priceCur;
-                    }}
-                }}
-                return {{
-                    dep: j.departureTime,
-                    arr: j.arrivalTime,
-                    dur: j.duration,
-                    legs: legCount,
-                    price: price,
-                    priceCur: priceCur
-                }};
-            }})
-        }});
-    }}
-    """)
-
+    # Extract prices and times from the rendered DOM.
+    result = page.evaluate(r"""JSON.stringify({
+        prices: (document.body.innerText.match(/[£€$]\s*\d+[\.,]?\d*/g)||[]).slice(0,15),
+        times: (document.body.innerText.match(/\d{2}:\d{2}/g)||[]).slice(0,20),
+        noTickets: document.body.innerText.includes('No tickets'),
+        textLen: document.body.innerText.length
+    })""")
     data = json.loads(result)
-    if data.get("error"):
-        raise RuntimeError(f"trainline api: {data['error']}")
+
+    if data.get("noTickets"):
+        return []  # No tickets available for this date
+
+    prices = data.get("prices", [])
+    times = data.get("times", [])
 
     booking_url = (
         f"https://www.thetrainline.com/book/trains/"
@@ -399,30 +353,51 @@ def scrape_trainline(page, from_city, to_city, date, currency):
     )
 
     routes = []
-    for j in data.get("journeys", []):
-        price = j.get("price") or 0.0
-        if price <= 0:
-            continue
-        dep = j.get("dep") or ""
-        arr = j.get("arr") or ""
-        dur_str = j.get("dur") or ""
-        legs = j.get("legs") or 1
-        price_cur = j.get("priceCur") or currency
+    if prices:
+        # Extract the minimum price from the price calendar
+        min_price = None
+        min_currency = currency
+        for p_str in prices:
+            m = re.match(r"([£€$])\s*(\d+[\.,]?\d*)", p_str)
+            if m:
+                symbol = m.group(1)
+                amount = float(m.group(2).replace(",", "."))
+                cur = {"£": "GBP", "€": "EUR", "$": "USD"}.get(symbol, currency)
+                if min_price is None or amount < min_price:
+                    min_price = amount
+                    min_currency = cur
 
-        # Parse ISO8601 duration string (PT2H15M) into minutes.
-        duration = _parse_iso_duration(dur_str)
-
-        routes.append({
-            "price": float(price),
-            "currency": price_cur,
-            "departure": dep,
-            "arrival": arr,
-            "duration": duration,
-            "type": "train",
-            "provider": "trainline",
-            "transfers": max(0, legs - 1),
-            "booking_url": booking_url,
-        })
+        if min_price and min_price > 0:
+            # If we have times, pair them with the price
+            if len(times) >= 2:
+                # Pair departure/arrival times
+                for i in range(0, min(len(times), 10), 2):
+                    dep_time = times[i]
+                    arr_time = times[i + 1] if i + 1 < len(times) else ""
+                    routes.append({
+                        "price": min_price,
+                        "currency": min_currency,
+                        "departure": f"{date}T{dep_time}:00",
+                        "arrival": f"{date}T{arr_time}:00" if arr_time else "",
+                        "duration": 0,
+                        "type": "train",
+                        "provider": "trainline",
+                        "transfers": 0,
+                        "booking_url": booking_url,
+                    })
+            else:
+                # No individual times — just return the daily minimum price
+                routes.append({
+                    "price": min_price,
+                    "currency": min_currency,
+                    "departure": date,
+                    "arrival": date,
+                    "duration": 0,
+                    "type": "train",
+                    "provider": "trainline",
+                    "transfers": 0,
+                    "booking_url": booking_url,
+                })
 
     return routes
 
