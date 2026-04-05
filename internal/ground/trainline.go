@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -293,6 +296,119 @@ func trainlineViaCurl(ctx context.Context, fromID, toID, date, currency string) 
 	return readAndParseTrainlineResponse(strings.NewReader(trimmed), "", "", date, currency)
 }
 
+// trainlineResultsURL is the base URL for the Trainline results page.
+const trainlineResultsURL = "https://www.thetrainline.com/book/results"
+
+// trainlinePriceRe matches price amounts embedded in the __INITIAL_REDUX_STATE__ JSON.
+var trainlinePriceRe = regexp.MustCompile(`"amount":(\d+\.?\d*)`)
+
+// trainlineCurrencyRe matches a currency code near a price amount.
+var trainlineCurrencyRe = regexp.MustCompile(`"currencyCode":"([A-Z]{3})"`)
+
+// trainlineViaHTMLScrape GETs the Trainline results page and extracts the minimum
+// price from the __INITIAL_REDUX_STATE__ JSON embedded in the server-rendered HTML.
+// This avoids Playwright and any external dependencies — a plain Chrome-TLS GET
+// is sufficient to retrieve the page.
+func trainlineViaHTMLScrape(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
+	fromID, ok := LookupTrainlineStation(from)
+	if !ok {
+		return nil, fmt.Errorf("trainlineViaHTMLScrape: no station for %q", from)
+	}
+	toID, ok := LookupTrainlineStation(to)
+	if !ok {
+		return nil, fmt.Errorf("trainlineViaHTMLScrape: no station for %q", to)
+	}
+
+	resultsURL := fmt.Sprintf(
+		"%s?journeySearchType=single&origin=%s&destination=%s&outwardDate=%sT08:00:00&outwardDateType=departAfter&passengers[]=1996-01-01&lang=en",
+		trainlineResultsURL,
+		trainlineURN(fromID),
+		trainlineURN(toID),
+		date,
+	)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, resultsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("trainlineViaHTMLScrape build req: %w", err)
+	}
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-GB,en;q=0.9")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
+
+	resp, err := trainlineClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("trainlineViaHTMLScrape GET: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("trainlineViaHTMLScrape: HTTP %d: %.80s", resp.StatusCode, body)
+	}
+
+	html, err := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
+	if err != nil {
+		return nil, fmt.Errorf("trainlineViaHTMLScrape read body: %w", err)
+	}
+	slog.Debug("trainlineViaHTMLScrape: page fetched", "bytes", len(html))
+
+	// Extract all price amounts from the embedded JSON state.
+	amountMatches := trainlinePriceRe.FindAllSubmatch(html, -1)
+	if len(amountMatches) == 0 {
+		return nil, fmt.Errorf("trainlineViaHTMLScrape: no price amounts found in HTML")
+	}
+
+	// Determine currency: use the first currencyCode found in the page,
+	// falling back to the requested currency.
+	detectedCurrency := currency
+	if cc := trainlineCurrencyRe.FindSubmatch(html); cc != nil {
+		detectedCurrency = string(cc[1])
+	}
+
+	// Find the minimum price, filtering out config sentinel values (>= 500).
+	minPrice := math.MaxFloat64
+	for _, m := range amountMatches {
+		v, parseErr := strconv.ParseFloat(string(m[1]), 64)
+		if parseErr != nil {
+			continue
+		}
+		if v <= 0 || v >= 500 {
+			continue
+		}
+		if v < minPrice {
+			minPrice = v
+		}
+	}
+
+	if minPrice == math.MaxFloat64 {
+		return nil, fmt.Errorf("trainlineViaHTMLScrape: no valid price found (all amounts filtered)")
+	}
+
+	slog.Debug("trainlineViaHTMLScrape: min price found", "price", minPrice, "currency", detectedCurrency)
+
+	route := models.GroundRoute{
+		Provider: "trainline",
+		Type:     "train",
+		Price:    minPrice,
+		Currency: detectedCurrency,
+		Departure: models.GroundStop{
+			City: from,
+			Time: date + "T08:00:00",
+		},
+		Arrival: models.GroundStop{
+			City: to,
+		},
+		BookingURL: fmt.Sprintf("https://www.thetrainline.com/book/trains/%s/%s/%s",
+			strings.ReplaceAll(strings.ToLower(from), " ", "-"),
+			strings.ReplaceAll(strings.ToLower(to), " ", "-"),
+			date),
+	}
+	return []models.GroundRoute{route}, nil
+}
+
 // SearchTrainline searches thetrainline.com for train connections between two cities.
 func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
 	fromID, ok := LookupTrainlineStation(from)
@@ -304,7 +420,15 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 		return nil, fmt.Errorf("no Trainline station for %q", to)
 	}
 
-	// Primary: curl with Playwright-captured datadome cookie.
+	// Try 1: HTML page scrape — GET the results page, extract prices from embedded JSON.
+	// No Playwright required; works as long as the Chrome TLS fingerprint is accepted.
+	if htmlRoutes, htmlErr := trainlineViaHTMLScrape(ctx, from, to, date, currency); htmlErr == nil && len(htmlRoutes) > 0 {
+		return htmlRoutes, nil
+	} else {
+		slog.Debug("trainline HTML scrape failed, falling back to curl", "err", htmlErr)
+	}
+
+	// Try 2: curl with Playwright-captured datadome cookie.
 	// macOS curl's BoringSSL TLS fingerprint often passes Datadome's check.
 	if cRoutes, cErr := trainlineViaCurl(ctx, fromID, toID, date, currency); cErr == nil && len(cRoutes) > 0 {
 		// Populate city names that the curl path cannot fill in.
