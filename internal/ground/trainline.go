@@ -7,12 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -88,19 +85,19 @@ func HasTrainlineStation(city string) bool {
 
 // trainlineJourneySearchRequest is the JSON body for the journey-search API.
 type trainlineJourneySearchRequest struct {
-	Passengers             []trainlinePassenger    `json:"passengers"`
-	IsEurope               bool                    `json:"isEurope"`
-	Cards                  []any                   `json:"cards"`
-	TransitDefinitions     []trainlineTransitDef   `json:"transitDefinitions"`
-	Type                   string                  `json:"type"`
-	MaximumJourneys        int                     `json:"maximumJourneys"`
-	IncludeRealtime        bool                    `json:"includeRealtime"`
-	TransportModes         []string                `json:"transportModes"`
-	DirectSearch           bool                    `json:"directSearch"`
-	Composition            []string                `json:"composition"`
-	AutoApplyCorporateCodes bool                   `json:"autoApplyCorporateCodes"`
-	Origin                 string                  `json:"origin"`
-	Destination            string                  `json:"destination"`
+	Passengers              []trainlinePassenger  `json:"passengers"`
+	IsEurope                bool                  `json:"isEurope"`
+	Cards                   []any                 `json:"cards"`
+	TransitDefinitions      []trainlineTransitDef `json:"transitDefinitions"`
+	Type                    string                `json:"type"`
+	MaximumJourneys         int                   `json:"maximumJourneys"`
+	IncludeRealtime         bool                  `json:"includeRealtime"`
+	TransportModes          []string              `json:"transportModes"`
+	DirectSearch            bool                  `json:"directSearch"`
+	Composition             []string              `json:"composition"`
+	AutoApplyCorporateCodes bool                  `json:"autoApplyCorporateCodes"`
+	Origin                  string                `json:"origin"`
+	Destination             string                `json:"destination"`
 }
 
 type trainlinePassenger struct {
@@ -109,9 +106,9 @@ type trainlinePassenger struct {
 }
 
 type trainlineTransitDef struct {
-	Direction   string              `json:"direction"`
-	Origin      string              `json:"origin"`
-	Destination string              `json:"destination"`
+	Direction   string               `json:"direction"`
+	Origin      string               `json:"origin"`
+	Destination string               `json:"destination"`
 	JourneyDate trainlineJourneyDate `json:"journeyDate"`
 }
 
@@ -127,11 +124,11 @@ type trainlineJourneySearchResponse struct {
 }
 
 type trainlineJourney struct {
-	ID            string          `json:"id"`
-	DepartureTime string          `json:"departureTime"`
-	ArrivalTime   string          `json:"arrivalTime"`
-	Legs          []trainlineLeg  `json:"legs"`
-	TicketIDs     []string        `json:"ticketIds"`
+	ID            string         `json:"id"`
+	DepartureTime string         `json:"departureTime"`
+	ArrivalTime   string         `json:"arrivalTime"`
+	Legs          []trainlineLeg `json:"legs"`
+	TicketIDs     []string       `json:"ticketIds"`
 }
 
 type trainlineLeg struct {
@@ -142,47 +139,14 @@ type trainlineLeg struct {
 }
 
 type trainlineTicket struct {
-	ID         string              `json:"id"`
-	JourneyIDs []string            `json:"journeyIds"`
-	Prices     []trainlinePrice    `json:"prices"`
+	ID         string           `json:"id"`
+	JourneyIDs []string         `json:"journeyIds"`
+	Prices     []trainlinePrice `json:"prices"`
 }
 
 type trainlinePrice struct {
 	Amount   float64 `json:"amount"`
 	Currency string  `json:"currency"`
-}
-
-// captureTrainlineCookie launches the Playwright helper to visit thetrainline.com
-// and capture all session cookies (including the Datadome cookie) from the live
-// browser context. Returns a ready-to-use Cookie header string, or empty string
-// on failure.
-func captureTrainlineCookie(ctx context.Context) string {
-	scriptPath := scraperScriptPath()
-	input := `{"provider":"trainline_cookie"}`
-
-	timeoutCtx, cancel := context.WithTimeout(ctx, 40*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(timeoutCtx, "python3", scriptPath)
-	cmd.Stdin = strings.NewReader(input)
-	output, err := cmd.Output()
-	if err != nil {
-		slog.Debug("captureTrainlineCookie: scraper error", "err", err)
-		return ""
-	}
-
-	var result struct {
-		Cookie string `json:"cookie"`
-		Error  string `json:"error"`
-	}
-	if err := json.Unmarshal(output, &result); err != nil {
-		slog.Debug("captureTrainlineCookie: parse error", "err", err)
-		return ""
-	}
-	if result.Error != "" {
-		slog.Debug("captureTrainlineCookie: script error", "err", result.Error)
-	}
-	return result.Cookie
 }
 
 // trainlineViaCurl calls /api/journey-search/ using the system curl binary with
@@ -201,18 +165,18 @@ func trainlineViaCurl(ctx context.Context, fromID, toID, date, currency string) 
 	destURN := trainlineURN(toID)
 
 	reqBody := trainlineJourneySearchRequest{
-		Passengers:      []trainlinePassenger{{DateOfBirth: "1996-01-01", CardIDs: []any{}}},
-		IsEurope:        true,
-		Cards:           []any{},
-		Type:            "single",
-		MaximumJourneys: 5,
-		IncludeRealtime: true,
-		TransportModes:  []string{"mixed"},
-		DirectSearch:    false,
-		Composition:     []string{"through", "interchangeSplit"},
+		Passengers:              []trainlinePassenger{{DateOfBirth: "1996-01-01", CardIDs: []any{}}},
+		IsEurope:                true,
+		Cards:                   []any{},
+		Type:                    "single",
+		MaximumJourneys:         5,
+		IncludeRealtime:         true,
+		TransportModes:          []string{"mixed"},
+		DirectSearch:            false,
+		Composition:             []string{"through", "interchangeSplit"},
 		AutoApplyCorporateCodes: false,
-		Origin:          originURN,
-		Destination:     destURN,
+		Origin:                  originURN,
+		Destination:             destURN,
 		TransitDefinitions: []trainlineTransitDef{
 			{
 				Direction:   "outward",
@@ -245,7 +209,7 @@ func trainlineViaCurl(ctx context.Context, fromID, toID, date, currency string) 
 	cookieJarFile := fmt.Sprintf("/tmp/trainline-cookies-%d.txt", time.Now().UnixNano())
 	seedArgs := append([]string{
 		"-s", "--http2",
-		"-L", // follow redirects
+		"-L",                // follow redirects
 		"-c", cookieJarFile, // write cookies
 		"-b", cookieJarFile, // send cookies
 		"-H", "Accept: text/html,application/xhtml+xml",
@@ -296,119 +260,6 @@ func trainlineViaCurl(ctx context.Context, fromID, toID, date, currency string) 
 	return readAndParseTrainlineResponse(strings.NewReader(trimmed), "", "", date, currency)
 }
 
-// trainlineResultsURL is the base URL for the Trainline results page.
-const trainlineResultsURL = "https://www.thetrainline.com/book/results"
-
-// trainlinePriceRe matches price amounts embedded in the __INITIAL_REDUX_STATE__ JSON.
-var trainlinePriceRe = regexp.MustCompile(`"amount":(\d+\.?\d*)`)
-
-// trainlineCurrencyRe matches a currency code near a price amount.
-var trainlineCurrencyRe = regexp.MustCompile(`"currencyCode":"([A-Z]{3})"`)
-
-// trainlineViaHTMLScrape GETs the Trainline results page and extracts the minimum
-// price from the __INITIAL_REDUX_STATE__ JSON embedded in the server-rendered HTML.
-// This avoids Playwright and any external dependencies — a plain Chrome-TLS GET
-// is sufficient to retrieve the page.
-func trainlineViaHTMLScrape(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
-	fromID, ok := LookupTrainlineStation(from)
-	if !ok {
-		return nil, fmt.Errorf("trainlineViaHTMLScrape: no station for %q", from)
-	}
-	toID, ok := LookupTrainlineStation(to)
-	if !ok {
-		return nil, fmt.Errorf("trainlineViaHTMLScrape: no station for %q", to)
-	}
-
-	resultsURL := fmt.Sprintf(
-		"%s?journeySearchType=single&origin=%s&destination=%s&outwardDate=%sT08:00:00&outwardDateType=departAfter&passengers[]=1996-01-01&lang=en",
-		trainlineResultsURL,
-		trainlineURN(fromID),
-		trainlineURN(toID),
-		date,
-	)
-
-	timeoutCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, resultsURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("trainlineViaHTMLScrape build req: %w", err)
-	}
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-GB,en;q=0.9")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
-
-	resp, err := trainlineClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("trainlineViaHTMLScrape GET: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("trainlineViaHTMLScrape: HTTP %d: %.80s", resp.StatusCode, body)
-	}
-
-	html, err := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
-	if err != nil {
-		return nil, fmt.Errorf("trainlineViaHTMLScrape read body: %w", err)
-	}
-	slog.Debug("trainlineViaHTMLScrape: page fetched", "bytes", len(html))
-
-	// Extract all price amounts from the embedded JSON state.
-	amountMatches := trainlinePriceRe.FindAllSubmatch(html, -1)
-	if len(amountMatches) == 0 {
-		return nil, fmt.Errorf("trainlineViaHTMLScrape: no price amounts found in HTML")
-	}
-
-	// Determine currency: use the first currencyCode found in the page,
-	// falling back to the requested currency.
-	detectedCurrency := currency
-	if cc := trainlineCurrencyRe.FindSubmatch(html); cc != nil {
-		detectedCurrency = string(cc[1])
-	}
-
-	// Find the minimum price, filtering out config sentinel values (>= 500).
-	minPrice := math.MaxFloat64
-	for _, m := range amountMatches {
-		v, parseErr := strconv.ParseFloat(string(m[1]), 64)
-		if parseErr != nil {
-			continue
-		}
-		if v <= 0 || v >= 500 {
-			continue
-		}
-		if v < minPrice {
-			minPrice = v
-		}
-	}
-
-	if minPrice == math.MaxFloat64 {
-		return nil, fmt.Errorf("trainlineViaHTMLScrape: no valid price found (all amounts filtered)")
-	}
-
-	slog.Debug("trainlineViaHTMLScrape: min price found", "price", minPrice, "currency", detectedCurrency)
-
-	route := models.GroundRoute{
-		Provider: "trainline",
-		Type:     "train",
-		Price:    minPrice,
-		Currency: detectedCurrency,
-		Departure: models.GroundStop{
-			City: from,
-			Time: date + "T08:00:00",
-		},
-		Arrival: models.GroundStop{
-			City: to,
-		},
-		BookingURL: fmt.Sprintf("https://www.thetrainline.com/book/trains/%s/%s/%s",
-			strings.ReplaceAll(strings.ToLower(from), " ", "-"),
-			strings.ReplaceAll(strings.ToLower(to), " ", "-"),
-			date),
-	}
-	return []models.GroundRoute{route}, nil
-}
-
 // SearchTrainline searches thetrainline.com for train connections between two cities.
 func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
 	fromID, ok := LookupTrainlineStation(from)
@@ -452,18 +303,18 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string) ([]mo
 	destURN := trainlineURN(toID)
 
 	reqBody := trainlineJourneySearchRequest{
-		Passengers:      []trainlinePassenger{{DateOfBirth: "1996-01-01", CardIDs: []any{}}},
-		IsEurope:        true,
-		Cards:           []any{},
-		Type:            "single",
-		MaximumJourneys: 5,
-		IncludeRealtime: true,
-		TransportModes:  []string{"mixed"},
-		DirectSearch:    false,
-		Composition:     []string{"through", "interchangeSplit"},
+		Passengers:              []trainlinePassenger{{DateOfBirth: "1996-01-01", CardIDs: []any{}}},
+		IsEurope:                true,
+		Cards:                   []any{},
+		Type:                    "single",
+		MaximumJourneys:         5,
+		IncludeRealtime:         true,
+		TransportModes:          []string{"mixed"},
+		DirectSearch:            false,
+		Composition:             []string{"through", "interchangeSplit"},
 		AutoApplyCorporateCodes: false,
-		Origin:          originURN,
-		Destination:     destURN,
+		Origin:                  originURN,
+		Destination:             destURN,
 		TransitDefinitions: []trainlineTransitDef{
 			{
 				Direction:   "outward",
@@ -691,4 +542,3 @@ func extractDatadomeCookie(cookies []*http.Cookie) string {
 	}
 	return ""
 }
-

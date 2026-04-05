@@ -16,9 +16,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// oebbEndpoint is the ÖBB HAFAS mgate endpoint used by the fahrplan.oebb.at web app.
-const oebbEndpoint = "https://fahrplan.oebb.at/bin/mgate.exe"
-
 // oebbShopBase is the base URL for the ÖBB shop REST API.
 const oebbShopBase = "https://shop.oebbtickets.at"
 
@@ -45,16 +42,16 @@ type oebbStation struct {
 // Numbers are the shop.oebbtickets.at numeric station IDs.
 var oebbStations = map[string]oebbStation{
 	// Austria — home network
-	"vienna":    {ExtID: "1190100", Number: 1290401, Name: "Wien Hbf", City: "Vienna"},
-	"wien":      {ExtID: "1190100", Number: 1290401, Name: "Wien Hbf", City: "Vienna"},
-	"salzburg":  {ExtID: "8100002", Number: 8100002, Name: "Salzburg Hbf", City: "Salzburg"},
-	"innsbruck": {ExtID: "8100108", Number: 8100108, Name: "Innsbruck Hbf", City: "Innsbruck"},
-	"graz":      {ExtID: "8100173", Number: 8100173, Name: "Graz Hbf", City: "Graz"},
-	"linz":      {ExtID: "8100013", Number: 8100013, Name: "Linz Hbf", City: "Linz"},
+	"vienna":     {ExtID: "1190100", Number: 1290401, Name: "Wien Hbf", City: "Vienna"},
+	"wien":       {ExtID: "1190100", Number: 1290401, Name: "Wien Hbf", City: "Vienna"},
+	"salzburg":   {ExtID: "8100002", Number: 8100002, Name: "Salzburg Hbf", City: "Salzburg"},
+	"innsbruck":  {ExtID: "8100108", Number: 8100108, Name: "Innsbruck Hbf", City: "Innsbruck"},
+	"graz":       {ExtID: "8100173", Number: 8100173, Name: "Graz Hbf", City: "Graz"},
+	"linz":       {ExtID: "8100013", Number: 8100013, Name: "Linz Hbf", City: "Linz"},
 	"klagenfurt": {ExtID: "8100085", Number: 8100085, Name: "Klagenfurt Hbf", City: "Klagenfurt"},
-	"villach":   {ExtID: "8100071", Number: 8100071, Name: "Villach Hbf", City: "Villach"},
-	"bregenz":   {ExtID: "8100356", Number: 8100356, Name: "Bregenz", City: "Bregenz"},
-	"feldkirch": {ExtID: "8100358", Number: 8100358, Name: "Feldkirch", City: "Feldkirch"},
+	"villach":    {ExtID: "8100071", Number: 8100071, Name: "Villach Hbf", City: "Villach"},
+	"bregenz":    {ExtID: "8100356", Number: 8100356, Name: "Bregenz", City: "Bregenz"},
+	"feldkirch":  {ExtID: "8100358", Number: 8100358, Name: "Feldkirch", City: "Feldkirch"},
 
 	// Germany (served by ÖBB Railjet/Nightjet)
 	"munich":    {ExtID: "8000261", Number: 8000261, Name: "München Hbf", City: "Munich"},
@@ -95,9 +92,9 @@ var oebbStations = map[string]oebbStation{
 	"zagreb": {ExtID: "7800001", Number: 7800001, Name: "Zagreb Gl. kol.", City: "Zagreb"},
 
 	// Poland
-	"warsaw":  {ExtID: "5100028", Number: 5100028, Name: "Warszawa Centralna", City: "Warsaw"},
-	"krakow":  {ExtID: "5100066", Number: 5100066, Name: "Kraków Główny", City: "Krakow"},
-	"kraków":  {ExtID: "5100066", Number: 5100066, Name: "Kraków Główny", City: "Krakow"},
+	"warsaw": {ExtID: "5100028", Number: 5100028, Name: "Warszawa Centralna", City: "Warsaw"},
+	"krakow": {ExtID: "5100066", Number: 5100066, Name: "Kraków Główny", City: "Krakow"},
+	"kraków": {ExtID: "5100066", Number: 5100066, Name: "Kraków Główny", City: "Krakow"},
 }
 
 // LookupOebbStation resolves a city name to an ÖBB station (case-insensitive).
@@ -122,7 +119,7 @@ func HasOebbRoute(from, to string) bool {
 func oebbTripSearchRequest(fromExtID, toExtID, dateStr, timeStr string) map[string]any {
 	return map[string]any{
 		"auth": map[string]any{
-			"aid": "OWDL4fE4ixNiPBBm",
+			"aid":  "OWDL4fE4ixNiPBBm",
 			"type": "AID",
 		},
 		"client": map[string]any{
@@ -133,12 +130,12 @@ func oebbTripSearchRequest(fromExtID, toExtID, dateStr, timeStr string) map[stri
 			"ua":   "Mozilla/5.0",
 			"v":    100,
 		},
-		"ext":      "OEBB.1",
+		"ext":       "OEBB.1",
 		"formatted": false,
-		"lang":     "en",
+		"lang":      "en",
 		"svcReqL": []map[string]any{
 			{
-				"cfg": map[string]any{"polyEnc": "GPA"},
+				"cfg":  map[string]any{"polyEnc": "GPA"},
 				"meth": "TripSearch",
 				"req": map[string]any{
 					"arrLocL": []map[string]any{
@@ -147,13 +144,13 @@ func oebbTripSearchRequest(fromExtID, toExtID, dateStr, timeStr string) map[stri
 					"depLocL": []map[string]any{
 						{"extId": fromExtID, "type": "S"},
 					},
-					"extChgTime": -1,
+					"extChgTime":  -1,
 					"getPasslist": false,
 					"getPolyline": false,
 					"jnyFltrL": []map[string]any{
 						{"mode": "BIT", "type": "PROD", "value": "1111111111111111"},
 					},
-					"numF": 5,
+					"numF":    5,
 					"outDate": dateStr,
 					"outTime": timeStr,
 					"outFrwd": true,
@@ -166,26 +163,15 @@ func oebbTripSearchRequest(fromExtID, toExtID, dateStr, timeStr string) map[stri
 	}
 }
 
-// oebbMgateResponse is the top-level mgate response envelope.
-type oebbMgateResponse struct {
-	SvcResL []oebbSvcRes `json:"svcResL"`
-}
-
-type oebbSvcRes struct {
-	Meth string          `json:"meth"`
-	Res  oebbTripRes     `json:"res"`
-	Err  string          `json:"err,omitempty"`
-}
-
 type oebbTripRes struct {
-	Common    oebbCommon  `json:"common"`
-	OutConL   []oebbCon   `json:"outConL"`
+	Common  oebbCommon `json:"common"`
+	OutConL []oebbCon  `json:"outConL"`
 }
 
 type oebbCommon struct {
-	LocL    []oebbLoc    `json:"locL"`
-	OpL     []oebbOp     `json:"opL"`
-	ProdL   []oebbProd   `json:"prodL"`
+	LocL  []oebbLoc  `json:"locL"`
+	OpL   []oebbOp   `json:"opL"`
+	ProdL []oebbProd `json:"prodL"`
 }
 
 type oebbLoc struct {
@@ -203,27 +189,27 @@ type oebbProd struct {
 }
 
 type oebbCon struct {
-	Dep     oebbConStop  `json:"dep"`
-	Arr     oebbConStop  `json:"arr"`
-	SecL    []oebbSec    `json:"secL"`
-	TrfRes  *oebbTrfRes  `json:"trfRes,omitempty"`
-	CHG     int          `json:"chg"` // number of changes
-	Dur     string       `json:"dur"` // "HHMMSS" format (e.g. "041300" = 4h 13m)
-	Date    string       `json:"date"` // connection date "YYYYMMDD" (e.g. "20260410")
+	Dep    oebbConStop `json:"dep"`
+	Arr    oebbConStop `json:"arr"`
+	SecL   []oebbSec   `json:"secL"`
+	TrfRes *oebbTrfRes `json:"trfRes,omitempty"`
+	CHG    int         `json:"chg"`  // number of changes
+	Dur    string      `json:"dur"`  // "HHMMSS" format (e.g. "041300" = 4h 13m)
+	Date   string      `json:"date"` // connection date "YYYYMMDD" (e.g. "20260410")
 }
 
 type oebbConStop struct {
 	// dTimeS/aTimeS = scheduled time (HHMMSS string), no date — use con.Date
-	DTimeS  string `json:"dTimeS,omitempty"`
-	ATimeS  string `json:"aTimeS,omitempty"`
-	LocX    int    `json:"locX"`
+	DTimeS string `json:"dTimeS,omitempty"`
+	ATimeS string `json:"aTimeS,omitempty"`
+	LocX   int    `json:"locX"`
 }
 
 type oebbSec struct {
-	Type    string      `json:"type"`     // "JNY", "WALK"
-	Dep     oebbConStop `json:"dep"`
-	Arr     oebbConStop `json:"arr"`
-	JnyL    *oebbJny    `json:"jny,omitempty"`
+	Type string      `json:"type"` // "JNY", "WALK"
+	Dep  oebbConStop `json:"dep"`
+	Arr  oebbConStop `json:"arr"`
+	JnyL *oebbJny    `json:"jny,omitempty"`
 }
 
 type oebbJny struct {
@@ -235,8 +221,8 @@ type oebbTrfRes struct {
 }
 
 type oebbFareSet struct {
-	Desc  string      `json:"desc"`
-	FareL []oebbFare  `json:"fareL"`
+	Desc  string     `json:"desc"`
+	FareL []oebbFare `json:"fareL"`
 }
 
 type oebbFare struct {
@@ -786,4 +772,3 @@ func buildOebbBookingURL(from, to oebbStation, date string) string {
 		url.QueryEscape(date),
 	)
 }
-
