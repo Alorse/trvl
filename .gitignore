@@ -30,3 +30,4 @@ Thumbs.db
 # Internal planning (not for public repo)
 .internal/
 __pycache__/
+trvl
