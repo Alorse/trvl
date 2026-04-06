@@ -51,21 +51,6 @@ var dfdsClient = &http.Client{
 	Timeout: 30 * time.Second,
 }
 
-
-// dfdsRouteSlug maps DFDS route codes to the URL slug used on dfds.com.
-var dfdsRouteSlug = map[string]string{
-	"DKCPH-NOOSL": "copenhagen-oslo",
-	"NOOSL-DKCPH": "oslo-copenhagen",
-	"NLIJM-GBTYN": "amsterdam-newcastle",
-	"GBTYN-NLIJM": "newcastle-amsterdam",
-	"DEKEL-LTKLJ": "kiel-klaipeda",
-	"LTKLJ-DEKEL": "klaipeda-kiel",
-	"SEKPS-EEPLA": "kapellskar-paldiski",
-	"EEPLA-SEKPS": "paldiski-kapellskar",
-}
-
-
-
 // dfdsPort holds metadata for a DFDS ferry port.
 type dfdsPort struct {
 	Code string // UN/LOCODE port prefix used in route codes

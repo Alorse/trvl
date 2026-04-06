@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"golang.org/x/time/rate"
 )
 
@@ -37,6 +39,8 @@ const distribusionAPIBase = "https://api.distribusion.com/retailers/v4"
 
 // distribusionLimiter: conservative 10 req/min until actual limits are known.
 var distribusionLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
+
+var distribusionTitleCaser = cases.Title(language.English)
 
 // distribusionHTTPClient is a shared HTTP client for Distribusion API calls.
 var distribusionHTTPClient = &http.Client{
@@ -359,11 +363,11 @@ func SearchDistribusion(ctx context.Context, from, to, date, currency string) ([
 		// names derived from the station code parameter.
 		depCity := stationNames[a.DepartureStationCode]
 		if depCity == "" {
-			depCity = strings.Title(strings.ToLower(from))
+			depCity = distribusionTitleCaser.String(strings.ToLower(from))
 		}
 		arrCity := stationNames[a.ArrivalStationCode]
 		if arrCity == "" {
-			arrCity = strings.Title(strings.ToLower(to))
+			arrCity = distribusionTitleCaser.String(strings.ToLower(to))
 		}
 
 		transportType := normaliseDistribusionType(a.TrafficType)

@@ -1,7 +1,6 @@
 package route
 
 import (
-	"math"
 	"testing"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -231,9 +230,4 @@ func TestBuildPaths(t *testing.T) {
 	if len(paths[0].cities) != 2 {
 		t.Errorf("first path should be direct (2 cities), got %d", len(paths[0].cities))
 	}
-}
-
-// round helper for testing.
-func round(f float64) float64 {
-	return math.Round(f*100) / 100
 }
