@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -139,8 +140,10 @@ func TestStorePersistenceUsesPrivateAtomicFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat dir: %v", err)
 	}
-	if got := dirInfo.Mode().Perm(); got != 0o700 {
-		t.Fatalf("dir perms = %o, want 700", got)
+	if runtime.GOOS != "windows" {
+		if got := dirInfo.Mode().Perm(); got != 0o700 {
+			t.Fatalf("dir perms = %o, want 700", got)
+		}
 	}
 
 	for _, name := range []string{"watches.json", "price-history.json"} {
@@ -148,8 +151,10 @@ func TestStorePersistenceUsesPrivateAtomicFiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("stat %s: %v", name, err)
 		}
-		if got := info.Mode().Perm(); got != 0o600 {
-			t.Fatalf("%s perms = %o, want 600", name, got)
+		if runtime.GOOS != "windows" {
+			if got := info.Mode().Perm(); got != 0o600 {
+				t.Fatalf("%s perms = %o, want 600", name, got)
+			}
 		}
 	}
 

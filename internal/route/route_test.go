@@ -1,10 +1,42 @@
 package route
 
 import (
+	"context"
 	"testing"
 
+	"github.com/MikkoParkkola/trvl/internal/flights"
+	"github.com/MikkoParkkola/trvl/internal/ground"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
+
+func withSearchMocks(
+	t *testing.T,
+	flight func(context.Context, string, string, string, flights.SearchOptions) (*models.FlightSearchResult, error),
+	groundSearch func(context.Context, string, string, string, ground.SearchOptions) (*models.GroundSearchResult, error),
+	convert func(context.Context, float64, string, string) (float64, string),
+) {
+	t.Helper()
+
+	prevFlight := searchFlightsFunc
+	prevGround := searchGroundByNameFunc
+	prevConvert := convertCurrencyFunc
+
+	if flight != nil {
+		searchFlightsFunc = flight
+	}
+	if groundSearch != nil {
+		searchGroundByNameFunc = groundSearch
+	}
+	if convert != nil {
+		convertCurrencyFunc = convert
+	}
+
+	t.Cleanup(func() {
+		searchFlightsFunc = prevFlight
+		searchGroundByNameFunc = prevGround
+		convertCurrencyFunc = prevConvert
+	})
+}
 
 func TestLookupHub(t *testing.T) {
 	tests := []struct {
@@ -180,6 +212,34 @@ func TestSortItinerariesPreferMode(t *testing.T) {
 	}
 }
 
+func TestOptionsDefaults(t *testing.T) {
+	opts := Options{
+		Prefer: " Train ",
+		Avoid:  " BUS ",
+	}
+
+	opts.defaults()
+
+	if opts.MaxTransfers != 3 {
+		t.Fatalf("MaxTransfers = %d, want 3", opts.MaxTransfers)
+	}
+	if opts.Currency != "EUR" {
+		t.Fatalf("Currency = %q, want EUR", opts.Currency)
+	}
+	if opts.MaxHubs != 1 {
+		t.Fatalf("MaxHubs = %d, want 1", opts.MaxHubs)
+	}
+	if opts.SortBy != "price" {
+		t.Fatalf("SortBy = %q, want price", opts.SortBy)
+	}
+	if opts.Prefer != "train" {
+		t.Fatalf("Prefer = %q, want train", opts.Prefer)
+	}
+	if opts.Avoid != "bus" {
+		t.Fatalf("Avoid = %q, want bus", opts.Avoid)
+	}
+}
+
 func TestFilterItinerariesByConstraints(t *testing.T) {
 	its := []models.RouteItinerary{
 		{DepartTime: "2026-04-10T08:00:00", ArriveTime: "2026-04-10T12:00:00"},
@@ -196,6 +256,219 @@ func TestFilterItinerariesByConstraints(t *testing.T) {
 	}
 	if got := filtered[0].DepartTime; got != "2026-04-10T10:00:00" {
 		t.Fatalf("kept itinerary depart time = %q, want 2026-04-10T10:00:00", got)
+	}
+}
+
+func TestSearchFlightLegConvertsCurrency(t *testing.T) {
+	withSearchMocks(
+		t,
+		func(context.Context, string, string, string, flights.SearchOptions) (*models.FlightSearchResult, error) {
+			return &models.FlightSearchResult{
+				Success: true,
+				Flights: []models.FlightResult{
+					{
+						Price:    100,
+						Currency: "USD",
+						Duration: 120,
+						Stops:    0,
+						Legs: []models.FlightLeg{
+							{
+								DepartureTime: "2026-07-01T08:00:00",
+								ArrivalTime:   "2026-07-01T10:00:00",
+								Airline:       "Finnair",
+							},
+						},
+					},
+				},
+			}, nil
+		},
+		nil,
+		func(context.Context, float64, string, string) (float64, string) {
+			return 91.23, "EUR"
+		},
+	)
+
+	legs := searchFlightLeg(context.Background(), Hub{City: "Helsinki", Airports: []string{"HEL"}}, Hub{City: "Vienna", Airports: []string{"VIE"}}, "2026-07-01", Options{Currency: "EUR"})
+	if len(legs) != 1 {
+		t.Fatalf("expected 1 leg, got %d", len(legs))
+	}
+	if legs[0].Price != 91.23 {
+		t.Fatalf("converted price = %.2f, want 91.23", legs[0].Price)
+	}
+	if legs[0].Currency != "EUR" {
+		t.Fatalf("currency = %q, want EUR", legs[0].Currency)
+	}
+	if legs[0].Provider != "Finnair" {
+		t.Fatalf("provider = %q, want Finnair", legs[0].Provider)
+	}
+}
+
+func TestSearchGroundLegPrefersPricedRoutesAndAppliesAvoid(t *testing.T) {
+	withSearchMocks(
+		t,
+		nil,
+		func(_ context.Context, from, to, date string, opts ground.SearchOptions) (*models.GroundSearchResult, error) {
+			if from != "Helsinki" || to != "Vienna" || date != "2026-07-01" {
+				t.Fatalf("unexpected search args: %q %q %q", from, to, date)
+			}
+			if !opts.AllowBrowserFallbacks {
+				t.Fatal("expected AllowBrowserFallbacks to propagate to ground search")
+			}
+			return &models.GroundSearchResult{
+				Success: true,
+				Count:   3,
+				Routes: []models.GroundRoute{
+					{
+						Provider: "transitous",
+						Type:     "train",
+						Price:    0,
+						Currency: "EUR",
+						Duration: 180,
+						Departure: models.GroundStop{
+							Time: "2026-07-01T09:00:00",
+						},
+						Arrival: models.GroundStop{
+							Time: "2026-07-01T12:00:00",
+						},
+					},
+					{
+						Provider: "flixbus",
+						Type:     "bus",
+						Price:    15,
+						Currency: "USD",
+						Duration: 240,
+						Departure: models.GroundStop{
+							Time: "2026-07-01T08:00:00",
+						},
+						Arrival: models.GroundStop{
+							Time: "2026-07-01T12:00:00",
+						},
+					},
+					{
+						Provider: "trainline",
+						Type:     "train",
+						Price:    20,
+						Currency: "USD",
+						Duration: 180,
+						Departure: models.GroundStop{
+							Time: "2026-07-01T09:00:00",
+						},
+						Arrival: models.GroundStop{
+							Time: "2026-07-01T12:00:00",
+						},
+					},
+				},
+			}, nil
+		},
+		func(context.Context, float64, string, string) (float64, string) {
+			return 18.5, "EUR"
+		},
+	)
+
+	legs := searchGroundLeg(context.Background(), Hub{City: "Helsinki"}, Hub{City: "Vienna"}, "2026-07-01", Options{
+		Currency:              "EUR",
+		Avoid:                 "bus",
+		AllowBrowserFallbacks: true,
+	})
+	if len(legs) != 1 {
+		t.Fatalf("expected 1 ground leg after filtering, got %d", len(legs))
+	}
+	if legs[0].Mode != "train" {
+		t.Fatalf("mode = %q, want train", legs[0].Mode)
+	}
+	if legs[0].Price != 18.5 {
+		t.Fatalf("converted price = %.1f, want 18.5", legs[0].Price)
+	}
+	if legs[0].Currency != "EUR" {
+		t.Fatalf("currency = %q, want EUR", legs[0].Currency)
+	}
+}
+
+func TestSearchRouteReturnsNoMatchesError(t *testing.T) {
+	withSearchMocks(
+		t,
+		func(context.Context, string, string, string, flights.SearchOptions) (*models.FlightSearchResult, error) {
+			return &models.FlightSearchResult{Success: false}, nil
+		},
+		func(context.Context, string, string, string, ground.SearchOptions) (*models.GroundSearchResult, error) {
+			return &models.GroundSearchResult{Success: false}, nil
+		},
+		nil,
+	)
+
+	result, err := SearchRoute(context.Background(), "alpha", "omega", "2026-07-01", Options{})
+	if err != nil {
+		t.Fatalf("SearchRoute: %v", err)
+	}
+	if result.Success {
+		t.Fatal("expected no successful itineraries")
+	}
+	if result.Error == "" {
+		t.Fatal("expected no-match error message")
+	}
+	if result.Origin != "Alpha" || result.Destination != "Omega" {
+		t.Fatalf("unexpected normalized endpoints: %q -> %q", result.Origin, result.Destination)
+	}
+}
+
+func TestSearchRouteReturnsDirectGroundResult(t *testing.T) {
+	withSearchMocks(
+		t,
+		func(context.Context, string, string, string, flights.SearchOptions) (*models.FlightSearchResult, error) {
+			return &models.FlightSearchResult{Success: false}, nil
+		},
+		func(_ context.Context, from, to, date string, opts ground.SearchOptions) (*models.GroundSearchResult, error) {
+			if from != "Alpha" || to != "Omega" || date != "2026-07-01" {
+				t.Fatalf("unexpected ground search args: %q %q %q", from, to, date)
+			}
+			if opts.Currency != "EUR" {
+				t.Fatalf("currency = %q, want EUR", opts.Currency)
+			}
+			if !opts.AllowBrowserFallbacks {
+				t.Fatal("expected AllowBrowserFallbacks to reach route search")
+			}
+			return &models.GroundSearchResult{
+				Success: true,
+				Count:   1,
+				Routes: []models.GroundRoute{
+					{
+						Provider: "trainline",
+						Type:     "train",
+						Price:    25,
+						Currency: "EUR",
+						Duration: 180,
+						Departure: models.GroundStop{
+							Time: "2026-07-01T09:00:00",
+						},
+						Arrival: models.GroundStop{
+							Time: "2026-07-01T12:00:00",
+						},
+					},
+				},
+			}, nil
+		},
+		nil,
+	)
+
+	result, err := SearchRoute(context.Background(), "alpha", "omega", "2026-07-01", Options{AllowBrowserFallbacks: true})
+	if err != nil {
+		t.Fatalf("SearchRoute: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected successful route search, got error %q", result.Error)
+	}
+	if result.Origin != "Alpha" || result.Destination != "Omega" {
+		t.Fatalf("unexpected normalized endpoints: %q -> %q", result.Origin, result.Destination)
+	}
+	if len(result.Itineraries) != 1 {
+		t.Fatalf("expected 1 itinerary, got %d", len(result.Itineraries))
+	}
+	it := result.Itineraries[0]
+	if len(it.Legs) != 1 {
+		t.Fatalf("expected direct itinerary, got %d legs", len(it.Legs))
+	}
+	if it.Legs[0].Mode != "train" {
+		t.Fatalf("mode = %q, want train", it.Legs[0].Mode)
 	}
 }
 
@@ -260,5 +533,134 @@ func TestBuildPaths(t *testing.T) {
 	// First should be direct.
 	if len(paths[0].cities) != 2 {
 		t.Errorf("first path should be direct (2 cities), got %d", len(paths[0].cities))
+	}
+}
+
+func TestSelectDiverseLegs(t *testing.T) {
+	flights := []models.RouteLeg{
+		{Mode: "flight", Provider: "A"},
+		{Mode: "flight", Provider: "B"},
+		{Mode: "flight", Provider: "C"},
+	}
+	ground := []models.RouteLeg{
+		{Mode: "train", Provider: "DB"},
+	}
+
+	selected := selectDiverseLegs(flights, ground, 2)
+	if len(selected) != 3 {
+		t.Fatalf("expected 3 selected legs, got %d", len(selected))
+	}
+	if selected[0].Provider != "A" || selected[1].Provider != "B" || selected[2].Provider != "DB" {
+		t.Fatalf("unexpected selected legs: %#v", selected)
+	}
+}
+
+func TestCombineSegmentsBuildsFeasibleItinerary(t *testing.T) {
+	p := path{
+		cities: []Hub{
+			{City: "Helsinki"},
+			{City: "Vienna"},
+			{City: "Dubrovnik"},
+		},
+	}
+	segResults := map[string]*segResult{
+		"Helsinki→Vienna": {
+			flights: []models.RouteLeg{
+				{
+					Mode:      "flight",
+					Provider:  "Finnair",
+					Departure: "2026-07-01T08:00:00",
+					Arrival:   "2026-07-01T10:00:00",
+					Duration:  120,
+					Price:     60,
+					Currency:  "EUR",
+				},
+			},
+		},
+		"Vienna→Dubrovnik": {
+			ground: []models.RouteLeg{
+				{
+					Mode:      "train",
+					Provider:  "Nightjet",
+					Departure: "2026-07-01T12:30:00",
+					Arrival:   "2026-07-01T17:30:00",
+					Duration:  300,
+					Price:     70,
+					Currency:  "EUR",
+				},
+			},
+		},
+	}
+
+	itineraries := combineSegments(p, segResults, Options{MaxTransfers: 3})
+	if len(itineraries) != 1 {
+		t.Fatalf("expected 1 itinerary, got %d", len(itineraries))
+	}
+
+	it := itineraries[0]
+	if it.TotalPrice != 130 {
+		t.Fatalf("total price = %.0f, want 130", it.TotalPrice)
+	}
+	if it.TotalDuration != 570 {
+		t.Fatalf("total duration = %d, want 570", it.TotalDuration)
+	}
+	if it.Transfers != 1 {
+		t.Fatalf("transfers = %d, want 1", it.Transfers)
+	}
+}
+
+func TestItineraryModeKeyAndDiverseFilter(t *testing.T) {
+	flightCheap := models.RouteItinerary{
+		Legs:       []models.RouteLeg{{Mode: "flight"}},
+		TotalPrice: 50,
+	}
+	flightExpensive := models.RouteItinerary{
+		Legs:       []models.RouteLeg{{Mode: "flight"}},
+		TotalPrice: 80,
+	}
+	train := models.RouteItinerary{
+		Legs:       []models.RouteLeg{{Mode: "train"}},
+		TotalPrice: 55,
+	}
+	mixed := models.RouteItinerary{
+		Legs:       []models.RouteLeg{{Mode: "flight"}, {Mode: "train"}},
+		TotalPrice: 70,
+	}
+
+	if got := itineraryModeKey(mixed); got != "flight+train" {
+		t.Fatalf("itineraryModeKey = %q, want flight+train", got)
+	}
+
+	filtered := diverseFilter([]models.RouteItinerary{
+		flightExpensive,
+		train,
+		mixed,
+		flightCheap,
+	})
+	if len(filtered) != 4 {
+		t.Fatalf("expected 4 itineraries after diverse filter, got %d", len(filtered))
+	}
+
+	foundCheapFlight := false
+	foundTrain := false
+	foundMixed := false
+	foundExtraFlight := false
+	for _, it := range filtered {
+		switch itineraryModeKey(it) {
+		case "flight":
+			if it.TotalPrice == 50 {
+				foundCheapFlight = true
+			}
+			if it.TotalPrice == 80 {
+				foundExtraFlight = true
+			}
+		case "train":
+			foundTrain = true
+		case "flight+train":
+			foundMixed = true
+		}
+	}
+	if !foundCheapFlight || !foundTrain || !foundMixed || !foundExtraFlight {
+		t.Fatalf("unexpected diverse filter result: %#v", filtered)
 	}
 }

@@ -22,6 +22,12 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
+var (
+	searchFlightsFunc      = flights.SearchFlights
+	searchGroundByNameFunc = ground.SearchByName
+	convertCurrencyFunc    = destinations.ConvertCurrency
+)
+
 // Options configures a multi-modal route search.
 type Options struct {
 	DepartAfter           string  // ISO date or datetime
@@ -267,7 +273,7 @@ func searchFlightLeg(ctx context.Context, from, to Hub, date string, opts Option
 	origin := from.Airports[0]
 	dest := to.Airports[0]
 
-	result, err := flights.SearchFlights(ctx, origin, dest, date, flights.SearchOptions{})
+	result, err := searchFlightsFunc(ctx, origin, dest, date, flights.SearchOptions{})
 	if err != nil {
 		slog.Debug("route flight search failed", "from", origin, "to", dest, "err", err)
 		return nil
@@ -296,7 +302,7 @@ func searchFlightLeg(ctx context.Context, from, to Hub, date string, opts Option
 		price := f.Price
 		currency := f.Currency
 		if opts.Currency != "" && currency != "" && currency != opts.Currency && price > 0 {
-			converted, convertedCurrency := destinations.ConvertCurrency(ctx, price, currency, opts.Currency)
+			converted, convertedCurrency := convertCurrencyFunc(ctx, price, currency, opts.Currency)
 			price = math.Round(converted*100) / 100
 			currency = convertedCurrency
 		}
@@ -321,7 +327,7 @@ func searchFlightLeg(ctx context.Context, from, to Hub, date string, opts Option
 // searchGroundLeg searches for ground transport between two hubs.
 // It prefers routes with real prices over schedule-only (price=0) results.
 func searchGroundLeg(ctx context.Context, from, to Hub, date string, opts Options) []models.RouteLeg {
-	result, err := ground.SearchByName(ctx, from.City, to.City, date, ground.SearchOptions{
+	result, err := searchGroundByNameFunc(ctx, from.City, to.City, date, ground.SearchOptions{
 		Currency:              opts.Currency,
 		AllowBrowserFallbacks: opts.AllowBrowserFallbacks,
 	})
@@ -365,7 +371,7 @@ func searchGroundLeg(ctx context.Context, from, to Hub, date string, opts Option
 		price := r.Price
 		currency := r.Currency
 		if opts.Currency != "" && currency != "" && currency != opts.Currency && price > 0 {
-			converted, convertedCurrency := destinations.ConvertCurrency(ctx, price, currency, opts.Currency)
+			converted, convertedCurrency := convertCurrencyFunc(ctx, price, currency, opts.Currency)
 			price = math.Round(converted*100) / 100
 			currency = convertedCurrency
 		}
