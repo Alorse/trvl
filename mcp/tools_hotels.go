@@ -512,6 +512,133 @@ func handleHotelReviews(args map[string]any, elicit ElicitFunc, sampling Samplin
 	return content, result, nil
 }
 
+// --- Hotel rooms ---
+
+func hotelRoomsTool() ToolDef {
+	return ToolDef{
+		Name:  "hotel_rooms",
+		Title: "Hotel Room Availability",
+		Description: "Search room types and per-night pricing for a specific hotel by name. " +
+			"Resolves the hotel via Google Hotels entity search, then fetches room-level availability.",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"hotel_name": {Type: "string", Description: "Hotel name and optional city, e.g. 'Beverly Hills Heights, Tenerife'"},
+				"check_in":   {Type: "string", Description: "Check-in date in YYYY-MM-DD format"},
+				"check_out":  {Type: "string", Description: "Check-out date in YYYY-MM-DD format"},
+				"currency":   {Type: "string", Description: "Currency code (e.g. USD, EUR). Default: USD"},
+			},
+			Required: []string{"hotel_name", "check_in", "check_out"},
+		},
+		OutputSchema: hotelRoomsOutputSchema(),
+		Annotations: &ToolAnnotations{
+			Title:          "Hotel Room Availability",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  true,
+		},
+	}
+}
+
+func hotelRoomsOutputSchema() interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"success":   map[string]interface{}{"type": "boolean"},
+			"hotel_id":  map[string]interface{}{"type": "string"},
+			"name":      map[string]interface{}{"type": "string"},
+			"check_in":  map[string]interface{}{"type": "string"},
+			"check_out": map[string]interface{}{"type": "string"},
+			"rooms": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"name":        map[string]interface{}{"type": "string"},
+						"price":       map[string]interface{}{"type": "number"},
+						"currency":    map[string]interface{}{"type": "string"},
+						"provider":    map[string]interface{}{"type": "string"},
+						"max_guests":  map[string]interface{}{"type": "integer"},
+						"description": map[string]interface{}{"type": "string"},
+						"amenities": map[string]interface{}{
+							"type":  "array",
+							"items": map[string]interface{}{"type": "string"},
+						},
+					},
+					"required": []string{"name", "price", "currency"},
+				},
+			},
+			"error": map[string]interface{}{"type": "string"},
+		},
+		"required": []string{"success"},
+	}
+}
+
+func handleHotelRooms(args map[string]any, elicit ElicitFunc, sampling SamplingFunc) ([]ContentBlock, interface{}, error) {
+	hotelName := argString(args, "hotel_name")
+	checkIn := argString(args, "check_in")
+	checkOut := argString(args, "check_out")
+	currency := argString(args, "currency")
+	if currency == "" {
+		currency = "USD"
+	}
+
+	if hotelName == "" || checkIn == "" || checkOut == "" {
+		return nil, nil, fmt.Errorf("hotel_name, check_in, and check_out are required")
+	}
+
+	if err := models.ValidateDateRange(checkIn, checkOut); err != nil {
+		return nil, nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	// Resolve hotel name to a Google ID.
+	hotel, err := hotels.SearchHotelByName(ctx, hotelName, checkIn, checkOut)
+	if err != nil {
+		return nil, nil, fmt.Errorf("hotel lookup for %q: %w", hotelName, err)
+	}
+
+	if hotel.HotelID == "" {
+		return nil, nil, fmt.Errorf("hotel %q found (%s) but has no Google ID", hotelName, hotel.Name)
+	}
+
+	// Fetch room availability.
+	availability, err := hotels.GetRoomAvailability(ctx, hotel.HotelID, checkIn, checkOut, currency)
+	if err != nil {
+		return nil, nil, fmt.Errorf("room availability for %s: %w", hotel.Name, err)
+	}
+
+	if availability.Name == "" {
+		availability.Name = hotel.Name
+	}
+
+	summary := fmt.Sprintf("Found %d room types at %s (%s to %s).",
+		len(availability.Rooms), availability.Name, checkIn, checkOut)
+	if len(availability.Rooms) == 0 {
+		summary = fmt.Sprintf("No individual room types found for %s. Google Hotels may not expose room-level data for this property.", availability.Name)
+	} else {
+		// Find cheapest room.
+		cheapest := availability.Rooms[0]
+		for _, r := range availability.Rooms[1:] {
+			if r.Price > 0 && (cheapest.Price == 0 || r.Price < cheapest.Price) {
+				cheapest = r
+			}
+		}
+		if cheapest.Price > 0 {
+			summary += fmt.Sprintf(" Cheapest: %s %.0f/night (%s).", cheapest.Currency, cheapest.Price, cheapest.Name)
+		}
+	}
+
+	content, err := buildAnnotatedContentBlocks(summary, availability)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return content, availability, nil
+}
+
 // --- Suggestion builders ---
 
 func hotelSuggestions(result *models.HotelSearchResult, opts hotels.HotelSearchOptions) []Suggestion {

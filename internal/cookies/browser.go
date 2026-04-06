@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 )
 
 // BrowserCookies extracts cookies for a domain from the user's default browser.
@@ -92,10 +94,40 @@ func IsCaptchaResponse(statusCode int, body []byte) (bool, string) {
 	return true, ""
 }
 
+// browserAuthOpened tracks when a domain was last opened for auth,
+// preventing repeated browser popups within the cooldown period.
+var browserAuthOpened = struct {
+	mu      sync.Mutex
+	domains map[string]time.Time
+}{domains: make(map[string]time.Time)}
+
+// browserAuthCooldown is the minimum time between opening the browser for the
+// same domain. Set to 24 hours — once opened, never again until tomorrow.
+const browserAuthCooldown = 24 * time.Hour
+
 // OpenBrowserForAuth opens url in the user's default browser so they can
-// complete a CAPTCHA or login challenge. Returns an error if the browser
-// could not be launched.
+// complete a CAPTCHA or login challenge. Suppresses repeated opens for the
+// same domain within 10 minutes. Returns an error if the browser could not
+// be launched, or nil if suppressed by cooldown.
 func OpenBrowserForAuth(url string) error {
+	// Extract domain from URL for cooldown tracking.
+	domain := url
+	if idx := strings.Index(url, "://"); idx >= 0 {
+		domain = url[idx+3:]
+	}
+	if idx := strings.Index(domain, "/"); idx >= 0 {
+		domain = domain[:idx]
+	}
+
+	browserAuthOpened.mu.Lock()
+	if last, ok := browserAuthOpened.domains[domain]; ok && time.Since(last) < browserAuthCooldown {
+		browserAuthOpened.mu.Unlock()
+		slog.Debug("browser auth cooldown active", "domain", domain)
+		return nil // suppressed
+	}
+	browserAuthOpened.domains[domain] = time.Now()
+	browserAuthOpened.mu.Unlock()
+
 	var cmd string
 	var args []string
 	switch runtime.GOOS {

@@ -61,8 +61,8 @@ func TestHTTPHandler_POST_ToolsList(t *testing.T) {
 	var result ToolsListResult
 	json.Unmarshal(resultJSON, &result)
 
-	if len(result.Tools) != 19 {
-		t.Errorf("expected 19 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 20 {
+		t.Errorf("expected 20 tools, got %d", len(result.Tools))
 	}
 }
 
@@ -530,11 +530,11 @@ func TestNewServer(t *testing.T) {
 	if s == nil {
 		t.Fatal("NewServer returned nil")
 	}
-	if len(s.tools) != 19 {
-		t.Errorf("expected 19 tools, got %d", len(s.tools))
+	if len(s.tools) != 20 {
+		t.Errorf("expected 20 tools, got %d", len(s.tools))
 	}
-	if len(s.handlers) != 19 {
-		t.Errorf("expected 19 handlers, got %d", len(s.handlers))
+	if len(s.handlers) != 20 {
+		t.Errorf("expected 20 handlers, got %d", len(s.handlers))
 	}
 }
 

@@ -55,6 +55,7 @@ func init() {
 	rootCmd.AddCommand(dealsCmd())
 	rootCmd.AddCommand(routeCmd())
 	rootCmd.AddCommand(watchCmd())
+	rootCmd.AddCommand(roomsCmd())
 	rootCmd.AddCommand(mcpCmd())
 }
 

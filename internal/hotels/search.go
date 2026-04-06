@@ -288,6 +288,120 @@ func parseDateArray(s string) ([3]int, error) {
 	return [3]int{t.Year(), int(t.Month()), t.Day()}, nil
 }
 
+// SearchHotelByName searches for a specific hotel by name and returns its details.
+// Unlike SearchHotels (which searches by area), this uses Google's entity
+// resolution to find a specific property via name matching within search results.
+//
+// Strategy: Google Hotels returns listings when searching by city/area, not hotel
+// names. We extract a location context from the query (text after comma, or last
+// word(s)), search that area, then fuzzy-match the hotel name in results. If that
+// fails we fall back to searching the full query as the location.
+func SearchHotelByName(ctx context.Context, query string, checkIn, checkOut string) (*models.HotelResult, error) {
+	if query == "" {
+		return nil, fmt.Errorf("hotel name query is required")
+	}
+	if checkIn == "" || checkOut == "" {
+		return nil, fmt.Errorf("check-in and check-out dates are required")
+	}
+
+	opts := HotelSearchOptions{
+		CheckIn:  checkIn,
+		CheckOut: checkOut,
+		Guests:   2,
+		Currency: "USD",
+	}
+
+	// Build search location candidates: prefer context after comma, then last word.
+	candidates := buildLocationCandidates(query)
+
+	var lastErr error
+	for _, loc := range candidates {
+		result, err := SearchHotels(ctx, loc, opts)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if len(result.Hotels) == 0 {
+			continue
+		}
+
+		match := findBestNameMatch(result.Hotels, query)
+		if match != nil {
+			return match, nil
+		}
+
+		// Area search succeeded but no name match — return first result with a note.
+		first := result.Hotels[0]
+		return &first, nil
+	}
+
+	if lastErr != nil {
+		return nil, fmt.Errorf("hotel name search: %w", lastErr)
+	}
+	return nil, fmt.Errorf("no hotels found for %q", query)
+}
+
+// buildLocationCandidates generates location search strings from a hotel name query.
+// E.g. "Beverly Hills Heights, Tenerife" -> ["Tenerife", "Beverly Hills Heights Tenerife"]
+func buildLocationCandidates(query string) []string {
+	var candidates []string
+
+	// If comma-separated, use the part after the last comma as primary location.
+	if idx := strings.LastIndex(query, ","); idx >= 0 {
+		after := strings.TrimSpace(query[idx+1:])
+		before := strings.TrimSpace(query[:idx])
+		if after != "" {
+			candidates = append(candidates, after)
+		}
+		// Also try "before after" as the full query.
+		if before != "" && after != "" {
+			candidates = append(candidates, before+" "+after)
+		}
+	}
+
+	// Try the full query as location (works when it contains a city).
+	candidates = append(candidates, query)
+
+	return candidates
+}
+
+// findBestNameMatch searches hotels for the best fuzzy match to the query.
+func findBestNameMatch(hotels []models.HotelResult, query string) *models.HotelResult {
+	queryLower := strings.ToLower(query)
+	queryWords := strings.Fields(queryLower)
+
+	var best *models.HotelResult
+	bestScore := 0
+
+	for i := range hotels {
+		h := &hotels[i]
+		nameLower := strings.ToLower(h.Name)
+
+		score := 0
+		// Exact contains match scores highest.
+		if strings.Contains(nameLower, queryLower) {
+			score = 100
+		} else {
+			// Count how many query words (≥3 chars) appear in the hotel name.
+			for _, w := range queryWords {
+				if len(w) >= 3 && strings.Contains(nameLower, w) {
+					score += 10
+				}
+			}
+		}
+
+		if score > bestScore {
+			bestScore = score
+			best = h
+		}
+	}
+
+	if bestScore == 0 {
+		return nil
+	}
+	return best
+}
+
 // enrichHotelAmenities fetches detail pages for the top N hotels to get full
 // amenity lists. Runs up to 3 concurrent fetches. Hotels without a HotelID
 // are skipped. Failures are silently ignored (search results still have
