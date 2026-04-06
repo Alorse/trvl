@@ -299,7 +299,7 @@ func parseDigitransitItineraries(
 					Station: leg.To.Name,
 					Time:    legArr,
 				},
-				Duration: computeDBDuration(legDep, legArr),
+				Duration: computeDurationMinutes(legDep, legArr),
 			})
 		}
 		if len(legs) > 1 {

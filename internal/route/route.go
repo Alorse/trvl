@@ -200,7 +200,9 @@ func fetchAllPaths(ctx context.Context, paths []path, date string, opts Options)
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
-				legs := searchFlightLeg(ctx, from, to, date)
+				segCtx, segCancel := context.WithTimeout(ctx, 10*time.Second)
+				defer segCancel()
+				legs := searchFlightLeg(segCtx, from, to, date)
 				if len(legs) > 0 {
 					results <- segResult{key: k, flights: legs}
 				}
@@ -214,7 +216,9 @@ func fetchAllPaths(ctx context.Context, paths []path, date string, opts Options)
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
-				legs := searchGroundLeg(ctx, from, to, date, opts.Currency)
+				segCtx, segCancel := context.WithTimeout(ctx, 10*time.Second)
+				defer segCancel()
+				legs := searchGroundLeg(segCtx, from, to, date, opts.Currency)
 				if len(legs) > 0 {
 					results <- segResult{key: k, ground: legs}
 				}
@@ -491,18 +495,10 @@ func computeTotalDuration(l1, l2 models.RouteLeg) int {
 }
 
 // parseTime attempts to parse an ISO 8601 datetime string.
+// It delegates to parseFlexTime (defined in timing.go) which shares the same layouts.
 func parseTime(s string) time.Time {
-	for _, layout := range []string{
-		time.RFC3339,
-		"2006-01-02T15:04:05",
-		"2006-01-02T15:04",
-	} {
-		t, err := time.Parse(layout, s)
-		if err == nil {
-			return t
-		}
-	}
-	return time.Time{}
+	t, _ := parseFlexTime(s)
+	return t
 }
 
 // paretoFilter removes itineraries that are dominated on all three criteria.

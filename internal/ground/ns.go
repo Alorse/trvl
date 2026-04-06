@@ -243,7 +243,7 @@ func parseNSTrips(trips []nsTrip, fromStation, toStation nsStation, currency str
 
 		duration := trip.PlannedDurationInMinutes
 		if duration == 0 {
-			duration = computeDBDuration(depTime, arrTime) // fallback
+			duration = computeDurationMinutes(depTime, arrTime) // fallback
 		}
 
 		// Build per-leg detail.
@@ -264,7 +264,7 @@ func parseNSTrips(trips []nsTrip, fromStation, toStation nsStation, currency str
 					Station: leg.Destination.Name,
 					Time:    legArr,
 				},
-				Duration: computeDBDuration(legDep, legArr),
+				Duration: computeDurationMinutes(legDep, legArr),
 			})
 		}
 

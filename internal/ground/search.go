@@ -371,11 +371,18 @@ func deduplicateGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
 	return result
 }
 
+// scheduleOnlyProviders is the set of providers whose results are kept even
+// when price is 0 (they provide schedule data without live pricing).
+var scheduleOnlyProviders = map[string]bool{
+	"distribusion": true, "transitous": true, "db": true, "ns": true,
+	"oebb": true, "vr": true, "tallink": true, "stenaline": true,
+	"dfds": true, "vikingline": true, "eckeroline": true,
+}
+
 func filterUnavailableGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
 	filtered := routes[:0]
 	for _, route := range routes {
-		// Keep routes with prices, plus schedule-only providers (transitous, db).
-		if route.Price > 0 || strings.EqualFold(route.Provider, "distribusion") || strings.EqualFold(route.Provider, "transitous") || strings.EqualFold(route.Provider, "db") || strings.EqualFold(route.Provider, "ns") || strings.EqualFold(route.Provider, "oebb") || strings.EqualFold(route.Provider, "vr") || strings.EqualFold(route.Provider, "tallink") || strings.EqualFold(route.Provider, "stenaline") || strings.EqualFold(route.Provider, "dfds") || strings.EqualFold(route.Provider, "vikingline") || strings.EqualFold(route.Provider, "eckeroline") {
+		if route.Price > 0 || scheduleOnlyProviders[strings.ToLower(route.Provider)] {
 			filtered = append(filtered, route)
 		}
 	}

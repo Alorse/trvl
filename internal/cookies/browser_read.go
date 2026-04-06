@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -104,6 +105,7 @@ end tell`
 // BrowserReadPageCached reads a page via the browser, caching the result for the given TTL.
 // Subsequent calls with the same URL return the cached text without opening the browser.
 var browserPageCache = struct {
+	sync.RWMutex
 	entries map[string]browserCacheEntry
 }{entries: make(map[string]browserCacheEntry)}
 
@@ -113,7 +115,10 @@ type browserCacheEntry struct {
 }
 
 func BrowserReadPageCached(ctx context.Context, url string, waitSeconds int, ttl time.Duration) (string, error) {
-	if entry, ok := browserPageCache.entries[url]; ok && time.Now().Before(entry.expires) {
+	browserPageCache.RLock()
+	entry, ok := browserPageCache.entries[url]
+	browserPageCache.RUnlock()
+	if ok && time.Now().Before(entry.expires) {
 		slog.Debug("browser page cache hit", "url", url)
 		return entry.text, nil
 	}
@@ -123,6 +128,8 @@ func BrowserReadPageCached(ctx context.Context, url string, waitSeconds int, ttl
 		return "", err
 	}
 
+	browserPageCache.Lock()
 	browserPageCache.entries[url] = browserCacheEntry{text: text, expires: time.Now().Add(ttl)}
+	browserPageCache.Unlock()
 	return text, nil
 }

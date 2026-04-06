@@ -523,7 +523,7 @@ func parseDBVerbindungen(verbindungen []dbVerbindung, fromStation, toStation DBS
 		arrTime := firstNonEmpty(last.AnkunftsZeitpunkt, last.AnkunftsDatum)
 
 		// Compute duration in minutes.
-		duration := computeDBDuration(depTime, arrTime)
+		duration := computeDurationMinutes(depTime, arrTime)
 
 		// Count non-walking transfers.
 		transfers := 0
@@ -582,7 +582,7 @@ func parseDBVerbindungen(verbindungen []dbVerbindung, fromStation, toStation DBS
 					Station: arrStation,
 					Time:    legArr,
 				},
-				Duration: computeDBDuration(legDep, legArr),
+				Duration: computeDurationMinutes(legDep, legArr),
 			})
 		}
 
@@ -621,8 +621,8 @@ func parseDBVerbindungen(verbindungen []dbVerbindung, fromStation, toStation DBS
 	return routes
 }
 
-// computeDBDuration computes the duration in minutes between two ISO 8601 time strings.
-func computeDBDuration(dep, arr string) int {
+// computeDurationMinutes computes the duration in minutes between two ISO 8601 time strings.
+func computeDurationMinutes(dep, arr string) int {
 	layouts := []string{
 		time.RFC3339,
 		"2006-01-02T15:04:05-07:00",

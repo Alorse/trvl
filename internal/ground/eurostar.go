@@ -433,7 +433,7 @@ func buildEurostarRoutes(gqlResp eurostarGQLResponse, fromStation, toStation Eur
 				for _, tt := range fareTrains {
 					dur := defaultDuration
 					if tt.DepartureTime != "" && tt.ArrivalTime != "" {
-						if computed := computeDBDuration(tt.DepartureTime, tt.ArrivalTime); computed > 0 {
+						if computed := computeDurationMinutes(tt.DepartureTime, tt.ArrivalTime); computed > 0 {
 							dur = computed
 						}
 					}

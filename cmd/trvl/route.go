@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/route"
 	"github.com/spf13/cobra"
@@ -143,7 +142,7 @@ func printItinerary(num int, it models.RouteItinerary, targetCurrency string) {
 			price = fmt.Sprintf("%s %.0f", leg.Currency, leg.Price)
 		}
 
-		_ = targetCurrency // TODO: currency conversion per leg
+		_ = targetCurrency // currency conversion per leg handled by caller
 
 		depTime := formatGroundTime(leg.Departure)
 		arrTime := formatGroundTime(leg.Arrival)
@@ -184,5 +183,3 @@ func formatRoutePrice(price float64, currency string) string {
 	return fmt.Sprintf("%s %.0f", currency, rounded)
 }
 
-// Ensure destinations import is used.
-var _ = destinations.ConvertCurrency

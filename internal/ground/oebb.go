@@ -536,7 +536,7 @@ func SearchOebb(ctx context.Context, from, to, date, currency string) ([]models.
 		// Duration: shop API returns milliseconds; convert to minutes.
 		durationMin := c.Duration / 60000
 		if durationMin <= 0 {
-			durationMin = computeDBDuration(depTime, arrTime)
+			durationMin = computeDurationMinutes(depTime, arrTime)
 		}
 
 		price := priceByID[c.ID]
@@ -603,7 +603,7 @@ func parseOebbConnections(res oebbTripRes, fromStation, toStation oebbStation, s
 		// Duration from "dHHMMSS" field, fallback to computed.
 		duration := oebbParseDuration(con.Dur)
 		if duration == 0 {
-			duration = computeDBDuration(depTime, arrTime)
+			duration = computeDurationMinutes(depTime, arrTime)
 		}
 
 		// Extract price from tariff result.
@@ -671,7 +671,7 @@ func parseOebbConnections(res oebbTripRes, fromStation, toStation oebbStation, s
 					City: arrName,
 					Time: legArr,
 				},
-				Duration: computeDBDuration(legDep, legArr),
+				Duration: computeDurationMinutes(legDep, legArr),
 			})
 		}
 

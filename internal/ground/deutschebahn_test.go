@@ -219,9 +219,9 @@ func TestComputeDBDuration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := computeDBDuration(tt.dep, tt.arr)
+		got := computeDurationMinutes(tt.dep, tt.arr)
 		if got != tt.want {
-			t.Errorf("computeDBDuration(%q, %q) = %d, want %d", tt.dep, tt.arr, got, tt.want)
+			t.Errorf("computeDurationMinutes(%q, %q) = %d, want %d", tt.dep, tt.arr, got, tt.want)
 		}
 	}
 }

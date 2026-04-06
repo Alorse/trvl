@@ -310,7 +310,7 @@ func SearchTallink(ctx context.Context, from, to, date, currency string) ([]mode
 		arrTime := tallinkParseLocalDateTime(lastLeg.To.LocalDateTime)
 
 		duration := defaultDuration
-		if computed := computeDBDuration(depTime, arrTime); computed > 0 {
+		if computed := computeDurationMinutes(depTime, arrTime); computed > 0 {
 			duration = computed
 		}
 
