@@ -14,7 +14,7 @@
 
 > **19 travel tools for your AI assistant — flights, hotels, trains, buses, ferries, price alerts, destination intel. Free. One binary.**
 >
-> Also works as a standalone CLI with 24 commands.
+> Also works as a standalone CLI with 25 commands.
 
 ### What it looks like
 
@@ -237,7 +237,7 @@ https://raw.githubusercontent.com/MikkoParkkola/trvl/main/llms.txt
 
 ## CLI Usage
 
-trvl also works as a standalone CLI tool with 22 commands:
+trvl also works as a standalone CLI tool with 25 commands:
 
 All search commands accept `--currency <CODE>` (e.g. `--currency EUR`) to convert displayed prices. trvl detects the actual API currency and converts at the display layer — no hardcoded currencies.
 
@@ -285,6 +285,7 @@ Found 20 hotels:
 ```bash
 trvl hotels "Paris" --checkin 2026-07-01 --checkout 2026-07-05 --stars 4 --sort rating
 trvl prices "<hotel_id>" --checkin 2026-06-15 --checkout 2026-06-18
+trvl rooms "Hotel Lutetia Paris" --checkin 2026-06-15 --checkout 2026-06-18
 ```
 
 ### Explore Destinations
@@ -451,7 +452,7 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | **Data** | Real-time from Google Flights/Hotels/Explore/Maps + 16 ground providers (FlixBus, RegioJet, Eurostar, DB, ÖBB, NS, VR, SNCF, Trainline, Transitous, Renfe, Tallink, Viking Line, Eckerö Line, Stena Line, DFDS) + 5 free destination APIs |
 | **Auth** | No personal API keys required. Two providers (NS, Digitransit/VR) use public keys embedded in the binary. Browser cookies loaded automatically for CAPTCHA-protected providers (Trainline, Eurostar, SNCF, ÖBB). |
 | **MCP** | Full v2025-11-25 — 19 tools, 4 prompts, resources, structured content, sampling |
-| **CLI** | 24 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
+| **CLI** | 25 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
 | **Booking links** | Every flight and hotel result includes a direct Google booking link |
 | **Travel hacks** | 30+ hacks auto-applied: nearby airports, throw-away returns, hotel splits |
 | **Personal profile** | Remembers your FF status, luggage needs, favourite hotels, departure preferences |

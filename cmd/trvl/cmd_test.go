@@ -19,6 +19,7 @@ func TestRootCmd_HasExpectedSubcommands(t *testing.T) {
 		"explore", "grid", "destination", "trip-cost", "weekend",
 		"suggest", "multi-city", "guide", "nearby", "events",
 		"restaurants", "ground", "watch", "mcp", "version",
+		"rooms",
 	}
 	for _, name := range expected {
 		found := false
@@ -740,6 +741,69 @@ func TestReviewsCmd_Flags(t *testing.T) {
 		}
 		if f.DefValue != tt.defValue {
 			t.Errorf("reviews --%s default = %q, want %q", tt.name, f.DefValue, tt.defValue)
+		}
+	}
+}
+
+func TestRoomsCmd_UseLine(t *testing.T) {
+	cmd := roomsCmd()
+	if cmd.Use != "rooms <hotel_name_or_id>" {
+		t.Errorf("rooms Use = %q, want %q", cmd.Use, "rooms <hotel_name_or_id>")
+	}
+}
+
+func TestRoomsCmd_ArgsIsExactOne(t *testing.T) {
+	cmd := roomsCmd()
+	if cmd.Args == nil {
+		t.Fatal("rooms Args validator is nil")
+	}
+	if err := cmd.Args(cmd, []string{}); err == nil {
+		t.Error("expected error with 0 args")
+	}
+	if err := cmd.Args(cmd, []string{"Hotel Lutetia Paris"}); err != nil {
+		t.Errorf("unexpected error with 1 arg: %v", err)
+	}
+	if err := cmd.Args(cmd, []string{"id1", "id2"}); err == nil {
+		t.Error("expected error with 2 args")
+	}
+}
+
+func TestRoomsCmd_Flags(t *testing.T) {
+	cmd := roomsCmd()
+	flags := []struct {
+		name     string
+		defValue string
+	}{
+		{"checkin", ""},
+		{"checkout", ""},
+		{"currency", "USD"},
+	}
+	for _, tt := range flags {
+		f := cmd.Flags().Lookup(tt.name)
+		if f == nil {
+			t.Errorf("rooms missing --%s flag", tt.name)
+			continue
+		}
+		if f.DefValue != tt.defValue {
+			t.Errorf("rooms --%s default = %q, want %q", tt.name, f.DefValue, tt.defValue)
+		}
+	}
+}
+
+func TestLooksLikeGoogleHotelID(t *testing.T) {
+	tests := []struct {
+		value string
+		want  bool
+	}{
+		{value: "/g/11b6d4_v_4", want: true},
+		{value: "ChIJy7MSZP0LkkYRZw2dDekQP78", want: true},
+		{value: "0x123:0x456", want: true},
+		{value: "Hotel Lutetia Paris", want: false},
+	}
+
+	for _, tt := range tests {
+		if got := looksLikeGoogleHotelID(tt.value); got != tt.want {
+			t.Errorf("looksLikeGoogleHotelID(%q) = %v, want %v", tt.value, got, tt.want)
 		}
 	}
 }
