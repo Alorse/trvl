@@ -212,33 +212,6 @@ func TestSearchNatural_HeuristicHotel(t *testing.T) {
 	}
 }
 
-// TestSearchNatural_SamplingMocked verifies sampling callback is used for param extraction.
-func TestSearchNatural_SamplingMocked(t *testing.T) {
-	var samplingCalled bool
-	mockSampling := func(messages []SamplingMessage, maxTokens int) (string, error) {
-		samplingCalled = true
-		// Return valid structured JSON for a hotel search.
-		return `{"intent":"hotel","location":"Prague","check_in":"2026-06-20","check_out":"2026-06-23"}`, nil
-	}
-
-	// Without a real hotel backend, dispatch will fail — but we only care that
-	// sampling was called and that the function attempts the right intent.
-	content, _, _ := handleSearchNatural(
-		map[string]any{"query": "hotels in Prague for 3 nights in June"},
-		nil,
-		mockSampling,
-		nil,
-	)
-
-	if !samplingCalled {
-		t.Error("expected sampling to be called, but it was not")
-	}
-	// Should return some content (error text is acceptable in -short mode).
-	if len(content) == 0 {
-		t.Error("expected at least one content block, got none")
-	}
-}
-
 // TestSearchNatural_SamplingNilFallback verifies heuristic fallback when sampling is nil.
 func TestSearchNatural_SamplingNilFallback(t *testing.T) {
 	// A query with no recognizable destination should return a fallback message,
@@ -254,74 +227,6 @@ func TestSearchNatural_SamplingNilFallback(t *testing.T) {
 	}
 	if len(content) == 0 {
 		t.Error("expected at least one content block, got none")
-	}
-}
-
-// TestSearchNatural_ExtractionPromptContainsQuery verifies the prompt includes the query text.
-func TestSearchNatural_ExtractionPromptContainsQuery(t *testing.T) {
-	query := "fly from HEL to BCN next Friday"
-	prompt := extractionPrompt(query, "2026-01-05")
-	if !strings.Contains(prompt, query) {
-		t.Errorf("prompt does not contain query %q", query)
-	}
-	if !strings.Contains(prompt, "2026-01-05") {
-		t.Error("prompt does not contain today's date")
-	}
-}
-
-// --- Hotel neighborhood elicitation tests ---
-
-// TestExtractNeighborhoods_Basic verifies neighborhood extraction from addresses.
-func TestExtractNeighborhoods_Basic(t *testing.T) {
-	hotels := []struct {
-		address string
-	}{
-		{"123 Main St, Old Town, Prague"},
-		{"456 New Ave, Vinohrady, Prague"},
-		{"789 River Rd, Old Town, Prague"}, // duplicate neighborhood
-	}
-	// Build a slice of HotelResult-like structs by using the helper directly.
-	type fakeHotel struct {
-		Address string
-	}
-	// Call neighborhoodFromAddress directly.
-	seen := map[string]int{}
-	for _, h := range hotels {
-		n := neighborhoodFromAddress(h.address)
-		if n != "" {
-			seen[n]++
-		}
-	}
-	if seen["Old Town"] != 2 {
-		t.Errorf("expected 2 occurrences of 'Old Town', got %d", seen["Old Town"])
-	}
-	if seen["Vinohrady"] != 1 {
-		t.Errorf("expected 1 occurrence of 'Vinohrady', got %d", seen["Vinohrady"])
-	}
-}
-
-// TestNeighborhoodFromAddress_Empty handles empty address.
-func TestNeighborhoodFromAddress_Empty(t *testing.T) {
-	if n := neighborhoodFromAddress(""); n != "" {
-		t.Errorf("expected empty, got %q", n)
-	}
-}
-
-// TestNeighborhoodFromAddress_NoComma returns empty for single-segment addresses.
-func TestNeighborhoodFromAddress_NoComma(t *testing.T) {
-	// Single segment without comma — falls through to empty.
-	n := neighborhoodFromAddress("Helsinki")
-	if n != "" {
-		t.Errorf("expected empty for single-segment address, got %q", n)
-	}
-}
-
-// TestNeighborhoodFromAddress_SkipsPostalCode skips pure-numeric segments.
-func TestNeighborhoodFromAddress_SkipsPostalCode(t *testing.T) {
-	n := neighborhoodFromAddress("Broad St, 10004, Manhattan")
-	// 10004 is all digits; should skip to next or return empty.
-	if n == "10004" {
-		t.Error("expected postal code to be skipped")
 	}
 }
 

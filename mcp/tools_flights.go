@@ -163,49 +163,6 @@ func searchDatesTool() ToolDef {
 	}
 }
 
-// --- Elicitation schemas ---
-
-// flightElicitationSchema returns the schema for eliciting missing flight search params.
-func flightElicitationSchema(origin, dest string) map[string]interface{} {
-	msg := "When would you like to fly"
-	if origin != "" && dest != "" {
-		msg += fmt.Sprintf(" from %s to %s", origin, dest)
-	}
-	msg += "?"
-	_ = msg // used by caller
-
-	return map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"departure_date": map[string]interface{}{
-				"type":        "string",
-				"format":      "date",
-				"title":       "Departure Date",
-				"description": "When do you want to depart?",
-			},
-			"return_date": map[string]interface{}{
-				"type":        "string",
-				"format":      "date",
-				"title":       "Return Date (optional)",
-				"description": "Leave empty for one-way",
-			},
-			"cabin_class": map[string]interface{}{
-				"type":    "string",
-				"title":   "Cabin Class",
-				"enum":    []string{"economy", "premium_economy", "business", "first"},
-				"default": "economy",
-			},
-			"max_stops": map[string]interface{}{
-				"type":    "string",
-				"title":   "Maximum Stops",
-				"enum":    []string{"any", "nonstop", "one_stop"},
-				"default": "any",
-			},
-		},
-		"required": []string{"departure_date"},
-	}
-}
-
 // --- Tool handlers ---
 
 func handleSearchFlights(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
@@ -223,30 +180,6 @@ func handleSearchFlights(args map[string]any, elicit ElicitFunc, sampling Sampli
 	}
 	if err := models.ValidateIATA(dest); err != nil {
 		return nil, nil, fmt.Errorf("invalid destination: %w", err)
-	}
-
-	// Elicit departure date if missing and client supports it.
-	if date == "" && elicit != nil {
-		schema := flightElicitationSchema(origin, dest)
-		msg := fmt.Sprintf("When would you like to fly from %s to %s?", origin, dest)
-		result, err := elicit(msg, schema)
-		if err != nil {
-			return nil, nil, fmt.Errorf("elicitation failed: %w", err)
-		}
-		if result != nil {
-			if d, ok := result["departure_date"].(string); ok && d != "" {
-				date = d
-			}
-			if r, ok := result["return_date"].(string); ok && r != "" {
-				args["return_date"] = r
-			}
-			if c, ok := result["cabin_class"].(string); ok && c != "" {
-				args["cabin_class"] = c
-			}
-			if m, ok := result["max_stops"].(string); ok && m != "" {
-				args["max_stops"] = m
-			}
-		}
 	}
 
 	if date == "" {

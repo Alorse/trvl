@@ -241,97 +241,24 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc, sampling Samplin
 		result.Count = len(result.Hotels)
 	}
 
-	// If many results and client supports elicitation, offer to refine.
-	if result.Success && result.Count > 10 && elicit != nil && opts.Stars == 0 {
-		schema := hotelElicitationSchema(result.Count, location)
-		msg := fmt.Sprintf("Found %d hotels in %s. Would you like to refine?", result.Count, location)
-		refinement, elicitErr := elicit(msg, schema)
-		if elicitErr == nil && refinement != nil {
-			// Re-search with refined parameters.
-			if stars, ok := refinement["min_stars"].(float64); ok && stars > 0 {
-				opts.Stars = int(stars)
-			}
-			if sort, ok := refinement["sort_by"].(string); ok && sort != "" {
-				opts.Sort = sort
-			}
-			// Re-run the search with refined options.
-			result, err = hotels.SearchHotels(ctx, location, opts)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-	}
-
-	// If many results and client supports elicitation, offer neighborhood filter.
-	// This runs after the star-filter elicitation so only triggers when still > 20.
-	if result.Success && result.Count > 20 && elicit != nil {
-		neighborhoods := extractNeighborhoods(result.Hotels)
-		if len(neighborhoods) > 1 {
-			neighborhoodSchema := map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"neighborhood": map[string]interface{}{
-						"type":        "string",
-						"title":       "Neighborhood",
-						"description": "Filter hotels to this area",
-						"enum":        neighborhoods,
-					},
-					"save_preference": map[string]interface{}{
-						"type":        "boolean",
-						"title":       "Save as preference",
-						"description": fmt.Sprintf("Remember this neighborhood for future %s searches", location),
-						"default":     false,
-					},
-				},
-			}
-			msg := fmt.Sprintf("Found %d hotels in %s across %d neighborhoods. Which area do you prefer?",
-				result.Count, location, len(neighborhoods))
-			neighborhoodResp, elicitErr := elicit(msg, neighborhoodSchema)
-			if elicitErr == nil && neighborhoodResp != nil {
-				if hood, ok := neighborhoodResp["neighborhood"].(string); ok && hood != "" {
-					result.Hotels = filterByNeighborhood(result.Hotels, hood)
-					result.Count = len(result.Hotels)
-				}
-				if save, _ := neighborhoodResp["save_preference"].(bool); save {
-					if prefs != nil {
-						if hood, ok := neighborhoodResp["neighborhood"].(string); ok && hood != "" {
-							if prefs.PreferredDistricts == nil {
-								prefs.PreferredDistricts = make(map[string][]string)
-							}
-							prefs.PreferredDistricts[location] = append(prefs.PreferredDistricts[location], hood)
-							// Best-effort save; ignore errors.
-							_ = preferences.Save(prefs)
-						}
-					}
-				}
-			}
-		}
-	}
 
 	// Build suggestions for progressive disclosure.
 	suggestions := hotelSuggestions(result, opts)
 
-	// If 20+ results and client supports sampling, use AI to curate top 3.
-	var curatedPicks string
-	if result.Success && result.Count >= 20 && sampling != nil {
-		curatedPicks = curateHotelsViaSampling(result, location, sampling)
-	}
+	// The orchestrating LLM receives the full hotel list in structuredContent JSON
+	// and can select and rank picks without any server-side sampling round-trip.
+	// (curateHotelsViaSampling was removed: sampling is not wired in production.)
 
 	type hotelResponse struct {
 		*models.HotelSearchResult
-		Suggestions  []Suggestion `json:"suggestions,omitempty"`
-		CuratedPicks string       `json:"curated_picks,omitempty"`
+		Suggestions []Suggestion `json:"suggestions,omitempty"`
 	}
 	resp := hotelResponse{
 		HotelSearchResult: result,
 		Suggestions:       suggestions,
-		CuratedPicks:      curatedPicks,
 	}
 
 	summary := hotelSummary(result, location)
-	if curatedPicks != "" {
-		summary += "\n\nAI-curated top picks:\n" + curatedPicks
-	}
 
 	content, err := buildAnnotatedContentBlocks(summary, resp)
 	if err != nil {
@@ -339,56 +266,6 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc, sampling Samplin
 	}
 
 	return content, resp, nil
-}
-
-// curateHotelsViaSampling uses MCP sampling to ask the client's LLM to pick
-// the best 3 hotels from a large result set based on traveler profile.
-func curateHotelsViaSampling(result *models.HotelSearchResult, location string, sampling SamplingFunc) string {
-	// Build a compact summary of hotels for the LLM.
-	var hotelLines string
-	limit := result.Count
-	if limit > 30 {
-		limit = 30 // Keep context reasonable.
-	}
-	for i, h := range result.Hotels {
-		if i >= limit {
-			break
-		}
-		line := fmt.Sprintf("%d. %s", i+1, h.Name)
-		if h.Stars > 0 {
-			line += fmt.Sprintf(" (%d-star)", h.Stars)
-		}
-		if h.Rating > 0 {
-			line += fmt.Sprintf(" rating=%.1f", h.Rating)
-		}
-		if h.Price > 0 {
-			line += fmt.Sprintf(" %s%.0f/night", h.Currency, h.Price)
-		}
-		if h.Address != "" {
-			line += fmt.Sprintf(" @ %s", h.Address)
-		}
-		hotelLines += line + "\n"
-	}
-
-	prompt := fmt.Sprintf(
-		"Given these %d hotels in %s, which 3 best match each traveler type? "+
-			"Consider rating, price, and location.\n\n"+
-			"Hotels:\n%s\n"+
-			"For each of budget, luxury, and family travelers, pick the single best hotel "+
-			"and explain in one sentence why. Format as:\n"+
-			"Budget: [name] - [reason]\nLuxury: [name] - [reason]\nFamily: [name] - [reason]",
-		result.Count, location, hotelLines,
-	)
-
-	messages := []SamplingMessage{
-		{Role: "user", Content: SamplingContent{Type: "text", Text: prompt}},
-	}
-
-	response, err := sampling(messages, 300)
-	if err != nil {
-		return "" // Gracefully degrade if sampling fails.
-	}
-	return response
 }
 
 func handleHotelPrices(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
@@ -762,67 +639,3 @@ func hotelSuggestions(result *models.HotelSearchResult, opts hotels.HotelSearchO
 	return suggestions
 }
 
-// extractNeighborhoods extracts unique neighborhood labels from hotel addresses.
-// It uses the last meaningful comma-separated component of the address as a proxy
-// for neighborhood, since HotelResult has no dedicated neighborhood field.
-// Returns at most 8 neighborhoods to keep the elicitation schema manageable.
-func extractNeighborhoods(hotels []models.HotelResult) []string {
-	seen := make(map[string]bool)
-	var hoods []string
-	for _, h := range hotels {
-		hood := neighborhoodFromAddress(h.Address)
-		if hood != "" && !seen[hood] {
-			seen[hood] = true
-			hoods = append(hoods, hood)
-			if len(hoods) >= 8 {
-				break
-			}
-		}
-	}
-	return hoods
-}
-
-// neighborhoodFromAddress extracts a neighborhood-like label from an address string.
-// It returns the first comma-delimited segment that is not a street number,
-// country, or postal code.
-func neighborhoodFromAddress(addr string) string {
-	if addr == "" {
-		return ""
-	}
-	parts := strings.Split(addr, ",")
-	// Try the second segment first (typically the neighborhood/district).
-	for i := 1; i < len(parts) && i < 3; i++ {
-		part := strings.TrimSpace(parts[i])
-		// Skip pure numeric segments (postal codes).
-		if part == "" {
-			continue
-		}
-		allDigits := true
-		for _, c := range part {
-			if c < '0' || c > '9' {
-				allDigits = false
-				break
-			}
-		}
-		if !allDigits && len(part) > 2 {
-			return part
-		}
-	}
-	return ""
-}
-
-// filterByNeighborhood returns hotels whose address contains the neighborhood string.
-func filterByNeighborhood(hotelList []models.HotelResult, neighborhood string) []models.HotelResult {
-	var filtered []models.HotelResult
-	lowerHood := strings.ToLower(strings.TrimSpace(neighborhood))
-	for _, h := range hotelList {
-		if strings.Contains(strings.ToLower(h.Address), lowerHood) {
-			filtered = append(filtered, h)
-		}
-	}
-	// If filter is too aggressive and removes everything, return original list.
-	if len(filtered) == 0 {
-		return hotelList
-	}
-	return filtered
-}

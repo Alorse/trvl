@@ -12,10 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `trvl hacks-accom` command and `detect_accommodation_hacks` MCP tool: hotel split detection across multi-city stays
 - `trvl trips` command (7 subcommands) and 5 MCP tools (`list_trips`, `get_trip`, `create_trip`, `add_trip_leg`, `mark_trip_booked`): persistent trip management stored in `~/.trvl/trips.json`
 - `trvl prefs` command and `get_preferences` MCP tool: user travel profile (`~/.trvl/preferences.json`) — home airport, seat preference, FF programs, bag rules, family members
-- `search_natural` MCP tool: free-text query parsing via MCP sampling (LLM-assisted intent extraction)
+- `search_natural` MCP tool: free-text query parsing via keyword heuristic parser; dispatches to `search_flights`, `search_route`, or `search_hotels` based on detected intent
 - `hotel_rooms` MCP tool: room-level availability, board type, and cancellation policy
 - MCP progress notifications: long-running searches stream `notifications/progress` tokens to the client
-- MCP elicitation: `search_natural` sends `elicitation/create` requests for ambiguous queries
 - MCP resource subscriptions: price-watch resources send `notifications/resources/updated` on price changes
 - Hack deduplication: `DetectAll` removes functionally identical hacks found by multiple detectors (same type + savings ± EUR 5 + destination airport)
 - Tallink rate limit increased from 5 req/min to 10 req/min to handle parallel hacks detectors without context-deadline errors

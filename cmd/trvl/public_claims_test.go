@@ -40,6 +40,7 @@ var readmeToolMarkers = []string{
 	"mark_trip_booked",
 	"get_weather",
 	"get_baggage_rules",
+	"find_trip_window",
 }
 
 func bundledSkillMarkdownCount(t *testing.T) int {
@@ -72,15 +73,21 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 		{
 			path: filepath.Join("..", "..", "README.md"),
 			required: []string{
+				"32 travel tools for your AI assistant",
+				"standalone CLI with 32 commands",
+				"32 travel tools available",
+				"Full v2025-11-25 — 32 tools",
+				"32 commands (+ 6 watch subcommands)",
+				"Full JSON Schema validation for all 32 tool responses",
+				fmt.Sprintf("The repo includes %d Claude Code skill file", skillCount),
+			},
+			forbidden: []string{
 				"31 travel tools for your AI assistant",
 				"standalone CLI with 31 commands",
 				"31 travel tools available",
 				"Full v2025-11-25 — 31 tools",
 				"31 commands (+ 6 watch subcommands)",
 				"Full JSON Schema validation for all 31 tool responses",
-				fmt.Sprintf("The repo includes %d Claude Code skill file", skillCount),
-			},
-			forbidden: []string{
 				"29 travel tools for your AI assistant",
 				"standalone CLI with 29 commands",
 				"29 travel tools available",
@@ -93,9 +100,11 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 		{
 			path: filepath.Join("..", "..", "AGENTS.md"),
 			required: []string{
-				fmt.Sprintf("trvl is installed with 31 MCP tools and %d bundled Claude skill", skillCount),
+				fmt.Sprintf("trvl is installed with 32 MCP tools and %d bundled Claude skill", skillCount),
 			},
 			forbidden: []string{
+				"trvl is installed with 32 MCP tools and 5 skills",
+				"trvl is installed with 32 MCP tools and 4 skills",
 				"trvl is installed with 31 MCP tools and 5 skills",
 				"trvl is installed with 31 MCP tools and 4 skills",
 				"installed with 22 MCP tools and 5 skills",
@@ -105,9 +114,10 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 		{
 			path: filepath.Join("..", "..", "demo.tape"),
 			required: []string{
-				"# 31 MCP tools · 31 CLI commands · 17 providers · No API keys",
+				"# 32 MCP tools · 32 CLI commands · 17 providers · No API keys",
 			},
 			forbidden: []string{
+				"# 31 MCP tools · 31 CLI commands · 17 providers · No API keys",
 				"# 29 MCP tools · 29 CLI commands · 17 providers · No API keys",
 			},
 		},

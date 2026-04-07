@@ -42,6 +42,7 @@ func registerTools(s *Server) {
 		markTripBookedTool(),
 		getWeatherTool(),
 		getBaggageRulesTool(),
+		findTripWindowTool(),
 	}
 	s.handlers["search_flights"] = s.wrapHandler(handleSearchFlights)
 	s.handlers["search_dates"] = s.wrapHandler(handleSearchDates)
@@ -74,6 +75,7 @@ func registerTools(s *Server) {
 	s.handlers["mark_trip_booked"] = s.wrapHandler(handleMarkTripBooked)
 	s.handlers["get_weather"] = s.wrapHandler(handleGetWeather)
 	s.handlers["get_baggage_rules"] = s.wrapHandler(handleGetBaggageRules)
+	s.handlers["find_trip_window"] = s.wrapHandler(handleFindTripWindow)
 }
 
 // wrapHandler returns a ToolHandler that delegates to the inner handler and

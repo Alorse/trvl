@@ -61,8 +61,8 @@ func TestHTTPHandler_POST_ToolsList(t *testing.T) {
 	var result ToolsListResult
 	json.Unmarshal(resultJSON, &result)
 
-	if len(result.Tools) != 31 {
-		t.Errorf("expected 31 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 32 {
+		t.Errorf("expected 32 tools, got %d", len(result.Tools))
 	}
 }
 
@@ -529,11 +529,11 @@ func TestNewServer(t *testing.T) {
 	if s == nil {
 		t.Fatal("NewServer returned nil")
 	}
-	if len(s.tools) != 31 {
-		t.Errorf("expected 31 tools, got %d", len(s.tools))
+	if len(s.tools) != 32 {
+		t.Errorf("expected 32 tools, got %d", len(s.tools))
 	}
-	if len(s.handlers) != 31 {
-		t.Errorf("expected 31 handlers, got %d", len(s.handlers))
+	if len(s.handlers) != 32 {
+		t.Errorf("expected 32 handlers, got %d", len(s.handlers))
 	}
 }
 
@@ -920,48 +920,3 @@ func TestMakeElicitFunc_NilWithoutWriter(t *testing.T) {
 	}
 }
 
-// --- Elicitation schema builders ---
-
-func TestFlightElicitationSchema(t *testing.T) {
-	schema := flightElicitationSchema("HEL", "NRT")
-	if schema == nil {
-		t.Fatal("expected non-nil schema")
-	}
-	if schema["type"] != "object" {
-		t.Errorf("type = %v, want object", schema["type"])
-	}
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-	if _, ok := props["departure_date"]; !ok {
-		t.Error("missing departure_date property")
-	}
-	required, ok := schema["required"].([]string)
-	if !ok {
-		t.Fatal("required should be a string slice")
-	}
-	if len(required) != 1 || required[0] != "departure_date" {
-		t.Errorf("required = %v, want [departure_date]", required)
-	}
-}
-
-func TestHotelElicitationSchema(t *testing.T) {
-	schema := hotelElicitationSchema(24, "Helsinki")
-	if schema == nil {
-		t.Fatal("expected non-nil schema")
-	}
-	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("properties should be a map")
-	}
-	if _, ok := props["min_stars"]; !ok {
-		t.Error("missing min_stars property")
-	}
-	if _, ok := props["max_price"]; !ok {
-		t.Error("missing max_price property")
-	}
-	if _, ok := props["sort_by"]; !ok {
-		t.Error("missing sort_by property")
-	}
-}

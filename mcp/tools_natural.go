@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -17,8 +16,10 @@ func searchNaturalTool() ToolDef {
 			"\"cheapest way from Helsinki to Dubrovnik next weekend\", " +
 			"\"hotels in Prague for 3 nights in July under EUR 120\", " +
 			"\"I want to explore a Croatian island, budget EUR 500, long weekend next month\". " +
-			"Requires the AI client to support the MCP sampling capability; " +
-			"falls back to a best-effort parse if sampling is unavailable.",
+			"Uses a keyword heuristic parser to extract intent, origin, destination, and dates. " +
+			"Works on every MCP client. For complex or ambiguous queries, prefer calling the " +
+			"specific tools (search_flights, search_route, search_hotels) directly with " +
+			"structured parameters.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
@@ -62,40 +63,6 @@ type naturalSearchParams struct {
 	Location      string   `json:"location"`       // hotel location when intent=hotel
 }
 
-// extractionPrompt builds the LLM prompt used to parse a free-form query.
-func extractionPrompt(query string, today string) string {
-	return fmt.Sprintf(`Extract travel search parameters from this query: %q
-
-Today's date is %s.
-
-Return ONLY a JSON object with these fields (omit fields you cannot determine):
-{
-  "intent": "route"|"flight"|"hotel"|"deals",
-  "origin": "IATA code or city name or null",
-  "destination": "IATA code or city name or null",
-  "date": "YYYY-MM-DD or null",
-  "return_date": "YYYY-MM-DD or null",
-  "check_in": "YYYY-MM-DD or null",
-  "check_out": "YYYY-MM-DD or null",
-  "max_budget": number or null,
-  "traveler_count": integer or null,
-  "transport_modes": ["flight","train","bus","ferry"] or null,
-  "location": "city or neighborhood for hotel search or null"
-}
-
-Rules:
-- Resolve relative dates ("next weekend", "next month", "this Friday") to ISO dates using today's date.
-- "next weekend" = the coming Saturday.
-- "long weekend" = 3 nights (Friday to Monday).
-- If origin is not mentioned, use null.
-- If intent is hotel, set check_in/check_out; if it is route or flight, set date.
-- intent=route when query mentions trains, buses, ferries, or multi-modal travel.
-- intent=flight when query mentions flying or airports explicitly.
-- intent=hotel when query asks about accommodation, hotels, or places to stay.
-- intent=deals when query asks for general deals or inspiration without a fixed destination.
-- Return only the JSON object, no explanation.`, query, today)
-}
-
 // handleSearchNatural handles the search_natural tool.
 func handleSearchNatural(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	query := strings.TrimSpace(argString(args, "query"))
@@ -106,31 +73,9 @@ func handleSearchNatural(args map[string]any, elicit ElicitFunc, sampling Sampli
 	sendProgress(progress, 0, 100, "Parsing travel query...")
 
 	today := time.Now().Format("2006-01-02")
-	var params naturalSearchParams
 
-	if sampling != nil {
-		// Use AI sampling to extract structured parameters from the free-form query.
-		prompt := extractionPrompt(query, today)
-		response, err := sampling([]SamplingMessage{
-			{Role: "user", Content: SamplingContent{Type: "text", Text: prompt}},
-		}, 500)
-		if err == nil && response != "" {
-			// Strip markdown code fences if the model adds them.
-			cleaned := strings.TrimSpace(response)
-			if idx := strings.Index(cleaned, "{"); idx > 0 {
-				cleaned = cleaned[idx:]
-			}
-			if idx := strings.LastIndex(cleaned, "}"); idx >= 0 && idx < len(cleaned)-1 {
-				cleaned = cleaned[:idx+1]
-			}
-			_ = json.Unmarshal([]byte(cleaned), &params)
-		}
-	}
-
-	// Fallback: best-effort heuristic parse when sampling is nil or failed.
-	if params.Destination == "" && params.Location == "" {
-		params = heuristicParse(query, today)
-	}
+	// Heuristic parse: extract intent, origin, destination, and dates from keywords.
+	params := heuristicParse(query, today)
 
 	sendProgress(progress, 30, 100, fmt.Sprintf("Dispatching %s search...", params.Intent))
 
@@ -221,9 +166,9 @@ func dispatchNatural(p naturalSearchParams, originalQuery string, elicit ElicitF
 	}
 }
 
-// heuristicParse provides a minimal keyword-based fallback when sampling is
-// unavailable. It is intentionally simple — the sampling path is strongly
-// preferred.
+// heuristicParse extracts travel intent and parameters from a free-form query
+// using keyword matching and simple date resolution. It is the primary (and
+// only active) parse path — sampling is not wired in production.
 func heuristicParse(query, today string) naturalSearchParams {
 	lower := strings.ToLower(query)
 	p := naturalSearchParams{Intent: "route"}

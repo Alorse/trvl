@@ -139,27 +139,20 @@ func (s *Server) SendLog(level, message string) {
 
 // makeElicitFunc returns the transport-level elicitation hook.
 //
-// Elicitation is currently disabled in practice. Tool handlers fall back to
-// progressive follow-up suggestions when elicit is nil.
-//
-// To re-enable transport-level elicitation, request/response routing needs a
-// dedicated channel or correlation-aware multiplexing so tool prompts cannot
-// desync the main request stream.
+// Returns nil. Elicitation not wired at transport level. Claude Code 2.1.76+
+// supports elicitation client-side, but search-refinement tools get better UX
+// from natural LLM follow-up questions. Revisit when implementing a book_trip
+// tool that needs confirm-dialog UX.
 func (s *Server) makeElicitFunc() ElicitFunc {
-	// Disabled until transport-level request routing is implemented.
 	return nil
 }
 
 // makeSamplingFunc returns the transport-level sampling hook.
 //
-// Sampling is currently disabled for the same reason as elicitation: the
-// server does not yet multiplex outbound tool requests separately from the
-// primary RPC stream.
+// Returns nil. Sampling not wired at transport level. Claude Code does not
+// implement sampling client-side. Revisit when a target client supports it
+// OR when a tool genuinely needs to delegate LLM reasoning server-side.
 func (s *Server) makeSamplingFunc() SamplingFunc {
-	if s.clientCapabilities.Sampling == nil {
-		return nil
-	}
-	// Disabled until transport-level request routing is implemented.
 	return nil
 }
 
