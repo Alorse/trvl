@@ -18,38 +18,38 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 		{
 			path: filepath.Join("..", "..", "README.md"),
 			required: []string{
-				"22 travel tools for your AI assistant",
-				"standalone CLI with 27 commands",
-				"22 travel tools available",
-				"Full v2025-11-25 — 22 tools",
-				"27 commands (+ 6 watch subcommands)",
+				"31 travel tools for your AI assistant",
+				"standalone CLI with 31 commands",
+				"31 travel tools available",
+				"Full v2025-11-25 — 31 tools",
+				"31 commands (+ 6 watch subcommands)",
 			},
 			forbidden: []string{
-				"20 travel tools for your AI assistant",
-				"standalone CLI with 25 commands",
-				"20 travel tools available",
-				"Full v2025-11-25 — 20 tools",
-				"25 commands (+ 6 watch subcommands)",
+				"29 travel tools for your AI assistant",
+				"standalone CLI with 29 commands",
+				"29 travel tools available",
+				"Full v2025-11-25 — 29 tools",
+				"29 commands (+ 6 watch subcommands)",
 			},
 		},
 		{
 			path: filepath.Join("..", "..", "AGENTS.md"),
 			required: []string{
-				"installed with 22 MCP tools and 5 skills",
-				"You now have 22 MCP tools available.",
+				"installed with 31 MCP tools and 5 skills",
+				"You now have 31 MCP tools available.",
 			},
 			forbidden: []string{
-				"installed with 13 MCP tools and 5 skills",
-				"You now have 13 MCP tools available.",
+				"installed with 22 MCP tools and 5 skills",
+				"You now have 22 MCP tools available.",
 			},
 		},
 		{
 			path: filepath.Join("..", "..", "demo.tape"),
 			required: []string{
-				"# 22 MCP tools · 27 CLI commands · 17 providers · No API keys",
+				"# 31 MCP tools · 31 CLI commands · 17 providers · No API keys",
 			},
 			forbidden: []string{
-				"# 19 MCP tools · 24 CLI commands · 17 providers · No API keys",
+				"# 29 MCP tools · 29 CLI commands · 17 providers · No API keys",
 			},
 		},
 	}

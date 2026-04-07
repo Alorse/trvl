@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-04-05
+
+### Added
+- `trvl hacks` command and `detect_travel_hacks` MCP tool: 18-detector parallel engine for flight and ground savings opportunities — throwaway, hidden-city, positioning, split, night-transport, stopover, date-flex, open-jaw, ferry-positioning, multi-stop, currency-arbitrage, calendar-conflict, tuesday-booking, low-cost-carrier, and four multi-modal detectors
+- `trvl hacks-accom` command and `detect_accommodation_hacks` MCP tool: hotel split detection across multi-city stays
+- `trvl trips` command (7 subcommands) and 5 MCP tools (`list_trips`, `get_trip`, `create_trip`, `add_trip_leg`, `mark_trip_booked`): persistent trip management stored in `~/.trvl/trips.json`
+- `trvl prefs` command and `get_preferences` MCP tool: user travel profile (`~/.trvl/preferences.json`) — home airport, seat preference, FF programs, bag rules, family members
+- `search_natural` MCP tool: free-text query parsing via MCP sampling (LLM-assisted intent extraction)
+- `hotel_rooms` MCP tool: room-level availability, board type, and cancellation policy
+- MCP progress notifications: long-running searches stream `notifications/progress` tokens to the client
+- MCP elicitation: `search_natural` sends `elicitation/create` requests for ambiguous queries
+- MCP resource subscriptions: price-watch resources send `notifications/resources/updated` on price changes
+- Hack deduplication: `DetectAll` removes functionally identical hacks found by multiple detectors (same type + savings ± EUR 5 + destination airport)
+- Tallink rate limit increased from 5 req/min to 10 req/min to handle parallel hacks detectors without context-deadline errors
+
+### Fixed
+- Stderr noise: "no X station for" and "no X city found for" provider errors demoted from WARN to DEBUG — these are expected when a provider does not serve a route, not operational failures
+- Duplicate hacks in output: `multimodal_positioning` and `ferry_positioning` occasionally found the same ground+flight combo independently; deduplication now collapses these
+
+### Changed
+- MCP tools expanded from 19 to 29 (added 10 tools across hacks, trips, preferences, natural search, hotel rooms)
+- CLI commands expanded from 24 to 29 (added `hacks`, `hacks-accom`, `trips`, `prefs`, plus `rooms`)
+- 19/19 packages compile clean; govulncheck clean
+
 ## [0.5.0] - 2026-04-05
 
 ### Added

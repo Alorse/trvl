@@ -4,7 +4,9 @@ package hacks
 
 import (
 	"context"
+	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 )
@@ -121,7 +123,54 @@ func DetectAll(ctx context.Context, in DetectorInput) []Hack {
 	for r := range ch {
 		all = append(all, r.hacks...)
 	}
-	return all
+	return dedupHacks(all)
+}
+
+// dedupHacks removes hacks that are functionally identical. Two hacks are
+// considered duplicates when they share the same Type, From/To airports (derived
+// from their Steps), and a savings amount within EUR 5 of each other. When
+// duplicates are found the one with more Steps (more detail) is kept.
+func dedupHacks(hacks []Hack) []Hack {
+	if len(hacks) <= 1 {
+		return hacks
+	}
+
+	// extractKey returns a normalised signature for a hack. We use Type +
+	// savings-bucket (rounded to nearest 5) + final destination airport derived
+	// from the last Step that contains an IATA-like token (3 uppercase letters).
+	extractKey := func(h Hack) string {
+		bucket := math.Round(h.Savings/5) * 5
+		// Find the last step that mentions a 3-letter uppercase airport code.
+		airport := ""
+		for _, s := range h.Steps {
+			words := strings.Fields(s)
+			for _, w := range words {
+				// Strip punctuation
+				clean := strings.Trim(w, "()[].,:-→>")
+				if len(clean) == 3 && clean == strings.ToUpper(clean) {
+					airport = clean
+				}
+			}
+		}
+		return fmt.Sprintf("%s|%.0f|%s", h.Type, bucket, airport)
+	}
+
+	seen := make(map[string]int) // key → index in result slice
+	result := make([]Hack, 0, len(hacks))
+
+	for _, h := range hacks {
+		key := extractKey(h)
+		if idx, exists := seen[key]; exists {
+			// Keep the more detailed hack (more Steps).
+			if len(h.Steps) > len(result[idx].Steps) {
+				result[idx] = h
+			}
+		} else {
+			seen[key] = len(result)
+			result = append(result, h)
+		}
+	}
+	return result
 }
 
 // roundSavings rounds to the nearest integer for display.

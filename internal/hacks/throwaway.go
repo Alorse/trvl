@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/MikkoParkkola/trvl/internal/baggage"
 	"github.com/MikkoParkkola/trvl/internal/flights"
 )
 
@@ -54,6 +55,17 @@ func detectThrowaway(ctx context.Context, in DetectorInput) []Hack {
 
 	savings := owPrice - rtPrice
 	currency := flightCurrency(owResult, in.currency())
+	airlineCode := primaryAirlineCode(owResult)
+
+	risks := []string{
+		"Violates most airline contracts of carriage — airline may cancel return leg without refund",
+		"Frequent-flyer account may be penalised or closed",
+		"If you miss the outbound leg, the return is void automatically",
+		"Do not check bags — luggage is tagged to the final destination",
+	}
+	if note := baggage.BaggageNote(airlineCode); note != "" {
+		risks = append(risks, note)
+	}
 
 	return []Hack{{
 		Type:     "throwaway",
@@ -64,12 +76,7 @@ func detectThrowaway(ctx context.Context, in DetectorInput) []Hack {
 			"Round-trip %s→%s costs %s %.0f (vs %.0f one-way). Book round-trip and skip the return leg.",
 			in.Origin, in.Destination, currency, rtPrice, owPrice,
 		),
-		Risks: []string{
-			"Violates most airline contracts of carriage — airline may cancel return leg without refund",
-			"Frequent-flyer account may be penalised or closed",
-			"If you miss the outbound leg, the return is void automatically",
-			"Do not check bags — luggage is tagged to the final destination",
-		},
+		Risks: risks,
 		Steps: []string{
 			fmt.Sprintf("Search round-trip %s→%s (depart %s, return %s)", in.Origin, in.Destination, in.Date, returnDate),
 			"Book the cheapest round-trip option",

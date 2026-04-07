@@ -22,8 +22,10 @@ const tallinkAPIBase = "https://book.tallink.com/api"
 // HEL-TAL typically costs EUR 20–40; anything below EUR 20 is promotional.
 const tallinkDealThreshold = 20.0
 
-// tallinkLimiter: conservative 5 req/min.
-var tallinkLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
+// tallinkLimiter: 10 req/min — allows multiple detectors in a single hacks run
+// without hitting the context deadline (previously 5 req/min / 12s caused
+// "rate limiter: Wait(n=1) would exceed context deadline" during hacks searches).
+var tallinkLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
 
 // tallinkClient is a shared HTTP client for Tallink API calls.
 var tallinkClient = &http.Client{

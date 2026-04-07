@@ -257,6 +257,8 @@ func TestToolRegistration_AllTools(t *testing.T) {
 		"create_trip",
 		"add_trip_leg",
 		"mark_trip_booked",
+		"get_weather",
+		"get_baggage_rules",
 	}
 
 	if len(s.tools) != len(expectedTools) {

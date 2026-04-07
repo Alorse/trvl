@@ -261,7 +261,9 @@ func TestTallinkAllPortsHaveRequiredFields(t *testing.T) {
 }
 
 func TestTallinkRateLimiterConfiguration(t *testing.T) {
-	assertLimiterConfiguration(t, tallinkLimiter, 12*time.Second, 1)
+	// 10 req/min (every 6s), burst 1 — allows multiple detectors in a single
+	// hacks run without hitting the context deadline (previously 5 req/min / 12s).
+	assertLimiterConfiguration(t, tallinkLimiter, 6*time.Second, 1)
 }
 
 // mockTallinkVoyageAvailsResponse is a realistic voyage-avails API response.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/trips"
+	"github.com/MikkoParkkola/trvl/internal/weather"
 	"github.com/spf13/cobra"
 )
 
@@ -121,6 +123,11 @@ func tripsShowCmd() *cobra.Command {
 			}
 
 			printTripDetail(trip)
+
+			// Auto-fetch weather for each unique destination+date combination.
+			// Runs best-effort: errors are silently swallowed (offline is fine).
+			printTripWeather(cmd.Context(), trip)
+
 			return nil
 		},
 	}
@@ -535,4 +542,99 @@ func printJSON(v interface{}) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
+}
+
+// printTripWeather fetches and displays weather forecasts for each leg destination
+// with a known date. Best-effort: silently skips on any error.
+func printTripWeather(ctx context.Context, t *trips.Trip) {
+	type destDate struct {
+		city     string
+		fromDate string
+		toDate   string
+	}
+
+	// Collect unique destinations with date ranges from trip legs.
+	seen := make(map[string]bool)
+	var targets []destDate
+
+	for i, leg := range t.Legs {
+		dest := leg.To
+		if dest == "" || leg.StartTime == "" {
+			continue
+		}
+
+		// Parse date from StartTime (accepts "2006-01-02" or "2006-01-02T15:04").
+		fromDate := leg.StartTime
+		if len(fromDate) > 10 {
+			fromDate = fromDate[:10]
+		}
+
+		// End date: use leg.EndTime or next leg's start, or fromDate+3 as fallback.
+		toDate := fromDate
+		if leg.EndTime != "" {
+			td := leg.EndTime
+			if len(td) > 10 {
+				td = td[:10]
+			}
+			toDate = td
+		} else if i+1 < len(t.Legs) && t.Legs[i+1].StartTime != "" {
+			td := t.Legs[i+1].StartTime
+			if len(td) > 10 {
+				td = td[:10]
+			}
+			toDate = td
+		}
+
+		// Limit to a reasonable window (7 days max per destination).
+		if from, err := time.Parse("2006-01-02", fromDate); err == nil {
+			if to, err2 := time.Parse("2006-01-02", toDate); err2 == nil {
+				if to.Sub(from) > 7*24*time.Hour {
+					toDate = from.AddDate(0, 0, 7).Format("2006-01-02")
+				}
+			}
+		}
+
+		key := dest + "|" + fromDate
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		targets = append(targets, destDate{city: dest, fromDate: fromDate, toDate: toDate})
+	}
+
+	if len(targets) == 0 {
+		return
+	}
+
+	fmt.Println(models.Bold("  Weather forecast:"))
+
+	wCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	for _, td := range targets {
+		result, err := weather.GetForecast(wCtx, td.city, td.fromDate, td.toDate)
+		if err != nil || result == nil || !result.Success || len(result.Forecasts) == 0 {
+			continue
+		}
+
+		from := weather.FormatDateShort(td.fromDate)
+		to := weather.FormatDateShort(td.toDate)
+		fmt.Printf("\n  🌤️  %s · %s-%s\n", result.City, from, to)
+		for _, f := range result.Forecasts {
+			emoji := weather.WeatherEmoji(f.Description)
+			rain := ""
+			if f.Precipitation > 0 {
+				rain = fmt.Sprintf("  %.0fmm", f.Precipitation)
+			}
+			fmt.Printf("    %s %s  %s  %d°/%d°C%s  %s\n",
+				weather.FormatDateShort(f.Date),
+				weather.DayOfWeek(f.Date),
+				emoji,
+				int(f.TempMin), int(f.TempMax),
+				rain,
+				f.Description,
+			)
+		}
+	}
+	fmt.Println()
 }

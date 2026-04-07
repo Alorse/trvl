@@ -12,9 +12,9 @@
 
 ![trvl demo](demo.gif)
 
-> **22 travel tools for your AI assistant — flights, hotels, trains, buses, ferries, price alerts, destination intel. Free. API-first.**
+> **31 travel tools for your AI assistant — flights, hotels, trains, buses, ferries, price alerts, travel hacks, weather forecasts, baggage rules, destination intel. Free. API-first.**
 >
-> Also works as a standalone CLI with 27 commands.
+> Also works as a standalone CLI with 31 commands.
 
 ### What it looks like
 
@@ -113,7 +113,7 @@ Now Claude knows about trvl in every project — just say "search flights" or "p
 
 ### 4. Ask your AI to search
 
-That's it. Your AI assistant now has 22 travel tools available. Just ask naturally:
+That's it. Your AI assistant now has 31 travel tools available. Just ask naturally:
 
 - *"Search flights from JFK to Tokyo on July 1st, business class"*
 - *"Find hotels in Paris for July 1-5, at least 4 stars"*
@@ -152,6 +152,16 @@ That's it. Your AI assistant now has 22 travel tools available. Just ask natural
 | **search_deals** | Travel deals from 4 RSS feeds (error fares, flash sales) | Deals from HEL under EUR 400 |
 | **plan_trip** | Plan a complete trip — flights + hotel in one parallel search | AMS→PRG, Jun 15–18, EUR |
 | **search_route** | Multi-modal routing combining flights, trains, buses and ferries | Helsinki → Dubrovnik, arrive by 2026-04-10 |
+| **hotel_rooms** | Fetch room-level availability, board type, and cancellation policy | Hotel place ID, Jul 1-5 |
+| **get_preferences** | Read user travel preferences (FF status, bag rules, seat preferences) | — |
+| **detect_travel_hacks** | Run 18 parallel detectors for flight and ground savings opportunities | HEL → AMS, Apr 13, carry-on only |
+| **detect_accommodation_hacks** | Find hotel split savings (e.g. 2-city stay cheaper than 1 hotel) | Prague, Jun 15-22 |
+| **search_natural** | Natural language search parsed via sampling (LLM-assisted) | "cheapest weekend in July from Helsinki" |
+| **list_trips** | List saved trips from ~/.trvl/trips.json | — |
+| **get_trip** | Get details of a saved trip | Trip ID |
+| **create_trip** | Create a new trip record | "Helsinki court + Prague + Amsterdam" |
+| **add_trip_leg** | Add a flight, hotel, or ground leg to a saved trip | Trip ID, type, details |
+| **mark_trip_booked** | Mark a trip leg as booked | Trip ID, leg index |
 
 ### MCP Protocol Features (v2025-11-25)
 
@@ -159,12 +169,39 @@ That's it. Your AI assistant now has 22 travel tools available. Just ask natural
 |---------|---------|
 | **Structured content** | Typed JSON (`structuredContent`) alongside human-readable summaries |
 | **Content annotations** | `audience: ["user"]` for summaries, `audience: ["assistant"]` for data |
-| **Output schemas** | Full JSON Schema validation for all 20 tool responses |
+| **Output schemas** | Full JSON Schema validation for all 29 tool responses |
 | **Prompts** | `plan-trip`, `find-cheapest-dates`, `compare-hotels`, `where-should-i-go` |
-| **Resources** | Airport codes (50 major hubs), flight/hotel usage guides |
-| **Elicitation** | Not currently enabled in the transport layer; responses use progressive follow-up suggestions instead |
+| **Resources** | Airport codes (50 major hubs), flight/hotel usage guides, price-watch subscriptions |
+| **Elicitation** | Supported — `search_natural` uses LLM sampling to parse free-text queries |
+| **Progress notifications** | Long-running searches stream progress tokens to the client |
+| **Resource subscriptions** | Price-watch resources notify subscribers on price changes |
 | **Progressive disclosure** | Suggestions for follow-up searches in every response |
 | **Booking links** | Direct Google Flights/Hotels links in results |
+
+## Travel Hack Detectors
+
+`detect_travel_hacks` and `trvl hacks` run 18 detectors in parallel. Each one is independent and has a 20-second timeout:
+
+| Detector | What it finds |
+|----------|--------------|
+| **throwaway** | Book a longer itinerary and skip the final leg (when the add-on is free) |
+| **hidden_city** | Fly to a hub when a connecting flight through your real destination is cheaper |
+| **positioning** | Fly from a nearby airport to unlock lower fares |
+| **split** | Split one ticket into two one-ways across different airlines |
+| **night_transport** | Take an overnight train/ferry to save a hotel night |
+| **stopover** | Add a free multi-day stopover (Finnair/Icelandair/TAP/Turkish/Qatar/Emirates/Singapore/Etihad) |
+| **date_flex** | Fly a day earlier or later for significant savings |
+| **open_jaw** | Fly into one city and out of another |
+| **ferry_positioning** | Take a ferry to a hub with cheaper flights (e.g. HEL→TLL ferry + TLL flight) |
+| **multi_stop** | Break the journey into two cheaper segments |
+| **currency_arbitrage** | Book in the destination currency to avoid dynamic pricing |
+| **calendar_conflict** | Flag public holidays or peak seasons on your travel dates |
+| **tuesday_booking** | Identify cheaper booking windows (off-peak weekdays) |
+| **low_cost_carrier** | Find low-cost carrier alternatives not shown in aggregators |
+| **multimodal_skip_flight** | Replace a short flight with a train or bus leg |
+| **multimodal_positioning** | Ground transport to a hub + cheaper flight (train/ferry/bus) |
+| **multimodal_open_jaw_ground** | Mix ground and air for open-jaw itineraries |
+| **multimodal_return_split** | Different modes for outbound vs. return leg |
 
 ## Ground Transport Providers
 
@@ -238,7 +275,7 @@ https://raw.githubusercontent.com/MikkoParkkola/trvl/main/llms.txt
 
 ## CLI Usage
 
-trvl also works as a standalone CLI tool with 27 commands:
+trvl also works as a standalone CLI tool with 31 commands:
 
 All search commands accept `--currency <CODE>` (e.g. `--currency EUR`) to convert displayed prices. trvl detects the actual API currency and converts at the display layer — no hardcoded currencies.
 
@@ -404,6 +441,41 @@ trvl deals --from Helsinki,Amsterdam,Prague            # City names also accepte
 trvl deals --type error_fare                           # Error fares only
 ```
 
+### Travel Hacks
+
+Runs 18 detectors in parallel and ranks savings opportunities. Pass `--return` for round-trip hacks. Add `--carry-on` to restrict hidden-city results to carry-on only.
+
+```bash
+trvl hacks HEL AMS 2026-04-13                         # One-way hacks
+trvl hacks HEL AMS 2026-04-13 --return 2026-04-15 --carry-on  # Round-trip, carry-on
+trvl hacks-accom Prague --checkin 2026-06-15 --checkout 2026-06-22  # Hotel split hacks
+```
+
+### Trip Persistence
+
+Save and manage trips across sessions. Trips are stored in `~/.trvl/trips.json`.
+
+```bash
+trvl trips list                                       # List all saved trips
+trvl trips show <id>                                  # Show trip details
+trvl trips create "Helsinki → Prague → Amsterdam"     # Create a new trip
+trvl trips add-leg <id> flight --from HEL --to PRG --date 2026-06-15
+trvl trips book <id>                                  # Mark trip as booked
+trvl trips delete <id>                                # Remove a trip
+```
+
+### User Preferences
+
+Personal travel profile stored in `~/.trvl/preferences.json`. Used by hacks detectors (e.g. carry-on restrictions for hidden-city) and MCP tools.
+
+```bash
+trvl prefs                                            # Show current preferences
+trvl prefs set home_airport HEL                       # Set home airport
+trvl prefs set seat_preference aisle                  # seat, bags, FF programs
+trvl prefs edit                                       # Open in $EDITOR
+trvl prefs init                                       # Interactive setup wizard
+```
+
 ## How It Works
 
 Google's travel frontend uses an internal gRPC-over-HTTP protocol called **batchexecute**. `trvl` speaks this protocol natively:
@@ -452,10 +524,10 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | **Binary** | Single static ~15MB for API-first flows. Optional protected-provider fallbacks may use local browser/python tooling. |
 | **Data** | Real-time from Google Flights/Hotels/Explore/Maps + 16 ground providers (FlixBus, RegioJet, Eurostar, DB, ÖBB, NS, VR, SNCF, Trainline, Transitous, Renfe, Tallink, Viking Line, Eckerö Line, Stena Line, DFDS) + 5 free destination APIs |
 | **Auth** | No personal API keys required. Two providers (NS, Digitransit/VR) use public keys embedded in the binary. Optional browser/cookie fallbacks are available for protected providers when explicitly enabled. |
-| **MCP** | Full v2025-11-25 — 22 tools, 4 prompts, resources, structured content, progress notifications |
-| **CLI** | 27 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
+| **MCP** | Full v2025-11-25 — 31 tools, 4 prompts, resources, structured content, progress notifications, sampling, elicitation, resource subscriptions |
+| **CLI** | 31 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
 | **Booking links** | Every flight and hotel result includes a direct Google booking link |
-| **Travel hacks** | 30+ hacks auto-applied: nearby airports, throw-away returns, hotel splits |
+| **Travel hacks** | 18 detectors (throwaway, hidden-city, positioning, ferry, multi-modal, stopover, date-flex, and more) |
 | **Personal profile** | Remembers your FF status, luggage needs, favourite hotels, departure preferences |
 | **Output** | Pretty tables with color (default) or JSON (`--format json`) |
 | **Platforms** | Linux, macOS (amd64, arm64). Windows CI in progress. |

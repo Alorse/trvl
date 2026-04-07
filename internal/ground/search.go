@@ -307,8 +307,12 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 	var errors []string
 	for r := range results {
 		if r.err != nil {
-			slog.Warn("ground provider error", "provider", r.name, "error", r.err)
-			errors = append(errors, fmt.Sprintf("%s: %v", r.name, r.err))
+			if isProviderNotApplicable(r.err) {
+				slog.Debug("ground provider not applicable", "provider", r.name, "reason", r.err)
+			} else {
+				slog.Warn("ground provider error", "provider", r.name, "error", r.err)
+				errors = append(errors, fmt.Sprintf("%s: %v", r.name, r.err))
+			}
 			continue
 		}
 		allRoutes = append(allRoutes, r.routes...)
@@ -360,6 +364,29 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 	}
 
 	return result, nil
+}
+
+// isProviderNotApplicable returns true when the error indicates that a provider
+// simply does not serve the requested route (e.g. "no DB station for Helsinki")
+// or that the provider was throttled during a burst of calls. Both are expected
+// during broad multi-provider searches and should be logged at DEBUG level
+// rather than WARN to avoid polluting normal operation output.
+func isProviderNotApplicable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, " station for ") ||
+		strings.Contains(msg, " city found for ") ||
+		strings.Contains(msg, " port for ") ||
+		strings.Contains(msg, "no route for ") ||
+		strings.Contains(msg, "no Tallink route") ||
+		strings.Contains(msg, "no Eurostar route") ||
+		strings.Contains(msg, "no DFDS route") ||
+		strings.Contains(msg, "no Stena Line route") ||
+		strings.Contains(msg, "rate limiter: rate: Wait") ||
+		strings.Contains(msg, "would exceed context deadline") ||
+		strings.Contains(msg, "context deadline exceeded")
 }
 
 func browserFallbacksEnabled(opts SearchOptions) bool {

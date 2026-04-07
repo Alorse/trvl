@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/MikkoParkkola/trvl/internal/baggage"
 	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
@@ -88,7 +89,8 @@ func detectHiddenCity(ctx context.Context, in DetectorInput) []Hack {
 		savings := directPrice - beyondPrice
 		if savings > bestSavings {
 			bestSavings = savings
-			hack := buildHiddenCityHack(in, beyond, beyondPrice, directPrice, currency)
+			airlineCode := primaryAirlineCode(beyondResult)
+			hack := buildHiddenCityHack(in, beyond, beyondPrice, directPrice, currency, airlineCode)
 			best = &hack
 		}
 	}
@@ -126,8 +128,22 @@ func routesThroughDestination(result *models.FlightSearchResult, dest string) bo
 	return len(result.Flights) > 0
 }
 
-func buildHiddenCityHack(in DetectorInput, beyond string, beyondPrice, directPrice float64, currency string) Hack {
+func buildHiddenCityHack(in DetectorInput, beyond string, beyondPrice, directPrice float64, currency, airlineCode string) Hack {
 	bagsWarning := "Book carry-on only — checked bags are routed to the final destination and cannot be retrieved at the intermediate stop"
+
+	risks := []string{
+		"Violates airline contracts of carriage — airline may ban your account or take legal action",
+		bagsWarning,
+		"Cannot use return leg on a round-trip ticket (airline will cancel it)",
+		"Flight path may change; always verify the layover airport before booking",
+		"Not feasible for last-minute schedule changes or irregular operations",
+	}
+
+	// Add baggage-specific note for the detected airline.
+	if note := baggage.BaggageNote(airlineCode); note != "" {
+		risks = append(risks, note)
+	}
+
 	return Hack{
 		Type:     "hidden_city",
 		Title:    "Hidden city ticketing",
@@ -138,13 +154,7 @@ func buildHiddenCityHack(in DetectorInput, beyond string, beyondPrice, directPri
 			in.Origin, beyond, in.Destination, currency, beyondPrice,
 			in.Origin, in.Destination, directPrice, in.Destination,
 		),
-		Risks: []string{
-			"Violates airline contracts of carriage — airline may ban your account or take legal action",
-			bagsWarning,
-			"Cannot use return leg on a round-trip ticket (airline will cancel it)",
-			"Flight path may change; always verify the layover airport before booking",
-			"Not feasible for last-minute schedule changes or irregular operations",
-		},
+		Risks: risks,
 		Steps: []string{
 			fmt.Sprintf("Search flights %s→%s on %s", in.Origin, beyond, in.Date),
 			fmt.Sprintf("Confirm the routing stops at %s", in.Destination),
@@ -155,4 +165,19 @@ func buildHiddenCityHack(in DetectorInput, beyond string, beyondPrice, directPri
 			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", beyond, in.Origin, in.Date),
 		},
 	}
+}
+
+// primaryAirlineCode extracts the IATA code of the first airline from flight results.
+func primaryAirlineCode(result *models.FlightSearchResult) string {
+	if result == nil || !result.Success {
+		return ""
+	}
+	for _, f := range result.Flights {
+		for _, leg := range f.Legs {
+			if leg.AirlineCode != "" {
+				return leg.AirlineCode
+			}
+		}
+	}
+	return ""
 }
