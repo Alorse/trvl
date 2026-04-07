@@ -76,23 +76,17 @@ type PlanResult struct {
 	Error           string       `json:"error,omitempty"`
 }
 
-func (in *PlanInput) defaults() {
-	if in.Guests <= 0 {
-		in.Guests = 1
-	}
-	// Currency left empty = use whatever the APIs report.
-}
-
 // PlanTrip searches flights and hotels in parallel and returns the top options
 // along with a cheapest-combination summary.
 func PlanTrip(ctx context.Context, input PlanInput) (*PlanResult, error) {
-	input.defaults()
-
 	if input.Origin == "" || input.Destination == "" {
 		return nil, fmt.Errorf("origin and destination are required")
 	}
 	if input.DepartDate == "" || input.ReturnDate == "" {
 		return nil, fmt.Errorf("depart and return dates are required")
+	}
+	if input.Guests <= 0 {
+		return nil, fmt.Errorf("guests must be at least 1")
 	}
 
 	departDate, err := time.Parse("2006-01-02", input.DepartDate)

@@ -8,30 +8,6 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
-func TestTripCostInput_Defaults(t *testing.T) {
-	in := TripCostInput{}
-	in.defaults()
-
-	if in.Guests != 1 {
-		t.Errorf("Guests = %d, want 1", in.Guests)
-	}
-	if in.Currency != "" {
-		t.Errorf("Currency = %q, want empty (API default)", in.Currency)
-	}
-}
-
-func TestTripCostInput_DefaultsPreserve(t *testing.T) {
-	in := TripCostInput{Guests: 3, Currency: "USD"}
-	in.defaults()
-
-	if in.Guests != 3 {
-		t.Errorf("Guests = %d, want 3", in.Guests)
-	}
-	if in.Currency != "USD" {
-		t.Errorf("Currency = %q, want USD", in.Currency)
-	}
-}
-
 func TestCalculateTripCost_MissingOrigin(t *testing.T) {
 	_, err := CalculateTripCost(t.Context(), TripCostInput{
 		Destination: "BCN",
@@ -230,11 +206,23 @@ func TestCalculateTripCost_MissingDestination(t *testing.T) {
 	}
 }
 
-func TestTripCostInput_DefaultsNegativeGuests(t *testing.T) {
-	in := TripCostInput{Guests: -5}
-	in.defaults()
-	if in.Guests != 1 {
-		t.Errorf("Guests = %d, want 1 for negative input", in.Guests)
+func TestCalculateTripCost_RejectsNonPositiveGuests(t *testing.T) {
+	for _, guests := range []int{0, -5} {
+		t.Run(fmt.Sprintf("guests=%d", guests), func(t *testing.T) {
+			_, err := CalculateTripCost(t.Context(), TripCostInput{
+				Origin:      "HEL",
+				Destination: "BCN",
+				DepartDate:  "2026-07-01",
+				ReturnDate:  "2026-07-08",
+				Guests:      guests,
+			})
+			if err == nil {
+				t.Fatal("expected error for nonpositive guests")
+			}
+			if got := err.Error(); got != "guests must be at least 1" {
+				t.Fatalf("error = %q, want %q", got, "guests must be at least 1")
+			}
+		})
 	}
 }
 

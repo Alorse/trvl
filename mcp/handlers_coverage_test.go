@@ -151,6 +151,44 @@ func TestHandleTripCost_NilArgs(t *testing.T) {
 	}
 }
 
+func TestHandleTripCost_InvalidGuests(t *testing.T) {
+	_, _, err := handleTripCost(map[string]any{
+		"origin":      "HEL",
+		"destination": "BCN",
+		"depart_date": "2026-07-01",
+		"return_date": "2026-07-08",
+		"guests":      0,
+	}, nil, nil, nil)
+	if err == nil {
+		t.Fatal("expected error for invalid guests")
+	}
+	if got := err.Error(); got != "guests must be at least 1" {
+		t.Fatalf("error = %q, want %q", got, "guests must be at least 1")
+	}
+}
+
+func TestHandlePlanTrip_InvalidGuests(t *testing.T) {
+	content, result, err := handlePlanTrip(map[string]any{
+		"origin":      "HEL",
+		"destination": "BCN",
+		"depart_date": "2026-07-01",
+		"return_date": "2026-07-08",
+		"guests":      0,
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != nil {
+		t.Fatalf("result = %#v, want nil", result)
+	}
+	if len(content) != 1 {
+		t.Fatalf("content len = %d, want 1", len(content))
+	}
+	if got := content[0].Text; got != "Trip planning failed: guests must be at least 1" {
+		t.Fatalf("content[0].Text = %q, want %q", got, "Trip planning failed: guests must be at least 1")
+	}
+}
+
 // ============================================================
 // handleNearbyPlaces error paths
 // ============================================================
