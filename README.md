@@ -12,9 +12,9 @@
 
 ![trvl demo](demo.gif)
 
-> **20 travel tools for your AI assistant — flights, hotels, trains, buses, ferries, price alerts, destination intel. Free. API-first.**
+> **22 travel tools for your AI assistant — flights, hotels, trains, buses, ferries, price alerts, destination intel. Free. API-first.**
 >
-> Also works as a standalone CLI with 25 commands.
+> Also works as a standalone CLI with 27 commands.
 
 ### What it looks like
 
@@ -113,7 +113,7 @@ Now Claude knows about trvl in every project — just say "search flights" or "p
 
 ### 4. Ask your AI to search
 
-That's it. Your AI assistant now has 20 travel tools available. Just ask naturally:
+That's it. Your AI assistant now has 22 travel tools available. Just ask naturally:
 
 - *"Search flights from JFK to Tokyo on July 1st, business class"*
 - *"Find hotels in Paris for July 1-5, at least 4 stars"*
@@ -238,7 +238,7 @@ https://raw.githubusercontent.com/MikkoParkkola/trvl/main/llms.txt
 
 ## CLI Usage
 
-trvl also works as a standalone CLI tool with 25 commands:
+trvl also works as a standalone CLI tool with 27 commands:
 
 All search commands accept `--currency <CODE>` (e.g. `--currency EUR`) to convert displayed prices. trvl detects the actual API currency and converts at the display layer — no hardcoded currencies.
 
@@ -452,8 +452,8 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | **Binary** | Single static ~15MB for API-first flows. Optional protected-provider fallbacks may use local browser/python tooling. |
 | **Data** | Real-time from Google Flights/Hotels/Explore/Maps + 16 ground providers (FlixBus, RegioJet, Eurostar, DB, ÖBB, NS, VR, SNCF, Trainline, Transitous, Renfe, Tallink, Viking Line, Eckerö Line, Stena Line, DFDS) + 5 free destination APIs |
 | **Auth** | No personal API keys required. Two providers (NS, Digitransit/VR) use public keys embedded in the binary. Optional browser/cookie fallbacks are available for protected providers when explicitly enabled. |
-| **MCP** | Full v2025-11-25 — 20 tools, 4 prompts, resources, structured content, progress notifications |
-| **CLI** | 25 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
+| **MCP** | Full v2025-11-25 — 22 tools, 4 prompts, resources, structured content, progress notifications |
+| **CLI** | 27 commands (+ 6 watch subcommands) with table/JSON output, color, shell completion |
 | **Booking links** | Every flight and hotel result includes a direct Google booking link |
 | **Travel hacks** | 30+ hacks auto-applied: nearby airports, throw-away returns, hotel splits |
 | **Personal profile** | Remembers your FF status, luggage needs, favourite hotels, departure preferences |

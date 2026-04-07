@@ -88,7 +88,7 @@ Sleep 12s
 Type ""
 Enter
 Sleep 1500ms
-Type "# 19 MCP tools · 24 CLI commands · 17 providers · No API keys"
+Type "# 22 MCP tools · 27 CLI commands · 17 providers · No API keys"
 Enter
 Sleep 400ms
 Type "# github.com/MikkoParkkola/trvl"
