@@ -1,6 +1,7 @@
 package trip
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -259,7 +260,7 @@ func TestAssembleTripCost_AllSuccess(t *testing.T) {
 		},
 	}
 
-	assembleTripCost(result, outResult, nil, retResult, nil, hotelResult, nil, 3, 2)
+	assembleTripCost(context.Background(), result, "", outResult, nil, retResult, nil, hotelResult, nil, 3, 2)
 
 	if !result.Success {
 		t.Fatal("expected success")
@@ -310,7 +311,7 @@ func TestAssembleTripCost_FlightsOnlyNoHotel(t *testing.T) {
 		Flights: []models.FlightResult{{Price: 120, Currency: "EUR"}},
 	}
 
-	assembleTripCost(result, outResult, nil, retResult, nil, nil, fmt.Errorf("hotel error"), 2, 1)
+	assembleTripCost(context.Background(), result, "", outResult, nil, retResult, nil, nil, fmt.Errorf("hotel error"), 2, 1)
 
 	if !result.Success {
 		t.Fatal("should succeed with flights only")
@@ -331,7 +332,7 @@ func TestAssembleTripCost_SuccessKeepsMultiplePartialFailures(t *testing.T) {
 		Flights: []models.FlightResult{{Price: 100, Currency: "EUR"}},
 	}
 
-	assembleTripCost(result, outResult, nil, nil, fmt.Errorf("return fail"), nil, fmt.Errorf("hotel fail"), 1, 1)
+	assembleTripCost(context.Background(), result, "", outResult, nil, nil, fmt.Errorf("return fail"), nil, fmt.Errorf("hotel fail"), 1, 1)
 
 	if !result.Success {
 		t.Fatal("should succeed with outbound pricing available")
@@ -350,7 +351,7 @@ func TestAssembleTripCost_AllErrors(t *testing.T) {
 	retErr := fmt.Errorf("return fail")
 	hotelErr := fmt.Errorf("hotel fail")
 
-	assembleTripCost(result, nil, outErr, nil, retErr, nil, hotelErr, 2, 1)
+	assembleTripCost(context.Background(), result, "", nil, outErr, nil, retErr, nil, hotelErr, 2, 1)
 
 	if result.Success {
 		t.Error("expected failure when all searches fail")
@@ -362,7 +363,7 @@ func TestAssembleTripCost_AllErrors(t *testing.T) {
 
 func TestAssembleTripCost_NilResults(t *testing.T) {
 	result := &TripCostResult{Currency: "EUR", Nights: 1}
-	assembleTripCost(result, nil, nil, nil, nil, nil, nil, 1, 1)
+	assembleTripCost(context.Background(), result, "", nil, nil, nil, nil, nil, nil, 1, 1)
 
 	if result.Success {
 		t.Error("expected failure with nil results and no errors")
@@ -374,7 +375,7 @@ func TestAssembleTripCost_EmptyFlightResults(t *testing.T) {
 	outResult := &models.FlightSearchResult{Success: true, Flights: nil}
 	retResult := &models.FlightSearchResult{Success: true, Flights: []models.FlightResult{}}
 
-	assembleTripCost(result, outResult, nil, retResult, nil, nil, nil, 2, 1)
+	assembleTripCost(context.Background(), result, "", outResult, nil, retResult, nil, nil, nil, 2, 1)
 
 	if result.Success {
 		t.Error("expected failure when no flights found")
@@ -389,7 +390,7 @@ func TestAssembleTripCost_ReturnSetsCurrencyWhenOutboundEmpty(t *testing.T) {
 		Flights: []models.FlightResult{{Price: 200, Currency: "USD"}},
 	}
 
-	assembleTripCost(result, nil, fmt.Errorf("out fail"), retResult, nil, nil, nil, 1, 1)
+	assembleTripCost(context.Background(), result, "", nil, fmt.Errorf("out fail"), retResult, nil, nil, nil, 1, 1)
 
 	if result.Flights.Currency != "USD" {
 		t.Errorf("flights currency = %q, want USD", result.Flights.Currency)
@@ -404,9 +405,119 @@ func TestAssembleTripCost_SuccessFalse(t *testing.T) {
 		Flights: []models.FlightResult{{Price: 100, Currency: "EUR"}},
 	}
 
-	assembleTripCost(result, outResult, nil, nil, nil, nil, nil, 1, 1)
+	assembleTripCost(context.Background(), result, "", outResult, nil, nil, nil, nil, nil, 1, 1)
 
 	if result.Flights.Outbound != 0 {
 		t.Errorf("outbound should be 0 when success=false, got %v", result.Flights.Outbound)
+	}
+}
+
+func TestApplyTripCostCurrencyAndTotals_UsesRequestedCurrency(t *testing.T) {
+	result := &TripCostResult{
+		Flights: FlightCost{
+			Outbound: 100,
+			Return:   120,
+			Currency: "EUR",
+		},
+		Hotels: HotelCost{
+			PerNight: 50,
+			Total:    100,
+			Currency: "USD",
+		},
+		Nights: 2,
+	}
+
+	applyTripCostCurrencyAndTotals(
+		context.Background(),
+		result,
+		"USD",
+		2,
+		1,
+		func(_ context.Context, amount float64, from, to string) (float64, string) {
+			if from == to || to == "" {
+				return amount, from
+			}
+			if from == "EUR" && to == "USD" {
+				return amount * 2, "USD"
+			}
+			return amount, to
+		},
+	)
+
+	if result.Flights.Outbound != 200 {
+		t.Errorf("outbound = %v, want 200", result.Flights.Outbound)
+	}
+	if result.Flights.Return != 240 {
+		t.Errorf("return = %v, want 240", result.Flights.Return)
+	}
+	if result.Flights.Currency != "USD" {
+		t.Errorf("flight currency = %q, want USD", result.Flights.Currency)
+	}
+	if result.Hotels.Total != 100 {
+		t.Errorf("hotel total = %v, want 100", result.Hotels.Total)
+	}
+	if result.Hotels.Currency != "USD" {
+		t.Errorf("hotel currency = %q, want USD", result.Hotels.Currency)
+	}
+	if result.Total != 540 {
+		t.Errorf("total = %v, want 540", result.Total)
+	}
+	if result.Currency != "USD" {
+		t.Errorf("currency = %q, want USD", result.Currency)
+	}
+	if result.PerPerson != 540 {
+		t.Errorf("per person = %v, want 540", result.PerPerson)
+	}
+	if result.PerDay != 270 {
+		t.Errorf("per day = %v, want 270", result.PerDay)
+	}
+}
+
+func TestApplyTripCostCurrencyAndTotals_UsesAvailableCurrencyWhenUnrequested(t *testing.T) {
+	result := &TripCostResult{
+		Flights: FlightCost{
+			Outbound: 100,
+			Return:   120,
+			Currency: "EUR",
+		},
+		Hotels: HotelCost{
+			PerNight: 50,
+			Total:    100,
+			Currency: "USD",
+		},
+		Nights: 2,
+	}
+
+	applyTripCostCurrencyAndTotals(
+		context.Background(),
+		result,
+		"",
+		2,
+		1,
+		func(_ context.Context, amount float64, from, to string) (float64, string) {
+			if from == to || to == "" {
+				return amount, from
+			}
+			if from == "USD" && to == "EUR" {
+				return amount / 2, "EUR"
+			}
+			return amount, to
+		},
+	)
+
+	if result.Currency != "EUR" {
+		t.Errorf("currency = %q, want EUR", result.Currency)
+	}
+	if result.Hotels.Total != 50 {
+		t.Errorf("hotel total = %v, want 50", result.Hotels.Total)
+	}
+	if result.Hotels.PerNight != 25 {
+		t.Errorf("hotel per night = %v, want 25", result.Hotels.PerNight)
+	}
+	if result.Hotels.Currency != "EUR" {
+		t.Errorf("hotel currency = %q, want EUR", result.Hotels.Currency)
+	}
+	if result.Total != 270 {
+		t.Errorf("total = %v, want 270", result.Total)
 	}
 }

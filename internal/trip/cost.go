@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/hotels"
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -120,14 +121,14 @@ func CalculateTripCost(ctx context.Context, input TripCostInput) (*TripCostResul
 		Currency: input.Currency,
 	})
 
-	assembleTripCost(result, outResult, outErr, retResult, retErr, hotelResult, hotelErr, nights, input.Guests)
+	assembleTripCost(ctx, result, input.Currency, outResult, outErr, retResult, retErr, hotelResult, hotelErr, nights, input.Guests)
 
 	return result, nil
 }
 
 // assembleTripCost populates the TripCostResult from search results.
 // It extracts cheapest flights/hotels, aggregates costs, and computes per-person/per-day.
-func assembleTripCost(result *TripCostResult, outResult *models.FlightSearchResult, outErr error, retResult *models.FlightSearchResult, retErr error, hotelResult *models.HotelSearchResult, hotelErr error, nights, guests int) {
+func assembleTripCost(ctx context.Context, result *TripCostResult, requestedCurrency string, outResult *models.FlightSearchResult, outErr error, retResult *models.FlightSearchResult, retErr error, hotelResult *models.HotelSearchResult, hotelErr error, nights, guests int) {
 	// Extract cheapest outbound flight.
 	if outErr == nil && outResult != nil && outResult.Success && len(outResult.Flights) > 0 {
 		cheapest := cheapestFlight(outResult.Flights)
@@ -167,7 +168,72 @@ func assembleTripCost(result *TripCostResult, outResult *models.FlightSearchResu
 		errors = append(errors, fmt.Sprintf("hotels: %v", hotelErr))
 	}
 
-	// Calculate total.
+	applyTripCostCurrencyAndTotals(ctx, result, requestedCurrency, nights, guests, destinations.ConvertCurrency)
+	result.Error = formatTripCostError(errors, result.Success)
+}
+
+type tripCostCurrencyConverter func(context.Context, float64, string, string) (float64, string)
+
+func applyTripCostCurrencyAndTotals(
+	ctx context.Context,
+	result *TripCostResult,
+	requestedCurrency string,
+	nights, guests int,
+	convert tripCostCurrencyConverter,
+) {
+	result.Success = false
+	result.Total = 0
+	result.PerPerson = 0
+	result.PerDay = 0
+
+	targetCurrency := chooseTripCostSummaryCurrency(
+		requestedCurrency,
+		result.Flights.Currency,
+		result.Hotels.Currency,
+	)
+	flightCurrency := result.Flights.Currency
+	hotelCurrency := result.Hotels.Currency
+
+	if targetCurrency != "" {
+		if result.Flights.Outbound > 0 {
+			result.Flights.Outbound, result.Flights.Currency = convertedTripCostAmount(
+				ctx,
+				result.Flights.Outbound,
+				flightCurrency,
+				targetCurrency,
+				convert,
+			)
+		}
+		if result.Flights.Return > 0 {
+			result.Flights.Return, result.Flights.Currency = convertedTripCostAmount(
+				ctx,
+				result.Flights.Return,
+				flightCurrency,
+				targetCurrency,
+				convert,
+			)
+		}
+		if result.Hotels.PerNight > 0 {
+			result.Hotels.PerNight, result.Hotels.Currency = convertedTripCostAmount(
+				ctx,
+				result.Hotels.PerNight,
+				hotelCurrency,
+				targetCurrency,
+				convert,
+			)
+		}
+		if result.Hotels.Total > 0 {
+			result.Hotels.Total, result.Hotels.Currency = convertedTripCostAmount(
+				ctx,
+				result.Hotels.Total,
+				hotelCurrency,
+				targetCurrency,
+				convert,
+			)
+		}
+		result.Currency = targetCurrency
+	}
+
 	// Flights are per person, hotels are per room.
 	flightPerPerson := result.Flights.Outbound + result.Flights.Return
 	flightTotal := flightPerPerson * float64(guests)
@@ -180,8 +246,6 @@ func assembleTripCost(result *TripCostResult, outResult *models.FlightSearchResu
 			result.PerDay = result.Total / float64(nights)
 		}
 	}
-
-	result.Error = formatTripCostError(errors, result.Success)
 }
 
 func formatTripCostError(errors []string, partial bool) string {
@@ -217,4 +281,26 @@ func cheapestHotel(htls []models.HotelResult) models.HotelResult {
 		}
 	}
 	return best
+}
+
+func chooseTripCostSummaryCurrency(requested string, currencies ...string) string {
+	if requested != "" {
+		return requested
+	}
+	for _, currency := range currencies {
+		if currency != "" {
+			return currency
+		}
+	}
+	return ""
+}
+
+func convertedTripCostAmount(
+	ctx context.Context,
+	amount float64,
+	from, to string,
+	convert tripCostCurrencyConverter,
+) (float64, string) {
+	converted, currency := convert(ctx, amount, from, to)
+	return math.Round(converted*100) / 100, currency
 }
