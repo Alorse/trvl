@@ -58,6 +58,7 @@ func init() {
 	rootCmd.AddCommand(watchCmd())
 	rootCmd.AddCommand(roomsCmd())
 	rootCmd.AddCommand(hacksCmd())
+	rootCmd.AddCommand(accomHackCmd())
 	rootCmd.AddCommand(mcpCmd())
 	rootCmd.AddCommand(prefsCmd())
 }

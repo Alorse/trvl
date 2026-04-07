@@ -250,6 +250,7 @@ func TestToolRegistration_AllTools(t *testing.T) {
 		"hotel_rooms",
 		"get_preferences",
 		"detect_travel_hacks",
+		"detect_accommodation_hacks",
 	}
 
 	if len(s.tools) != len(expectedTools) {

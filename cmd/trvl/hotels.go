@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/destinations"
+	"github.com/MikkoParkkola/trvl/internal/hacks"
 	"github.com/MikkoParkkola/trvl/internal/hotels"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/preferences"
@@ -107,7 +108,14 @@ func runHotels(cmd *cobra.Command, args []string) error {
 		return models.FormatJSON(os.Stdout, result)
 	}
 
-	return formatHotelsTable(cmd.Context(), currency, result)
+	if err := formatHotelsTable(cmd.Context(), currency, result); err != nil {
+		return err
+	}
+
+	// Auto-trigger: if the stay is >= 4 nights, silently check for an
+	// accommodation split and print a tip when one is found.
+	maybeShowAccomHackTip(cmd.Context(), location, checkin, checkout, currency, guests)
+	return nil
 }
 
 func formatHotelsTable(ctx context.Context, targetCurrency string, result *models.HotelSearchResult) error {
@@ -188,4 +196,51 @@ func formatHotelsTable(ctx context.Context, targetCurrency string, result *model
 		}
 	}
 	return nil
+}
+
+// maybeShowAccomHackTip checks whether the stay is >= 4 nights and, if so,
+// runs an accommodation split search. When a saving is found it prints a
+// one-line tip pointing to `trvl hacks-accom`.
+func maybeShowAccomHackTip(ctx context.Context, city, checkIn, checkOut, currency string, guests int) {
+	if checkIn == "" || checkOut == "" {
+		return
+	}
+
+	// Quick night count without importing time directly.
+	in, err1 := time.Parse("2006-01-02", checkIn)
+	out, err2 := time.Parse("2006-01-02", checkOut)
+	if err1 != nil || err2 != nil {
+		return
+	}
+	nights := int(out.Sub(in).Hours() / 24)
+	if nights < 4 {
+		return
+	}
+
+	// Run split detection with a short timeout so it doesn't slow down the
+	// main hotel search output.
+	tipCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+
+	detected := hacks.DetectAccommodationSplit(tipCtx, hacks.AccommodationSplitInput{
+		City:      city,
+		CheckIn:   checkIn,
+		CheckOut:  checkOut,
+		Currency:  currency,
+		MaxSplits: 3,
+		Guests:    guests,
+	})
+
+	if len(detected) > 0 {
+		h := detected[0]
+		cur := h.Currency
+		if cur == "" {
+			cur = "EUR"
+		}
+		fmt.Println()
+		fmt.Printf("  %s Tip: split this %d-night stay across hotels — saves %s %.0f\n",
+			models.Yellow("!"), nights, cur, h.Savings)
+		fmt.Printf("    Run: trvl hacks-accom %q --checkin %s --checkout %s\n",
+			city, checkIn, checkOut)
+	}
 }
