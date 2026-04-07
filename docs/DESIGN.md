@@ -212,7 +212,7 @@ Four tools exposed:
 
 ### 5.2 CLI Framework: Cobra
 
-Industry standard for Go CLIs. Used by kubectl, gh, docker. Supports subcommands, flags, shell completion, help generation.
+Widely used for Go CLIs. Used by kubectl, gh, docker. Supports subcommands, flags, shell completion, help generation.
 
 ### 5.3 MCP: Custom Implementation
 
