@@ -118,6 +118,20 @@ func TestBaggageNote_Unknown(t *testing.T) {
 	}
 }
 
+func TestAirlineNotesAvoidSubjectiveQualityClaims(t *testing.T) {
+	for _, airline := range All() {
+		if strings.Contains(airline.Notes, "world's best airline") {
+			t.Fatalf("%s note should avoid unsupported ranking claims", airline.Code)
+		}
+		if strings.Contains(airline.Notes, "excellent business class") {
+			t.Fatalf("%s note should avoid subjective cabin-quality claims", airline.Code)
+		}
+		if strings.Contains(airline.Notes, "generous allowances across all classes") {
+			t.Fatalf("%s note should avoid subjective baggage-allowance claims", airline.Code)
+		}
+	}
+}
+
 func TestFormatKg(t *testing.T) {
 	tests := []struct {
 		kg   float64

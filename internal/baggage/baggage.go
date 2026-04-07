@@ -150,7 +150,7 @@ var database = map[string]AirlineBaggage{
 		PersonalItem:      true,
 		CheckedIncluded:   1,
 		CheckedFee:        0,
-		Notes:             "1x23kg checked bag included; excellent business class.",
+		Notes:             "1x23kg checked bag included on most fares.",
 	},
 
 	// --- Long-haul Gulf/Asia carriers ---
@@ -172,7 +172,7 @@ var database = map[string]AirlineBaggage{
 		PersonalItem:      true,
 		CheckedIncluded:   1,
 		CheckedFee:        0,
-		Notes:             "1x30kg checked bag included on economy; generous allowances across all classes.",
+		Notes:             "1x30kg checked bag included on most economy fares.",
 	},
 	"SQ": {
 		Code:              "SQ",
@@ -182,7 +182,7 @@ var database = map[string]AirlineBaggage{
 		PersonalItem:      true,
 		CheckedIncluded:   1,
 		CheckedFee:        0,
-		Notes:             "1x30kg checked bag included; consistently rated world's best airline.",
+		Notes:             "1x30kg checked bag included on most fares.",
 	},
 
 	// --- Low-cost carriers (LCC) ---
