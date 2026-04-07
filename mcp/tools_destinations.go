@@ -404,13 +404,16 @@ func tripCostSummary(result *trip.TripCostResult, origin, dest string, guests in
 		fmt.Sprintf("Trip %s -> %s: %d nights, %d guest(s)", origin, dest, result.Nights, guests),
 	}
 
-	if result.Flights.Outbound > 0 {
-		parts = append(parts, fmt.Sprintf("Flights: %s %.0f outbound + %.0f return",
-			result.Flights.Currency, result.Flights.Outbound, result.Flights.Return))
+	if result.Flights.Outbound > 0 || result.Flights.Return > 0 {
+		parts = append(parts, fmt.Sprintf("Flights: outbound %s, return %s",
+			tripCostSummaryAmount(result.Flights.Outbound, result.Flights.Currency),
+			tripCostSummaryAmount(result.Flights.Return, result.Flights.Currency)))
 	}
 	if result.Hotels.PerNight > 0 {
 		parts = append(parts, fmt.Sprintf("Hotel: %s %.0f/night (%s)",
 			result.Hotels.Currency, result.Hotels.PerNight, result.Hotels.Name))
+	} else {
+		parts = append(parts, "Hotel: unavailable")
 	}
 
 	parts = append(parts, fmt.Sprintf("Total: %s %.0f (%.0f/person, %.0f/day)",
@@ -420,6 +423,13 @@ func tripCostSummary(result *trip.TripCostResult, origin, dest string, guests in
 	}
 
 	return strings.Join(parts, ". ") + "."
+}
+
+func tripCostSummaryAmount(amount float64, currency string) string {
+	if amount <= 0 {
+		return "unavailable"
+	}
+	return fmt.Sprintf("%s %.0f", currency, amount)
 }
 
 // --- Plan Trip tool ---

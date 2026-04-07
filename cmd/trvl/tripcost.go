@@ -95,23 +95,18 @@ func printTripCostTable(result *trip.TripCostResult, origin, dest string, guests
 	rows = append(rows, []string{
 		"Outbound flight",
 		formatPrice(result.Flights.Outbound, result.Flights.Currency),
-		fmt.Sprintf("%s -> %s, %s", origin, dest, formatStops(result.Flights.OutboundStops)),
+		tripCostFlightDetail(result.Flights.Outbound, origin, dest, result.Flights.OutboundStops),
 	})
 	rows = append(rows, []string{
 		"Return flight",
 		formatPrice(result.Flights.Return, result.Flights.Currency),
-		fmt.Sprintf("%s -> %s, %s", dest, origin, formatStops(result.Flights.ReturnStops)),
+		tripCostFlightDetail(result.Flights.Return, dest, origin, result.Flights.ReturnStops),
 	})
 
-	hotelDetail := ""
-	if result.Hotels.Name != "" {
-		hotelDetail = result.Hotels.Name + ", "
-	}
-	hotelDetail += fmt.Sprintf("%s %.0f/night x %d nights", result.Hotels.Currency, result.Hotels.PerNight, result.Nights)
 	rows = append(rows, []string{
 		"Hotel",
 		formatPrice(result.Hotels.Total, result.Hotels.Currency),
-		hotelDetail,
+		tripCostHotelDetail(result.Hotels, result.Nights),
 	})
 
 	rows = append(rows, []string{"", "", ""})
@@ -121,4 +116,23 @@ func printTripCostTable(result *trip.TripCostResult, origin, dest string, guests
 
 	models.FormatTable(os.Stdout, headers, rows)
 	return nil
+}
+
+func tripCostFlightDetail(amount float64, origin, dest string, stops int) string {
+	if amount <= 0 {
+		return "Unavailable"
+	}
+	return fmt.Sprintf("%s -> %s, %s", origin, dest, formatStops(stops))
+}
+
+func tripCostHotelDetail(hotel trip.HotelCost, nights int) string {
+	if hotel.Total <= 0 || hotel.PerNight <= 0 {
+		return "Unavailable"
+	}
+
+	detail := ""
+	if hotel.Name != "" {
+		detail = hotel.Name + ", "
+	}
+	return detail + fmt.Sprintf("%s %.0f/night x %d nights", hotel.Currency, hotel.PerNight, nights)
 }

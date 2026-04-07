@@ -253,6 +253,29 @@ func TestTripCostSummary_PartialWarning(t *testing.T) {
 	}
 }
 
+func TestTripCostSummary_UnavailableComponents(t *testing.T) {
+	result := &trip.TripCostResult{
+		Success:   true,
+		Flights:   trip.FlightCost{Outbound: 100, Currency: "EUR"},
+		Total:     100,
+		Currency:  "EUR",
+		PerPerson: 100,
+		PerDay:    50,
+		Nights:    2,
+	}
+
+	got := tripCostSummary(result, "HEL", "BCN", 1)
+	if !strings.Contains(got, "Flights: outbound EUR 100, return unavailable") {
+		t.Fatalf("got %q", got)
+	}
+	if !strings.Contains(got, "Hotel: unavailable") {
+		t.Fatalf("got %q", got)
+	}
+	if strings.Contains(got, "+ 0 return") {
+		t.Fatalf("got %q, want unavailable wording", got)
+	}
+}
+
 // --- nearbyPlacesSummary ---
 
 func TestNearbyPlacesSummary(t *testing.T) {

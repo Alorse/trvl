@@ -74,3 +74,32 @@ func TestPrintTripCostTable_PartialFailureWarning(t *testing.T) {
 		t.Fatalf("stdout = %q, want rendered table", stdout)
 	}
 }
+
+func TestPrintTripCostTable_UnavailableComponents(t *testing.T) {
+	result := &trip.TripCostResult{
+		Success:   true,
+		Flights:   trip.FlightCost{Outbound: 100, Currency: "EUR"},
+		Hotels:    trip.HotelCost{Currency: "EUR"},
+		Total:     100,
+		Currency:  "EUR",
+		PerPerson: 100,
+		PerDay:    50,
+		Nights:    2,
+	}
+
+	stdout, stderr, err := captureTripCostOutput(t, func() error {
+		return printTripCostTable(result, "HEL", "BCN", 1)
+	})
+	if err != nil {
+		t.Fatalf("printTripCostTable returned error: %v", err)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "Unavailable") {
+		t.Fatalf("stdout = %q, want Unavailable markers", stdout)
+	}
+	if strings.Contains(stdout, "0/night") {
+		t.Fatalf("stdout = %q, want no 0/night detail", stdout)
+	}
+}
