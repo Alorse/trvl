@@ -152,7 +152,7 @@ That's it. Your AI assistant now has 31 travel tools available. Just ask natural
 | **search_deals** | Travel deals from 4 RSS feeds (error fares, flash sales) | Deals from HEL under EUR 400 |
 | **plan_trip** | Plan a complete trip — flights + hotel in one parallel search | AMS→PRG, Jun 15–18, EUR |
 | **search_route** | Multi-modal routing combining flights, trains, buses and ferries | Helsinki → Dubrovnik, arrive by 2026-04-10 |
-| **hotel_rooms** | Fetch room-level availability, board type, and cancellation policy | Hotel place ID, Jul 1-5 |
+| **get_weather** | Get a weather forecast for any city (Open-Meteo, up to 14 days) | Prague, weekend forecast |
 | **get_preferences** | Read user travel preferences (FF status, bag rules, seat preferences) | — |
 | **detect_travel_hacks** | Run 18 parallel detectors for flight and ground savings opportunities | HEL → AMS, Apr 13, carry-on only |
 | **detect_accommodation_hacks** | Find hotel split savings (e.g. 2-city stay cheaper than 1 hotel) | Prague, Jun 15-22 |
@@ -162,6 +162,7 @@ That's it. Your AI assistant now has 31 travel tools available. Just ask natural
 | **create_trip** | Create a new trip record | "Helsinki court + Prague + Amsterdam" |
 | **add_trip_leg** | Add a flight, hotel, or ground leg to a saved trip | Trip ID, type, details |
 | **mark_trip_booked** | Mark a trip leg as booked | Trip ID, leg index |
+| **get_baggage_rules** | Look up carry-on and checked baggage allowances for airlines | AY carry-on + checked bag rules |
 
 ### MCP Protocol Features (v2025-11-25)
 

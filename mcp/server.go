@@ -4,12 +4,9 @@
 //   - stdio: JSON-RPC messages over stdin/stdout (one JSON object per line)
 //   - HTTP:  JSON-RPC messages via POST /mcp
 //
-// The server exposes twenty tools: search_flights, search_dates, search_hotels,
-// hotel_prices, hotel_reviews, hotel_rooms, destination_info,
-// calculate_trip_cost, weekend_getaway, suggest_dates, optimize_multi_city,
-// nearby_places, travel_guide, local_events, search_ground, search_route,
-// search_airport_transfers, search_restaurants, search_deals, and plan_trip.
-// It also provides prompts and resources.
+// The server exposes the current trvl travel tools for flights, hotels, ground
+// transport, trip state, weather, baggage, and travel hacks. It also provides
+// prompts and resources.
 //
 // Protocol version: 2025-11-25
 // Key features: structured output, content annotations, progress notifications,

@@ -1,11 +1,46 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+var readmeToolMarkers = []string{
+	"search_flights",
+	"search_dates",
+	"search_hotels",
+	"hotel_prices",
+	"hotel_reviews",
+	"hotel_rooms",
+	"destination_info",
+	"calculate_trip_cost",
+	"weekend_getaway",
+	"suggest_dates",
+	"optimize_multi_city",
+	"nearby_places",
+	"travel_guide",
+	"local_events",
+	"search_ground",
+	"search_airport_transfers",
+	"search_restaurants",
+	"search_deals",
+	"plan_trip",
+	"search_route",
+	"get_preferences",
+	"detect_travel_hacks",
+	"detect_accommodation_hacks",
+	"search_natural",
+	"list_trips",
+	"get_trip",
+	"create_trip",
+	"add_trip_leg",
+	"mark_trip_booked",
+	"get_weather",
+	"get_baggage_rules",
+}
 
 func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 	t.Parallel()
@@ -75,6 +110,15 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 			for _, needle := range check.forbidden {
 				if strings.Contains(text, needle) {
 					t.Errorf("%s still contains stale text %q", check.path, needle)
+				}
+			}
+
+			if filepath.Base(check.path) == "README.md" {
+				for _, tool := range readmeToolMarkers {
+					marker := fmt.Sprintf("**%s**", tool)
+					if count := strings.Count(text, marker); count != 1 {
+						t.Errorf("%s should mention %s exactly once in the MCP tool table, got %d", check.path, marker, count)
+					}
 				}
 			}
 		})
