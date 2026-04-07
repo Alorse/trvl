@@ -111,6 +111,31 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 				"# 29 MCP tools · 29 CLI commands · 17 providers · No API keys",
 			},
 		},
+		{
+			path: filepath.Join("..", "..", ".claude-plugin", "plugin.json"),
+			required: []string{
+				"31 MCP tools",
+			},
+			forbidden: []string{
+				"16 MCP tools",
+			},
+		},
+		{
+			path: filepath.Join("..", "..", ".claude", "skills", "trvl.md"),
+			required: []string{
+				"## CORE TOOLS (selected high-signal tools; trvl exposes 31 MCP tools overall via gateway_invoke server=\"trvl\")",
+				"Bus/train/ferry (16 providers)",
+				"`search_airport_transfers`",
+				"`plan_trip`",
+				"`search_route`",
+				"`get_weather`",
+				"`get_baggage_rules`",
+			},
+			forbidden: []string{
+				"## TOOLS (via gateway_invoke server=\"trvl\")",
+				"Bus/train (6 providers)",
+			},
+		},
 	}
 
 	for _, check := range checks {

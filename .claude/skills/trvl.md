@@ -50,7 +50,7 @@ Read `~/.claude/travel-profile.md` if exists. Apply: departure time prefs, FF st
 ## ASK FIRST (2-3 Qs max)
 From?|To?|When?|Flex?|Travelers?|Budget? Check calendar (Google/Apple/manual) for conflicts. Don't re-ask obvious info.
 
-## TOOLS (via gateway_invoke server="trvl")
+## CORE TOOLS (selected high-signal tools; trvl exposes 31 MCP tools overall via gateway_invoke server="trvl")
 | Tool | Use | Key params |
 |------|-----|-----------|
 | `search_flights` | Flights A→B | origin,destination,departure_date,[return_date,cabin_class,max_stops] |
@@ -67,8 +67,13 @@ From?|To?|When?|Flex?|Travelers?|Budget? Check calendar (Google/Apple/manual) fo
 | `nearby_places` | POIs near hotel | lat,lon,[category,radius_m] |
 | `travel_guide` | Wikivoyage guide | location |
 | `local_events` | Events during trip | location,start_date,end_date |
-| `search_ground` | Bus/train (6 providers) | from,to,date,[currency,type,provider] |
+| `search_ground` | Bus/train/ferry (16 providers) | from,to,date,[currency,type,provider] |
+| `search_airport_transfers` | Airport→hotel or city transfers + taxi estimates | airport_code,destination,date,[provider] |
 | `search_restaurants` | Restaurants near location | location,[query,limit] |
+| `plan_trip` | Flights + hotel in one parallel search | origin,destination,depart_date,[return_date,budget] |
+| `search_route` | Multi-modal routing across flights, trains, buses, and ferries | from,to,[depart_after,arrive_by] |
+| `get_weather` | Weather forecast for a city | location,[travel_dates] |
+| `get_baggage_rules` | Airline carry-on and checked-bag rules | airline |
 
 ## ALWAYS RUN THESE CHECKS
 1. **Nearby airports** — HEL/TMP/TKU, LHR/LGW/STN, CDG/ORY/BVA, JFK/EWR
