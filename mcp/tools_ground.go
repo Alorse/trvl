@@ -149,14 +149,14 @@ func handleSearchGround(args map[string]any, elicit ElicitFunc, sampling Samplin
 
 	result, err := ground.SearchByName(ctx, from, to, date, opts)
 	if err != nil {
-		return []ContentBlock{{Type: "text", Text: fmt.Sprintf("Ground transport search failed: %v", err)}}, nil, nil
+		return nil, nil, toolExecutionError("Ground transport search", err)
 	}
 
 	if !result.Success {
-		msg := fmt.Sprintf("No ground routes found from %s to %s on %s", from, to, date)
 		if result.Error != "" {
-			msg += ": " + result.Error
+			return nil, nil, toolResultError("Ground transport search", result.Error)
 		}
+		msg := fmt.Sprintf("No ground routes found from %s to %s on %s", from, to, date)
 		return []ContentBlock{{Type: "text", Text: msg}}, result, nil
 	}
 

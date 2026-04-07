@@ -99,6 +99,14 @@ func (s *Server) wrapHandler(inner ToolHandler) ToolHandler {
 	}
 }
 
+func toolExecutionError(label string, err error) error {
+	return fmt.Errorf("%s failed: %w", label, err)
+}
+
+func toolResultError(label, message string) error {
+	return fmt.Errorf("%s failed: %s", label, message)
+}
+
 // notifyTripUpdate fires resource-updated notifications for trip mutations.
 // Called for any tool that writes to the trip store; checks args for trip_id.
 func (s *Server) notifyTripUpdate(args map[string]any) {

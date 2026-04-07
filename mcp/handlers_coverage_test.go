@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MikkoParkkola/trvl/internal/deals"
 	"github.com/MikkoParkkola/trvl/internal/trip"
 )
 
@@ -175,17 +176,41 @@ func TestHandlePlanTrip_InvalidGuests(t *testing.T) {
 		"return_date": "2026-07-08",
 		"guests":      0,
 	}, nil, nil, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected error for invalid guests")
 	}
 	if result != nil {
 		t.Fatalf("result = %#v, want nil", result)
 	}
-	if len(content) != 1 {
-		t.Fatalf("content len = %d, want 1", len(content))
+	if len(content) != 0 {
+		t.Fatalf("content len = %d, want 0", len(content))
 	}
-	if got := content[0].Text; got != "Trip planning failed: guests must be at least 1" {
-		t.Fatalf("content[0].Text = %q, want %q", got, "Trip planning failed: guests must be at least 1")
+	if got := err.Error(); got != "Trip planning failed: guests must be at least 1" {
+		t.Fatalf("error = %q, want %q", got, "Trip planning failed: guests must be at least 1")
+	}
+}
+
+func TestHandleSearchDeals_AllSourcesFailReturnsError(t *testing.T) {
+	oldSources := deals.AllSources
+	deals.AllSources = []string{"missing-source"}
+	defer func() {
+		deals.AllSources = oldSources
+	}()
+
+	content, result, err := handleSearchDeals(map[string]any{
+		"origins": "HEL",
+	}, nil, nil, nil)
+	if err == nil {
+		t.Fatal("expected error when every source fails")
+	}
+	if result != nil {
+		t.Fatalf("result = %#v, want nil", result)
+	}
+	if len(content) != 0 {
+		t.Fatalf("content len = %d, want 0", len(content))
+	}
+	if got := err.Error(); got != "Deals search failed: unknown source: missing-source" {
+		t.Fatalf("error = %q, want %q", got, "Deals search failed: unknown source: missing-source")
 	}
 }
 
@@ -417,7 +442,8 @@ func TestBuildTripWindowSummary_NoCandidates(t *testing.T) {
 }
 
 func TestBuildTripWindowSummary_WithCandidates(t *testing.T) {
-	candidates := []interface{ /* tripwindow.Candidate */ }{} // use fmt below
+	candidates := []interface { /* tripwindow.Candidate */
+	}{} // use fmt below
 	_ = candidates
 	// Call buildTripWindowSummary with a manually constructed slice.
 	// We cannot import tripwindow here (same module, different package)

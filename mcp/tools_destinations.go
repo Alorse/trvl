@@ -562,7 +562,7 @@ func handlePlanTrip(args map[string]any, elicit ElicitFunc, sampling SamplingFun
 
 	result, err := trip.PlanTrip(ctx, input)
 	if err != nil {
-		return []ContentBlock{{Type: "text", Text: fmt.Sprintf("Trip planning failed: %v", err)}}, nil, nil
+		return nil, nil, toolExecutionError("Trip planning", err)
 	}
 
 	data, _ := json.MarshalIndent(result, "", "  ")
@@ -571,6 +571,9 @@ func handlePlanTrip(args map[string]any, elicit ElicitFunc, sampling SamplingFun
 			{Type: "text", Text: fmt.Sprintf("Partial trip plan: %s", result.Error)},
 			{Type: "text", Text: string(data)},
 		}, result, nil
+	}
+	if !result.Success && result.Error != "" {
+		return nil, nil, toolResultError("Trip planning", result.Error)
 	}
 	return []ContentBlock{{Type: "text", Text: string(data)}}, result, nil
 }

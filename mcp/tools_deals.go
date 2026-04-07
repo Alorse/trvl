@@ -88,14 +88,14 @@ func handleSearchDeals(args map[string]any, elicit ElicitFunc, sampling Sampling
 
 	result, err := deals.FetchDeals(ctx, nil, filter)
 	if err != nil {
-		return []ContentBlock{{Type: "text", Text: fmt.Sprintf("Deals search failed: %v", err)}}, nil, nil
+		return nil, nil, toolExecutionError("Deals search", err)
 	}
 
 	if !result.Success {
-		msg := fmt.Sprintf("No deals found for origins %s", originsRaw)
 		if result.Error != "" {
-			msg += ": " + result.Error
+			return nil, nil, toolResultError("Deals search", result.Error)
 		}
+		msg := fmt.Sprintf("No deals found for origins %s", originsRaw)
 		return []ContentBlock{{Type: "text", Text: msg}}, result, nil
 	}
 

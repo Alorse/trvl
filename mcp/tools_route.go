@@ -108,7 +108,7 @@ func handleSearchRoute(args map[string]any, elicit ElicitFunc, sampling Sampling
 
 	result, err := route.SearchRoute(ctx, origin, dest, date, opts)
 	if err != nil {
-		return []ContentBlock{{Type: "text", Text: fmt.Sprintf("Route search failed: %v", err)}}, nil, nil
+		return nil, nil, toolExecutionError("Route search", err)
 	}
 
 	sendProgress(progress, 90, 100, "Ranking itineraries...")

@@ -317,9 +317,9 @@ func TestHTTPHandler_LargePayload(t *testing.T) {
 
 func TestAllToolHandlers(t *testing.T) {
 	handlers := []struct {
-		name      string
-		args      map[string]any
-		mayError  bool // true if the handler may return an error (e.g., fake hotel ID)
+		name     string
+		args     map[string]any
+		mayError bool // true if the handler may return an error (e.g., fake hotel ID)
 	}{
 		{"search_flights", map[string]any{"origin": "HEL", "destination": "NRT", "departure_date": "2026-06-15"}, false},
 		{"search_dates", map[string]any{"origin": "HEL", "destination": "NRT", "start_date": "2026-06-01", "end_date": "2026-06-30"}, false},
@@ -791,6 +791,60 @@ func TestContentAnnotations(t *testing.T) {
 	}
 }
 
+func TestHandleToolsCall_PlanTripExecutionFailureSetsIsError(t *testing.T) {
+	s := NewServer()
+
+	params := ToolCallParams{
+		Name: "plan_trip",
+		Arguments: map[string]any{
+			"origin":      "HEL",
+			"destination": "BCN",
+			"depart_date": "2026-07-01",
+			"return_date": "2026-07-08",
+			"guests":      0,
+		},
+	}
+	raw, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("marshal params: %v", err)
+	}
+
+	resp := s.HandleRequest(&Request{
+		JSONRPC: "2.0",
+		ID:      float64(2),
+		Method:  "tools/call",
+		Params:  raw,
+	})
+	if resp == nil {
+		t.Fatal("expected response")
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected top-level error: %+v", resp.Error)
+	}
+
+	resultJSON, err := json.Marshal(resp.Result)
+	if err != nil {
+		t.Fatalf("marshal result: %v", err)
+	}
+	var result ToolCallResult
+	if err := json.Unmarshal(resultJSON, &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	if !result.IsError {
+		t.Fatal("expected isError=true")
+	}
+	if result.StructuredContent != nil {
+		t.Fatalf("structuredContent = %#v, want nil", result.StructuredContent)
+	}
+	if len(result.Content) != 1 {
+		t.Fatalf("content len = %d, want 1", len(result.Content))
+	}
+	if got := result.Content[0].Text; got != "Trip planning failed: guests must be at least 1" {
+		t.Fatalf("content[0].Text = %q, want %q", got, "Trip planning failed: guests must be at least 1")
+	}
+}
+
 func TestInitializeTracksClientCapabilities(t *testing.T) {
 	s := NewServer()
 
@@ -919,4 +973,3 @@ func TestMakeElicitFunc_NilWithoutWriter(t *testing.T) {
 		t.Error("expected nil ElicitFunc when no writer is set")
 	}
 }
-
