@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -54,14 +55,14 @@ func TestSaveTo_RoundTrip(t *testing.T) {
 	path := filepath.Join(dir, "preferences.json")
 
 	original := &Preferences{
-		HomeAirports:   []string{"HEL", "AMS"},
-		HomeCities:     []string{"Helsinki", "Amsterdam"},
-		CarryOnOnly:    true,
-		PreferDirect:   true,
-		NoDormitories:  true,
-		EnSuiteOnly:    false,
-		MinHotelStars:  3,
-		MinHotelRating: 4.0,
+		HomeAirports:    []string{"HEL", "AMS"},
+		HomeCities:      []string{"Helsinki", "Amsterdam"},
+		CarryOnOnly:     true,
+		PreferDirect:    true,
+		NoDormitories:   true,
+		EnSuiteOnly:     false,
+		MinHotelStars:   3,
+		MinHotelRating:  4.0,
 		DisplayCurrency: "EUR",
 		Locale:          "en-FI",
 		PreferredDistricts: map[string][]string{
@@ -269,8 +270,25 @@ func TestSaveTo_FilePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// File should be owner-readable only (0600).
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("file permissions: got %o, want 600", perm)
+	assertCrossPlatformPrivateFile(t, path, info)
+}
+
+func assertCrossPlatformPrivateFile(t *testing.T, path string, info os.FileInfo) {
+	t.Helper()
+
+	if !info.Mode().IsRegular() {
+		t.Fatalf("%s is not a regular file: %v", path, info.Mode())
+	}
+
+	perm := info.Mode().Perm()
+	if runtime.GOOS == "windows" {
+		if perm&0o111 != 0 {
+			t.Errorf("%s should not be executable on Windows, got %o", path, perm)
+		}
+		return
+	}
+
+	if perm != 0o600 {
+		t.Errorf("%s permissions: got %o, want 600", path, perm)
 	}
 }

@@ -3,15 +3,18 @@ package hacks
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/MikkoParkkola/trvl/internal/ground"
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // averageHotelCost is a conservative estimate of a mid-range hotel night (EUR).
 // Used when no hotel price data is available.
 const averageHotelCost = 60.0
+
+var nightTransportTitleCaser = cases.Title(language.English)
 
 // detectNightTransport searches ground transport for overnight routes, then
 // adds the notional hotel saving to the total benefit.
@@ -50,8 +53,8 @@ func buildNightHack(in DetectorInput, r models.GroundRoute, hotelSaving float64)
 		currency = r.Currency
 	}
 
-	providerStr := strings.Title(r.Provider) //nolint:staticcheck
-	typeStr := strings.Title(r.Type)         //nolint:staticcheck
+	providerStr := nightTransportTitleCaser.String(r.Provider)
+	typeStr := nightTransportTitleCaser.String(r.Type)
 
 	depTime := r.Departure.Time
 	arrTime := r.Arrival.Time

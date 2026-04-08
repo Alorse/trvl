@@ -31,11 +31,6 @@ func detectDateFlex(ctx context.Context, in DetectorInput) []Hack {
 	}
 	currency := flightCurrency(baseResult, in.currency())
 
-	type candidate struct {
-		date  string
-		price float64
-	}
-
 	// Channel to collect results from parallel searches.
 	type searchResult struct {
 		date  string
@@ -55,16 +50,18 @@ func detectDateFlex(ctx context.Context, in DetectorInput) []Hack {
 		}
 		pending++
 
-		go func(d string) {
+		returnDate := adjustReturnDate(in.ReturnDate, delta)
+
+		go func(d, ret string) {
 			altResult, err := flights.SearchFlights(ctx, in.Origin, in.Destination, d, flights.SearchOptions{
-				ReturnDate: adjustReturnDate(in.ReturnDate, delta),
+				ReturnDate: ret,
 			})
 			if err != nil || !altResult.Success || len(altResult.Flights) == 0 {
 				ch <- searchResult{}
 				return
 			}
 			ch <- searchResult{date: d, price: minFlightPrice(altResult)}
-		}(altDate)
+		}(altDate, returnDate)
 	}
 
 	bestDate := ""

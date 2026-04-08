@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -30,8 +31,8 @@ type RegioJetCity struct {
 
 // regiojetLocationsResponse wraps the country-grouped location list.
 type regiojetCountry struct {
-	Country string           `json:"country"`
-	Code    string           `json:"code"`
+	Country string            `json:"country"`
+	Code    string            `json:"code"`
 	Cities  []regiojetCityRaw `json:"cities"`
 }
 
@@ -59,6 +60,7 @@ type regiojetSearchResult struct {
 
 // regiojetLocationCache caches city lookups.
 var regiojetLocationCache []regiojetCountry
+var regiojetLocationCacheMu sync.Mutex
 
 // RegioJetAutoComplete searches for cities by name in the RegioJet network.
 func RegioJetAutoComplete(ctx context.Context, query string) ([]RegioJetCity, error) {
@@ -98,35 +100,72 @@ func matchesQuery(city regiojetCityRaw, query string) bool {
 
 // loadRegioJetLocations fetches and caches the full location list.
 func loadRegioJetLocations(ctx context.Context) ([]regiojetCountry, error) {
+	regiojetLocationCacheMu.Lock()
 	if regiojetLocationCache != nil {
-		return regiojetLocationCache, nil
+		countries := cloneRegioJetCountries(regiojetLocationCache)
+		regiojetLocationCacheMu.Unlock()
+		return countries, nil
 	}
 
 	u := regiojetBaseURL + regiojetLocations
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
+		regiojetLocationCacheMu.Unlock()
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := rateLimitedDo(ctx, regiojetLimiter, req)
 	if err != nil {
+		regiojetLocationCacheMu.Unlock()
 		return nil, fmt.Errorf("regiojet locations: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		regiojetLocationCacheMu.Unlock()
 		return nil, fmt.Errorf("regiojet locations: HTTP %d: %s", resp.StatusCode, body)
 	}
 
 	var countries []regiojetCountry
 	if err := json.NewDecoder(resp.Body).Decode(&countries); err != nil {
+		regiojetLocationCacheMu.Unlock()
 		return nil, fmt.Errorf("regiojet locations decode: %w", err)
 	}
 
-	regiojetLocationCache = countries
-	return countries, nil
+	regiojetLocationCache = cloneRegioJetCountries(countries)
+	cached := cloneRegioJetCountries(regiojetLocationCache)
+	regiojetLocationCacheMu.Unlock()
+	return cached, nil
+}
+
+func cloneRegioJetCountries(src []regiojetCountry) []regiojetCountry {
+	if src == nil {
+		return nil
+	}
+
+	dst := make([]regiojetCountry, len(src))
+	for i, country := range src {
+		dst[i] = regiojetCountry{
+			Country: country.Country,
+			Code:    country.Code,
+			Cities:  make([]regiojetCityRaw, len(country.Cities)),
+		}
+
+		for j, city := range country.Cities {
+			dst[i].Cities[j] = regiojetCityRaw{
+				ID:      city.ID,
+				Name:    city.Name,
+				Aliases: append([]string(nil), city.Aliases...),
+			}
+			if len(city.Stations) > 0 {
+				dst[i].Cities[j].Stations = append(dst[i].Cities[j].Stations, city.Stations...)
+			}
+		}
+	}
+
+	return dst
 }
 
 // SearchRegioJet searches RegioJet for routes between two city IDs on a date.

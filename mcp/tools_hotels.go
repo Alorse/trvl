@@ -97,16 +97,16 @@ func searchHotelsTool() ToolDef {
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"location":     {Type: "string", Description: "Location name or address (e.g., Helsinki, Tokyo, Manhattan New York)"},
-				"check_in":     {Type: "string", Description: "Check-in date in YYYY-MM-DD format"},
-				"check_out":    {Type: "string", Description: "Check-out date in YYYY-MM-DD format"},
-				"guests":       {Type: "integer", Description: "Number of guests (default: 2)"},
-				"stars":        {Type: "integer", Description: "Minimum star rating 1-5 (default: no filter)"},
-				"sort":         {Type: "string", Description: "Sort order: price, rating, distance, or stars (default: price)"},
-				"min_price":    {Type: "number", Description: "Minimum price per night (default: no filter)"},
-				"max_price":    {Type: "number", Description: "Maximum price per night (default: no filter)"},
-				"min_rating":   {Type: "number", Description: "Minimum guest rating, e.g. 4.0 (default: no filter)"},
-				"max_distance": {Type: "number", Description: "Maximum distance from city center in km (default: no filter)"},
+				"location":         {Type: "string", Description: "Location name or address (e.g., Helsinki, Tokyo, Manhattan New York)"},
+				"check_in":         {Type: "string", Description: "Check-in date in YYYY-MM-DD format"},
+				"check_out":        {Type: "string", Description: "Check-out date in YYYY-MM-DD format"},
+				"guests":           {Type: "integer", Description: "Number of guests (default: 2)"},
+				"stars":            {Type: "integer", Description: "Minimum star rating 1-5 (default: no filter)"},
+				"sort":             {Type: "string", Description: "Sort order: price, rating, distance, or stars (default: price)"},
+				"min_price":        {Type: "number", Description: "Minimum price per night (default: no filter)"},
+				"max_price":        {Type: "number", Description: "Maximum price per night (default: no filter)"},
+				"min_rating":       {Type: "number", Description: "Minimum guest rating, e.g. 4.0 (default: no filter)"},
+				"max_distance":     {Type: "number", Description: "Maximum distance from city center in km (default: no filter)"},
 				"amenities":        {Type: "string", Description: "Filter by amenities (comma-separated, e.g. pool,wifi,breakfast)"},
 				"enrich_amenities": {Type: "boolean", Description: "Fetch detail pages for top results to get full amenity lists (slower, default: false)"},
 			},
@@ -143,35 +143,6 @@ func hotelPricesTool() ToolDef {
 			ReadOnlyHint:   true,
 			IdempotentHint: true,
 			OpenWorldHint:  true,
-		},
-	}
-}
-
-// --- Elicitation schemas ---
-
-// hotelElicitationSchema returns the schema for refining hotel search results.
-func hotelElicitationSchema(count int, location string) map[string]interface{} {
-	return map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"min_stars": map[string]interface{}{
-				"type":    "integer",
-				"title":   "Minimum Stars",
-				"minimum": 1,
-				"maximum": 5,
-				"default": 3,
-			},
-			"max_price": map[string]interface{}{
-				"type":        "number",
-				"title":       "Maximum Price Per Night",
-				"description": "In local currency",
-			},
-			"sort_by": map[string]interface{}{
-				"type":    "string",
-				"title":   "Sort By",
-				"enum":    []string{"price", "rating", "distance"},
-				"default": "price",
-			},
 		},
 	}
 }
@@ -240,7 +211,6 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc, sampling Samplin
 		result.Hotels = preferences.FilterHotels(result.Hotels, location, prefs)
 		result.Count = len(result.Hotels)
 	}
-
 
 	// Build suggestions for progressive disclosure.
 	suggestions := hotelSuggestions(result, opts)
@@ -638,4 +608,3 @@ func hotelSuggestions(result *models.HotelSearchResult, opts hotels.HotelSearchO
 
 	return suggestions
 }
-

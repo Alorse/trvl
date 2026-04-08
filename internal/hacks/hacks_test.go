@@ -26,14 +26,9 @@ func TestDetectorInput_currency(t *testing.T) {
 // TestDetectAll_emptyInput verifies DetectAll does not panic on empty input.
 func TestDetectAll_emptyInput(t *testing.T) {
 	// With empty input all detectors should return quickly without panicking.
-	hacks := DetectAll(context.Background(), DetectorInput{})
 	// We cannot assert specific counts because real API calls are involved,
-	// but the function must not panic and must return a slice (possibly empty).
-	if hacks == nil {
-		// nil is acceptable; normalise to empty for assertions below.
-		hacks = []Hack{}
-	}
-	_ = hacks
+	// but the function must not panic.
+	_ = DetectAll(context.Background(), DetectorInput{})
 }
 
 // TestHackFields verifies the Hack struct serialises correctly.
@@ -218,7 +213,7 @@ func TestNearbyAirports(t *testing.T) {
 // TestDetectOpenJaw_emptyInput verifies no panic on empty input.
 func TestDetectOpenJaw_emptyInput(t *testing.T) {
 	hacks := detectOpenJaw(context.Background(), DetectorInput{})
-	if hacks != nil && len(hacks) != 0 {
+	if len(hacks) != 0 {
 		t.Errorf("expected nil/empty for empty input, got %d hacks", len(hacks))
 	}
 }
@@ -373,8 +368,8 @@ func TestToEUR(t *testing.T) {
 		wantMax  float64
 	}{
 		{100, "EUR", 99.9, 100.1},
-		{100, "USD", 80, 100},   // USD < EUR typically
-		{1000, "SEK", 70, 100},  // SEK is small
+		{100, "USD", 80, 100},     // USD < EUR typically
+		{1000, "SEK", 70, 100},    // SEK is small
 		{100, "UNKNOWN", 99, 101}, // unknown falls back to price as-is
 	}
 	for _, tc := range tests {
@@ -415,42 +410,6 @@ func TestComputeEaster(t *testing.T) {
 
 // TestFindPeakPeriod verifies peak period detection.
 func TestFindPeakPeriod(t *testing.T) {
-	tests := []struct {
-		date string
-		want string // empty = not peak
-	}{
-		{"2026-07-15", "Summer holidays"},
-		{"2026-12-25", "Christmas/New Year"},
-		{"2026-01-03", "Christmas/New Year"},
-		{"2026-10-15", "October half-term"},
-		{"2026-02-17", "February ski week"},
-		{"2026-04-05", "Easter"}, // Easter 2026 = Apr 5
-		{"2026-03-01", ""},       // Not a peak period
-	}
-	for _, tc := range tests {
-		t, _ := parseDate(tc.date)
-		got := findPeakPeriod(t)
-		if got != tc.want {
-			t2, _ := parseDate(tc.date)
-			_ = t2
-		}
-	}
-	// Use table-driven with explicit error reporting.
-	for _, tc := range tests {
-		tt, err := parseDate(tc.date)
-		if err != nil {
-			continue
-		}
-		got := findPeakPeriod(tt)
-		if got != tc.want {
-			// Use testing.T variable from outer scope — need to use a sub-function.
-			_ = got // avoid shadowing; tested below
-		}
-	}
-}
-
-// TestFindPeakPeriod_table is the clean table-driven version.
-func TestFindPeakPeriod_table(t *testing.T) {
 	tests := []struct {
 		date string
 		want string

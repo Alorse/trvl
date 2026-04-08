@@ -23,16 +23,16 @@ func tripOutputSchema() map[string]interface{} {
 				"items": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"type":      map[string]interface{}{"type": "string"},
-						"from":      map[string]interface{}{"type": "string"},
-						"to":        map[string]interface{}{"type": "string"},
-						"provider":  map[string]interface{}{"type": "string"},
+						"type":       map[string]interface{}{"type": "string"},
+						"from":       map[string]interface{}{"type": "string"},
+						"to":         map[string]interface{}{"type": "string"},
+						"provider":   map[string]interface{}{"type": "string"},
 						"start_time": map[string]interface{}{"type": "string"},
-						"end_time":  map[string]interface{}{"type": "string"},
-						"price":     map[string]interface{}{"type": "number"},
-						"currency":  map[string]interface{}{"type": "string"},
-						"confirmed": map[string]interface{}{"type": "boolean"},
-						"reference": map[string]interface{}{"type": "string"},
+						"end_time":   map[string]interface{}{"type": "string"},
+						"price":      map[string]interface{}{"type": "number"},
+						"currency":   map[string]interface{}{"type": "string"},
+						"confirmed":  map[string]interface{}{"type": "boolean"},
+						"reference":  map[string]interface{}{"type": "string"},
 					},
 				},
 			},
@@ -67,7 +67,7 @@ func listTripsTool() ToolDef {
 			Required:   []string{},
 		},
 		OutputSchema: map[string]interface{}{
-			"type":  "object",
+			"type": "object",
 			"properties": map[string]interface{}{
 				"trips": map[string]interface{}{
 					"type":  "array",
@@ -251,7 +251,7 @@ func handleGetTrip(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ Progress
 	first := trips.FirstLegStart(*trip)
 	var countdown string
 	if !first.IsZero() {
-		d := first.Sub(time.Now())
+		d := time.Until(first)
 		if d > 0 {
 			days := int(d.Hours()) / 24
 			countdown = fmt.Sprintf(", departs in %d days", days)

@@ -20,8 +20,8 @@ type Preferences struct {
 	HomeCities   []string `json:"home_cities"`   // e.g. ["Helsinki", "Amsterdam"]
 
 	// Travel style
-	CarryOnOnly  bool `json:"carry_on_only"`  // affects route hacks
-	PreferDirect bool `json:"prefer_direct"`  // flight stops preference
+	CarryOnOnly  bool `json:"carry_on_only"` // affects route hacks
+	PreferDirect bool `json:"prefer_direct"` // flight stops preference
 
 	// Accommodation
 	NoDormitories  bool    `json:"no_dormitories"`   // exclude hostels with shared rooms
@@ -36,7 +36,7 @@ type Preferences struct {
 
 	// Currency & locale
 	DisplayCurrency string `json:"display_currency"` // "EUR"
-	Locale          string `json:"locale"`            // "en-FI"
+	Locale          string `json:"locale"`           // "en-FI"
 
 	// Loyalty programmes
 	LoyaltyAirlines []string `json:"loyalty_airlines,omitempty"` // IATA codes, e.g. ["KL", "AY"]
@@ -258,12 +258,6 @@ func isDormitory(h models.HotelResult) bool {
 var sharedBathroomKeywords = []string{
 	"shared bathroom", "shared bath", "shared facilities",
 	"communal bathroom", "common bathroom",
-}
-
-// privateBathroomKeywords confirm a private bathroom is present.
-var privateBathroomKeywords = []string{
-	"private bathroom", "en suite", "ensuite", "en-suite",
-	"private bath", "own bathroom",
 }
 
 // lacksPrivateBathroom returns true when the hotel signals it does NOT have

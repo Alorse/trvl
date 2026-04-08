@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -300,7 +301,7 @@ func TestUpcomingPastLeg(t *testing.T) {
 // --- File permissions ---
 
 func TestFilePermissions(t *testing.T) {
-	if os.Getuid() == 0 {
+	if runtime.GOOS != "windows" && os.Getuid() == 0 {
 		t.Skip("permission test not meaningful as root")
 	}
 	dir := t.TempDir()
@@ -312,10 +313,27 @@ func TestFilePermissions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("stat %s: %v", fname, err)
 		}
-		mode := info.Mode().Perm()
-		if mode != 0o600 {
-			t.Errorf("%s mode = %o, want 0600", fname, mode)
+		assertCrossPlatformPrivateFile(t, filepath.Join(dir, fname), info)
+	}
+}
+
+func assertCrossPlatformPrivateFile(t *testing.T, path string, info os.FileInfo) {
+	t.Helper()
+
+	if !info.Mode().IsRegular() {
+		t.Fatalf("%s is not a regular file: %v", path, info.Mode())
+	}
+
+	perm := info.Mode().Perm()
+	if runtime.GOOS == "windows" {
+		if perm&0o111 != 0 {
+			t.Errorf("%s should not be executable on Windows, got %o", path, perm)
 		}
+		return
+	}
+
+	if perm != 0o600 {
+		t.Errorf("%s mode = %o, want 0600", path, perm)
 	}
 }
 

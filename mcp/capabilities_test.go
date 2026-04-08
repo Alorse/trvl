@@ -7,52 +7,6 @@ import (
 	"testing"
 )
 
-// --- sendRequestCapturing also collects notification lines ---
-
-// sendRequestWithNotifications sends a request and returns both the response
-// and any notification JSON lines emitted before the response.
-func sendRequestWithNotifications(t *testing.T, s *Server, method string, id any, params any) (*Response, []string) {
-	t.Helper()
-	req := Request{JSONRPC: "2.0", ID: id, Method: method}
-	if params != nil {
-		raw, err := json.Marshal(params)
-		if err != nil {
-			t.Fatalf("marshal params: %v", err)
-		}
-		req.Params = raw
-	}
-	reqBytes, err := json.Marshal(req)
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
-
-	in := bytes.NewBuffer(append(reqBytes, '\n'))
-	out := &bytes.Buffer{}
-	if err := s.ServeStdio(in, out); err != nil {
-		t.Fatalf("ServeStdio: %v", err)
-	}
-
-	rawLines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	var resp *Response
-	var notifs []string
-	for _, line := range rawLines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		var r Response
-		if err := json.Unmarshal([]byte(line), &r); err != nil {
-			continue
-		}
-		if r.ID != nil || r.Error != nil {
-			resp = &r
-		} else {
-			notifs = append(notifs, line)
-		}
-	}
-	return resp, notifs
-}
-
 // --- Progress notification tests ---
 
 // TestProgressNotifications_SearchRoute verifies that search_route emits
@@ -130,7 +84,9 @@ func TestSearchNaturalTool_Registered(t *testing.T) {
 
 	var result ToolsListResult
 	raw, _ := json.Marshal(resp.Result)
-	_ = json.Unmarshal(raw, &result)
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal tools/list result: %v", err)
+	}
 
 	found := false
 	for _, tool := range result.Tools {
@@ -343,7 +299,9 @@ func TestToolsList_IncludesNewTools(t *testing.T) {
 
 	var result ToolsListResult
 	raw, _ := json.Marshal(resp.Result)
-	_ = json.Unmarshal(raw, &result)
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("unmarshal tools/list result: %v", err)
+	}
 
 	newTools := []string{
 		"search_natural",
