@@ -1,9 +1,11 @@
 package cookies
 
 import (
+	"errors"
 	"net/http"
 	"os/exec"
 	"testing"
+	"time"
 )
 
 func TestParseNetscapeCookies(t *testing.T) {
@@ -166,4 +168,77 @@ func TestApplyCookies(t *testing.T) {
 			t.Errorf("ApplyCookies without nab set Cookie=%q, want empty", got)
 		}
 	})
+}
+
+func TestOpenBrowserForAuthDoesNotStartCooldownOnLaunchFailure(t *testing.T) {
+	origNow := browserAuthNow
+	origStart := browserAuthStart
+	browserAuthNow = func() time.Time { return time.Unix(1_700_000_000, 0) }
+	t.Cleanup(func() {
+		browserAuthNow = origNow
+		browserAuthStart = origStart
+		browserAuthOpened.mu.Lock()
+		browserAuthOpened.domains = make(map[string]time.Time)
+		browserAuthOpened.mu.Unlock()
+	})
+
+	launchCalls := 0
+	browserAuthStart = func(name string, args ...string) error {
+		launchCalls++
+		return errors.New("launch failed")
+	}
+
+	if err := OpenBrowserForAuth("https://www.sncf-connect.com/en-en"); err == nil {
+		t.Fatal("expected launch failure, got nil")
+	}
+	if err := OpenBrowserForAuth("https://www.sncf-connect.com/en-en"); err == nil {
+		t.Fatal("expected second launch failure, got nil")
+	}
+	if launchCalls != 2 {
+		t.Fatalf("launch calls = %d, want 2", launchCalls)
+	}
+
+	browserAuthOpened.mu.Lock()
+	_, ok := browserAuthOpened.domains["www.sncf-connect.com"]
+	browserAuthOpened.mu.Unlock()
+	if ok {
+		t.Fatal("failed launch should not record cooldown")
+	}
+}
+
+func TestOpenBrowserForAuthStartsCooldownOnlyAfterSuccessfulLaunch(t *testing.T) {
+	origNow := browserAuthNow
+	origStart := browserAuthStart
+	now := time.Unix(1_700_000_000, 0)
+	browserAuthNow = func() time.Time { return now }
+	t.Cleanup(func() {
+		browserAuthNow = origNow
+		browserAuthStart = origStart
+		browserAuthOpened.mu.Lock()
+		browserAuthOpened.domains = make(map[string]time.Time)
+		browserAuthOpened.mu.Unlock()
+	})
+
+	launchCalls := 0
+	browserAuthStart = func(name string, args ...string) error {
+		launchCalls++
+		return nil
+	}
+
+	if err := OpenBrowserForAuth("https://www.sncf-connect.com/en-en"); err != nil {
+		t.Fatalf("first launch returned error: %v", err)
+	}
+	if err := OpenBrowserForAuth("https://www.sncf-connect.com/en-en"); err != nil {
+		t.Fatalf("suppressed launch returned error: %v", err)
+	}
+	if launchCalls != 1 {
+		t.Fatalf("launch calls = %d, want 1", launchCalls)
+	}
+
+	browserAuthOpened.mu.Lock()
+	recorded := browserAuthOpened.domains["www.sncf-connect.com"]
+	browserAuthOpened.mu.Unlock()
+	if !recorded.Equal(now) {
+		t.Fatalf("recorded cooldown time = %v, want %v", recorded, now)
+	}
 }

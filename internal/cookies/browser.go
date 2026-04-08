@@ -15,6 +15,13 @@ import (
 	"time"
 )
 
+var (
+	browserAuthNow   = time.Now
+	browserAuthStart = func(name string, args ...string) error {
+		return exec.Command(name, args...).Start()
+	}
+)
+
 // BrowserCookies extracts cookies for a domain from the user's default browser.
 // It tries Brave first, then Chrome.
 // Returns a Cookie header value (e.g. "datadome=abc; _session=xyz").
@@ -107,7 +114,7 @@ const browserAuthCooldown = 24 * time.Hour
 
 // OpenBrowserForAuth opens url in the user's default browser so they can
 // complete a CAPTCHA or login challenge. Suppresses repeated opens for the
-// same domain within 10 minutes. Returns an error if the browser could not
+// same domain within 24 hours. Returns an error if the browser could not
 // be launched, or nil if suppressed by cooldown.
 func OpenBrowserForAuth(url string) error {
 	// Extract domain from URL for cooldown tracking.
@@ -118,15 +125,6 @@ func OpenBrowserForAuth(url string) error {
 	if idx := strings.Index(domain, "/"); idx >= 0 {
 		domain = domain[:idx]
 	}
-
-	browserAuthOpened.mu.Lock()
-	if last, ok := browserAuthOpened.domains[domain]; ok && time.Since(last) < browserAuthCooldown {
-		browserAuthOpened.mu.Unlock()
-		slog.Debug("browser auth cooldown active", "domain", domain)
-		return nil // suppressed
-	}
-	browserAuthOpened.domains[domain] = time.Now()
-	browserAuthOpened.mu.Unlock()
 
 	var cmd string
 	var args []string
@@ -140,5 +138,17 @@ func OpenBrowserForAuth(url string) error {
 	default:
 		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
-	return exec.Command(cmd, args...).Start()
+
+	browserAuthOpened.mu.Lock()
+	defer browserAuthOpened.mu.Unlock()
+
+	if last, ok := browserAuthOpened.domains[domain]; ok && browserAuthNow().Sub(last) < browserAuthCooldown {
+		slog.Debug("browser auth cooldown active", "domain", domain)
+		return nil // suppressed
+	}
+	if err := browserAuthStart(cmd, args...); err != nil {
+		return err
+	}
+	browserAuthOpened.domains[domain] = browserAuthNow()
+	return nil
 }
