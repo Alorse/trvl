@@ -3,14 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
-	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/explore"
 	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -151,14 +149,16 @@ func printExploreTable(ctx context.Context, targetCurrency string, result *model
 	// Convert prices if --currency specified and differs from source.
 	displayCurrency := sourceCurrency
 	if targetCurrency != "" {
-		displayCurrency = targetCurrency
-		if targetCurrency != sourceCurrency {
+		if targetCurrency == sourceCurrency {
+			displayCurrency = targetCurrency
+		} else {
+			pricePointers := make([]*float64, 0, len(result.Destinations))
 			for i := range result.Destinations {
 				if result.Destinations[i].Price > 0 {
-					converted, _ := destinations.ConvertCurrency(ctx, result.Destinations[i].Price, sourceCurrency, targetCurrency)
-					result.Destinations[i].Price = math.Round(converted)
+					pricePointers = append(pricePointers, &result.Destinations[i].Price)
 				}
 			}
+			displayCurrency = convertRoundedDisplayAmounts(ctx, sourceCurrency, targetCurrency, 0, pricePointers...)
 		}
 	}
 

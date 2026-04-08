@@ -3,12 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/trip"
 	"github.com/spf13/cobra"
@@ -116,21 +114,24 @@ func printMultiCityTable(ctx context.Context, targetCurrency string, result *tri
 		for i := range result.Segments {
 			s := &result.Segments[i]
 			if s.Currency != targetCurrency && s.Price > 0 {
-				converted, cur := destinations.ConvertCurrency(ctx, s.Price, s.Currency, targetCurrency)
-				s.Price = math.Round(converted)
-				s.Currency = cur
+				s.Currency = convertRoundedDisplayAmounts(
+					ctx,
+					s.Currency,
+					targetCurrency,
+					0,
+					&s.Price,
+				)
 			}
 		}
 		if result.Currency != targetCurrency {
-			if result.TotalCost > 0 {
-				converted, cur := destinations.ConvertCurrency(ctx, result.TotalCost, result.Currency, targetCurrency)
-				result.TotalCost = math.Round(converted)
-				result.Currency = cur
-			}
-			if result.Savings > 0 {
-				converted, _ := destinations.ConvertCurrency(ctx, result.Savings, result.Currency, targetCurrency)
-				result.Savings = math.Round(converted)
-			}
+			result.Currency = convertRoundedDisplayAmounts(
+				ctx,
+				result.Currency,
+				targetCurrency,
+				0,
+				&result.TotalCost,
+				&result.Savings,
+			)
 		}
 	}
 

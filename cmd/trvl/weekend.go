@@ -3,12 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/trip"
 	"github.com/spf13/cobra"
@@ -98,19 +96,15 @@ func printWeekendTable(ctx context.Context, targetCurrency string, result *trip.
 		for i := range result.Destinations {
 			d := &result.Destinations[i]
 			if d.Currency != targetCurrency {
-				if d.FlightPrice > 0 {
-					converted, _ := destinations.ConvertCurrency(ctx, d.FlightPrice, d.Currency, targetCurrency)
-					d.FlightPrice = math.Round(converted)
-				}
-				if d.HotelEstimate > 0 {
-					converted, _ := destinations.ConvertCurrency(ctx, d.HotelEstimate, d.Currency, targetCurrency)
-					d.HotelEstimate = math.Round(converted)
-				}
-				if d.TotalEstimate > 0 {
-					converted, _ := destinations.ConvertCurrency(ctx, d.TotalEstimate, d.Currency, targetCurrency)
-					d.TotalEstimate = math.Round(converted)
-				}
-				d.Currency = targetCurrency
+				d.Currency = convertRoundedDisplayAmounts(
+					ctx,
+					d.Currency,
+					targetCurrency,
+					0,
+					&d.FlightPrice,
+					&d.HotelEstimate,
+					&d.TotalEstimate,
+				)
 			}
 		}
 	}

@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 
-	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/ground"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/spf13/cobra"
@@ -105,13 +103,14 @@ func prepareGroundRows(ctx context.Context, targetCurrency string, routes []mode
 		for i := range routes {
 			r := &routes[i]
 			if r.Currency != targetCurrency && r.Price > 0 {
-				converted, cur := destinations.ConvertCurrency(ctx, r.Price, r.Currency, targetCurrency)
-				r.Price = math.Round(converted*100) / 100
-				if r.PriceMax > 0 {
-					convertedMax, _ := destinations.ConvertCurrency(ctx, r.PriceMax, r.Currency, targetCurrency)
-					r.PriceMax = math.Round(convertedMax*100) / 100
-				}
-				r.Currency = cur
+				r.Currency = convertRoundedDisplayAmounts(
+					ctx,
+					r.Currency,
+					targetCurrency,
+					2,
+					&r.Price,
+					&r.PriceMax,
+				)
 			}
 		}
 	}
