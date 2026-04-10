@@ -100,6 +100,15 @@ wired to code behavior yet.
 > **Q4:** "Direct flights important, or connections fine if cheaper?"
 > Sets `prefer_direct`.
 
+> **Q5:** "Anything else about how you travel that I should know? Hotel
+> style, food preferences, what you like to do — anything that helps me
+> pick better results for you."
+> Sets `notes` — free-text that YOU (the AI) use when filtering trvl's
+> structured results. trvl returns structured hotel/flight/restaurant data;
+> you apply unstructured preferences on top. Example: user says "I like
+> boutique hotels, no chains" — trvl can't filter that, but you can read
+> hotel names and descriptions from the structured output and drop chains.
+
 Save with `update_preferences`. Show what you saved. Done. Don't ask about
 neighborhoods upfront — learn those from usage.
 
