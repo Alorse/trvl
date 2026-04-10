@@ -96,6 +96,12 @@ jobs:
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean
+          # Skip docker: arm64 emulation needs QEMU/binfmt setup that we
+          # don't have on the GitHub-hosted amd64 runner, and that single
+          # failure was blocking the entire release pipeline (binaries +
+          # github release). To re-enable docker images: add a
+          # `docker/setup-qemu-action` step before this one and drop the
+          # --skip=docker flag.
+          args: release --clean --skip=docker
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
