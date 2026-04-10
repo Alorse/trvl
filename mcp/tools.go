@@ -32,6 +32,7 @@ func registerTools(s *Server) {
 		searchRouteTool(),
 		hotelRoomsTool(),
 		getPreferencesTool(),
+		updatePreferencesTool(),
 		detectTravelHacksTool(),
 		detectAccommodationHacksTool(),
 		searchNaturalTool(),
@@ -65,6 +66,7 @@ func registerTools(s *Server) {
 	s.handlers["search_route"] = s.wrapHandler(handleSearchRoute)
 	s.handlers["hotel_rooms"] = s.wrapHandler(handleHotelRooms)
 	s.handlers["get_preferences"] = s.wrapHandler(handleGetPreferences)
+	s.handlers["update_preferences"] = s.wrapHandler(handleUpdatePreferences)
 	s.handlers["detect_travel_hacks"] = s.wrapHandler(handleDetectTravelHacks)
 	s.handlers["detect_accommodation_hacks"] = s.wrapHandler(handleDetectAccommodationHacks)
 	s.handlers["search_natural"] = s.wrapHandler(handleSearchNatural)

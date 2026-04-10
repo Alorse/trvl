@@ -61,8 +61,8 @@ func TestHTTPHandler_POST_ToolsList(t *testing.T) {
 	var result ToolsListResult
 	json.Unmarshal(resultJSON, &result)
 
-	if len(result.Tools) != 32 {
-		t.Errorf("expected 32 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 33 {
+		t.Errorf("expected 33 tools, got %d", len(result.Tools))
 	}
 }
 
@@ -529,11 +529,11 @@ func TestNewServer(t *testing.T) {
 	if s == nil {
 		t.Fatal("NewServer returned nil")
 	}
-	if len(s.tools) != 32 {
-		t.Errorf("expected 32 tools, got %d", len(s.tools))
+	if len(s.tools) != 33 {
+		t.Errorf("expected 33 tools, got %d", len(s.tools))
 	}
-	if len(s.handlers) != 32 {
-		t.Errorf("expected 32 handlers, got %d", len(s.handlers))
+	if len(s.handlers) != 33 {
+		t.Errorf("expected 33 handlers, got %d", len(s.handlers))
 	}
 }
 
@@ -636,6 +636,11 @@ func TestInitializeCapabilities(t *testing.T) {
 }
 
 func TestToolAnnotations(t *testing.T) {
+	// Tools that write to disk — ReadOnlyHint is intentionally false.
+	writeTools := map[string]bool{
+		"update_preferences": true,
+	}
+
 	s := NewServer()
 	for _, tool := range s.tools {
 		t.Run(tool.Name, func(t *testing.T) {
@@ -645,8 +650,14 @@ func TestToolAnnotations(t *testing.T) {
 			if tool.Annotations.Title == "" {
 				t.Error("title should be set")
 			}
-			if !tool.Annotations.ReadOnlyHint {
-				t.Error("readOnlyHint should be true")
+			if writeTools[tool.Name] {
+				if tool.Annotations.ReadOnlyHint {
+					t.Error("readOnlyHint should be false for write tool")
+				}
+			} else {
+				if !tool.Annotations.ReadOnlyHint {
+					t.Error("readOnlyHint should be true")
+				}
 			}
 			if !tool.Annotations.IdempotentHint {
 				t.Error("idempotentHint should be true")
