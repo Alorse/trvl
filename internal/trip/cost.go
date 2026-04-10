@@ -143,7 +143,7 @@ func CalculateTripCost(ctx context.Context, input TripCostInput) (*TripCostResul
 	}()
 	go func() {
 		defer wg.Done()
-		hotelLocation := models.ResolveLocationName(input.Destination)
+		hotelLocation := models.ResolveHotelCity(input.Destination)
 		hotelResult, hotelErr = hotels.SearchHotels(ctx, hotelLocation, hotelOpts)
 	}()
 	wg.Wait()

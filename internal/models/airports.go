@@ -286,3 +286,25 @@ func ResolveLocationName(s string) string {
 	}
 	return s
 }
+
+// ResolveHotelCity returns the best city name for hotel search. For airport
+// codes, this returns the broader city (e.g. "Paris" for CDG) instead of the
+// airport-qualified name ("Paris CDG") which tends to bias hotel search
+// toward airport-area properties.
+func ResolveHotelCity(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	upper := strings.ToUpper(s)
+	if len(upper) <= 3 && upper == s {
+		// Prefer the broader city for hotel search.
+		if city, ok := airportSearchCities[upper]; ok {
+			return city
+		}
+		if name, ok := AirportNames[upper]; ok {
+			return name
+		}
+	}
+	return s
+}

@@ -177,7 +177,11 @@ func filterHotels(hotels []models.HotelResult, opts HotelSearchOptions) []models
 		if opts.MaxPrice > 0 && h.Price > 0 && h.Price > opts.MaxPrice {
 			continue
 		}
-		if opts.MinRating > 0 && h.Rating > 0 && h.Rating < opts.MinRating {
+		// Rating filter: when MinRating is set, require rating data AND that
+		// it meets the minimum. Unrated properties (h.Rating == 0) are
+		// suspicious — usually new listings, private rooms, or apartments
+		// without enough reviews to establish quality.
+		if opts.MinRating > 0 && h.Rating < opts.MinRating {
 			continue
 		}
 		if opts.MaxDistanceKm > 0 && h.Lat != 0 && h.Lon != 0 && opts.CenterLat != 0 {

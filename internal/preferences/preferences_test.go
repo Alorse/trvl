@@ -216,7 +216,11 @@ func TestFilterHotels_EnSuiteOnly_Excludes(t *testing.T) {
 	}
 }
 
-func TestFilterHotels_PreferredDistricts_Reorders(t *testing.T) {
+func TestFilterHotels_PreferredDistricts_Filters(t *testing.T) {
+	// When the user specifies preferred districts for a city, hotels
+	// outside those districts are excluded entirely — not just reordered.
+	// This prevents suburban/airport hotels from showing up when the user
+	// clearly wants to stay in a specific area.
 	hotels := []models.HotelResult{
 		{Name: "Far Hotel", Address: "Suburbs, Prague 8"},
 		{Name: "Central Hotel", Address: "Old Town Square, Prague 1"},
@@ -227,11 +231,11 @@ func TestFilterHotels_PreferredDistricts_Reorders(t *testing.T) {
 	}
 
 	got := FilterHotels(hotels, "Prague", p)
-	if len(got) != 2 {
-		t.Fatalf("FilterHotels districts: expected 2 hotels, got %d", len(got))
+	if len(got) != 1 {
+		t.Fatalf("FilterHotels districts: expected 1 hotel (Central only), got %d", len(got))
 	}
 	if got[0].Name != "Central Hotel" {
-		t.Errorf("FilterHotels districts: expected Central Hotel first, got %q", got[0].Name)
+		t.Errorf("FilterHotels districts: expected Central Hotel, got %q", got[0].Name)
 	}
 }
 
@@ -282,8 +286,8 @@ func assertCrossPlatformPrivateFile(t *testing.T, path string, info os.FileInfo)
 
 	perm := info.Mode().Perm()
 	if runtime.GOOS == "windows" {
-		if perm&0o111 != 0 {
-			t.Errorf("%s should not be executable on Windows, got %o", path, perm)
+		if perm != 0o666 {
+			t.Errorf("%s permissions on Windows: got %o, want 666", path, perm)
 		}
 		return
 	}

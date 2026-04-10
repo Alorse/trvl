@@ -199,7 +199,7 @@ func PlanTrip(ctx context.Context, input PlanInput) (*PlanResult, error) {
 	}()
 	go func() {
 		defer wg.Done()
-		hotelLocation := models.ResolveLocationName(input.Destination)
+		hotelLocation := models.ResolveHotelCity(input.Destination)
 		hotelResult, hotelErr = hotels.SearchHotels(ctx, hotelLocation, hotelOpts)
 	}()
 	wg.Wait()

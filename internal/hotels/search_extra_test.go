@@ -1042,15 +1042,22 @@ func TestFilterHotels_MinRating(t *testing.T) {
 		{Name: "Low", Rating: 3.0},
 		{Name: "Mid", Rating: 4.0},
 		{Name: "High", Rating: 4.8},
-		{Name: "No Rating", Rating: 0}, // should NOT be filtered out
+		{Name: "No Rating", Rating: 0}, // SHOULD be filtered out — unrated
 	}
 	result := filterHotels(hotels, HotelSearchOptions{MinRating: 4.0})
-	if len(result) != 3 {
-		t.Errorf("expected 3 (Mid + High + No Rating), got %d", len(result))
+	// Unrated properties are now excluded when MinRating is set. They are
+	// typically private rooms, new listings, or apartment units without
+	// enough guest reviews to establish quality — exactly what a serious
+	// traveler does NOT want when asking for "at least 4 stars".
+	if len(result) != 2 {
+		t.Errorf("expected 2 (Mid + High), got %d", len(result))
 	}
 	for _, h := range result {
 		if h.Name == "Low" {
 			t.Error("Low should be filtered out by MinRating=4.0")
+		}
+		if h.Name == "No Rating" {
+			t.Error("No Rating should be filtered out by MinRating=4.0")
 		}
 	}
 }

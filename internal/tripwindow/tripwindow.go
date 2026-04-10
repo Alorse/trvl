@@ -265,7 +265,7 @@ func cheapestHotel(ctx context.Context, dest, checkIn, checkOut string, nights i
 		return 0, ""
 	}
 
-	hotelLocation := models.ResolveLocationName(dest)
+	hotelLocation := models.ResolveHotelCity(dest)
 	opts := hotels.HotelSearchOptions{
 		CheckIn:  checkIn,
 		CheckOut: checkOut,

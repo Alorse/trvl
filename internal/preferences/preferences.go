@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -211,6 +212,14 @@ func FilterHotels(hotels []models.HotelResult, city string, p *Preferences) []mo
 		return hotels
 	}
 
+	// Minimum review count threshold: when the user cares about quality
+	// (MinHotelRating >= 4.0), a hotel with <20 reviews isn't enough data
+	// to trust. This catches new listings and obscure guesthouses.
+	minReviews := 0
+	if p.MinHotelRating >= 4.0 {
+		minReviews = 20
+	}
+
 	out := make([]models.HotelResult, 0, len(hotels))
 	for _, h := range hotels {
 		if p.NoDormitories && isDormitory(h) {
@@ -219,25 +228,63 @@ func FilterHotels(hotels []models.HotelResult, city string, p *Preferences) []mo
 		if p.EnSuiteOnly && lacksPrivateBathroom(h) {
 			continue
 		}
+		// Drop low-review properties when quality matters.
+		if minReviews > 0 && h.ReviewCount > 0 && h.ReviewCount < minReviews {
+			continue
+		}
+		// If the user wants min rating but the property has no reviews at all,
+		// drop it — we can't verify quality.
+		if p.MinHotelRating > 0 && h.ReviewCount == 0 && h.Rating == 0 {
+			continue
+		}
 		out = append(out, h)
 	}
 
-	// Preferred districts: float matching hotels to the front.
+	// Preferred districts: filter or prioritise by neighborhood.
+	//
+	// Behavior:
+	//   - User-defined districts: strict filter (user chose these explicitly)
+	//   - Curated defaults: prioritise matches to the front but don't
+	//     filter out non-matches entirely, since hotel addresses are
+	//     often empty or truncated in Google results and we would lose
+	//     everything. Cheap trick: use negative keywords instead to drop
+	//     obvious airport/suburb hotels.
 	districts := p.DistrictsFor(city)
 	if len(districts) > 0 {
-		out = prioritiseByDistrict(out, districts)
+		filtered, matched := filterByDistrict(out, districts)
+		if matched {
+			out = filtered
+		}
+	} else if defaults := DefaultDistrictsFor(city); len(defaults) > 0 {
+		// Prioritise matches, then drop obvious airport/suburb patterns.
+		out = prioritiseByDistrict(out, defaults)
+		out = dropAirportAndSuburbHotels(out, city)
 	}
 
 	return out
 }
 
-// dormKeywords are substrings that indicate shared-room accommodation.
-// Includes generic terms + known hostel chains that don't contain "hostel"
-// in their brand name (St Christopher's Inn, Generator, MEININGER, etc.).
+// dormKeywords are substrings that indicate shared-room or sub-hotel
+// accommodation. Includes generic terms, known hostel chains, and
+// private-room / guesthouse patterns that typically come with a single room
+// instead of a full hotel experience.
 var dormKeywords = []string{
 	// Generic terms
 	"hostel", "dorm", "dormitory", "capsule", "pod hotel", "bunk",
 	"youth hostel", "backpacker",
+	// Room-listing patterns (private rooms in guesthouses, not real hotels)
+	"rooms in ",
+	"private room",
+	"shared room",
+	"- double room",
+	"- single room",
+	"- twin room",
+	"- triple room",
+	"double room in",
+	"room in ",
+	"rooming house",
+	"guesthouse",
+	"guest house",
 	// Known hostel/hybrid chains (lowercase substring match)
 	"st christopher", // St Christopher's Inn
 	"generator ",     // Generator Hostels (trailing space to avoid "generator hotel" false positives)
@@ -254,6 +301,17 @@ var dormKeywords = []string{
 	"travelodge",     // Travelodge (debatable — UK budget chain, but avg < 4★ experience)
 }
 
+// subListingPattern matches hotel names that are actually sub-listings of a
+// bigger property, such as:
+//
+//	"Main Square Rooms - Small Double Room"
+//	"Fantastic Inn Kraków - Krasińskiego"     (multiple branches of one inn)
+//	"Name - Economy Twin Room"
+//
+// These are usually guest rooms or apartments rather than real hotels, and
+// they clog up results when sorting by price.
+var subListingPattern = regexp.MustCompile(`(?i)\s-\s[^-]*\b(room|apartment|studio|suite|double|single|twin|triple|dorm)\b`)
+
 // isDormitory returns true when the hotel name or amenities suggest shared sleeping.
 func isDormitory(h models.HotelResult) bool {
 	combined := strings.ToLower(h.Name + " " + h.Address)
@@ -261,6 +319,9 @@ func isDormitory(h models.HotelResult) bool {
 		if strings.Contains(combined, kw) {
 			return true
 		}
+	}
+	if subListingPattern.MatchString(h.Name) {
+		return true
 	}
 	// Also check amenity strings.
 	for _, a := range h.Amenities {
@@ -293,6 +354,65 @@ func lacksPrivateBathroom(h models.HotelResult) bool {
 		}
 	}
 	return false
+}
+
+// airportSuburbKeywords are substrings in hotel names/addresses that indicate
+// an airport or distant-suburb location — exactly what leisure travelers
+// do NOT want when visiting a city.
+var airportSuburbKeywords = []string{
+	"airport", "aéroport", "aeroport",
+	// Known airport-area districts
+	"villepinte", "roissy", "tremblay-en-france",
+	"orly", "rungis", "massy",
+	"stansted", "luton", "gatwick",
+	"schiphol", "hoofddorp",
+	"fiumicino",
+	"vantaa airport",
+	"barajas",
+	"zaventem",
+	"malpensa",
+}
+
+// dropAirportAndSuburbHotels removes hotels whose name contains obvious
+// airport or distant-suburb markers. Conservative — only the most blatant
+// cases are dropped to avoid false positives.
+func dropAirportAndSuburbHotels(hotels []models.HotelResult, city string) []models.HotelResult {
+	out := make([]models.HotelResult, 0, len(hotels))
+	for _, h := range hotels {
+		combined := strings.ToLower(h.Name + " " + h.Address)
+		drop := false
+		for _, kw := range airportSuburbKeywords {
+			if strings.Contains(combined, kw) {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			out = append(out, h)
+		}
+	}
+	// Never return empty — if everything was dropped, return the original.
+	if len(out) == 0 {
+		return hotels
+	}
+	return out
+}
+
+// filterByDistrict keeps only hotels that match one of the given districts
+// (by substring in name or address). Returns (filtered, anyMatched).
+// anyMatched is true when at least one hotel survived the filter.
+func filterByDistrict(hotels []models.HotelResult, districts []string) ([]models.HotelResult, bool) {
+	out := make([]models.HotelResult, 0, len(hotels))
+	for _, h := range hotels {
+		combined := strings.ToLower(h.Name + " " + h.Address)
+		for _, d := range districts {
+			if strings.Contains(combined, strings.ToLower(d)) {
+				out = append(out, h)
+				break
+			}
+		}
+	}
+	return out, len(out) > 0
 }
 
 // prioritiseByDistrict reorders hotels so those whose address contains one of
