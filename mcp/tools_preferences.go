@@ -80,12 +80,28 @@ func handleGetPreferences(args map[string]any, _ ElicitFunc, _ SamplingFunc, pro
 		return nil, nil, fmt.Errorf("load preferences: %w", err)
 	}
 
-	var summary string
-	if len(p.HomeAirports) > 0 {
-		summary = fmt.Sprintf("Home airports: %v. Display currency: %s.", p.HomeAirports, p.DisplayCurrency)
-	} else {
-		summary = fmt.Sprintf("No home airports set. Display currency: %s.", p.DisplayCurrency)
+	// If profile is empty (no home airports set), return interview instructions
+	// so the AI knows to ask the user before searching.
+	if len(p.HomeAirports) == 0 {
+		interview := "PROFILE EMPTY — interview the user before searching.\n\n" +
+			"Run a quick search first to detect the user's location from the geoip-based " +
+			"currency in the response. Then ask these questions (confirm what you can infer, " +
+			"ask what you can't):\n\n" +
+			"Q1: Confirm home airport based on geoip (e.g. \"Looks like you're in Finland — HEL your home airport?\")\n" +
+			"Q2: Hotel dealbreakers — hostels OK? Own bathroom? Minimum stars/rating?\n" +
+			"Q3: Carry-on only or checked bags?\n" +
+			"Q4: Direct flights important, or connections fine?\n" +
+			"Q5: Anything else about how you travel? (free-text for AI-layer filtering)\n\n" +
+			"Save answers with update_preferences, then proceed with the original search."
+		content, err := buildAnnotatedContentBlocks(interview, p)
+		if err != nil {
+			return nil, nil, err
+		}
+		return content, p, nil
 	}
+
+	var summary string
+	summary = fmt.Sprintf("Home airports: %v. Display currency: %s.", p.HomeAirports, p.DisplayCurrency)
 
 	var filters []string
 	if p.MinHotelRating > 0 {

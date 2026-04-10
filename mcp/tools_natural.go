@@ -19,7 +19,10 @@ func searchNaturalTool() ToolDef {
 			"Uses a keyword heuristic parser to extract intent, origin, destination, and dates. " +
 			"Works on every MCP client. For complex or ambiguous queries, prefer calling the " +
 			"specific tools (search_flights, search_route, search_hotels) directly with " +
-			"structured parameters.",
+			"structured parameters. " +
+			"IMPORTANT: call get_preferences before your first travel search in a conversation. " +
+			"If the profile is empty, get_preferences returns interview instructions — ask the " +
+			"user those questions first, save with update_preferences, then proceed.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{

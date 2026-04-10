@@ -112,7 +112,7 @@ func searchFlightsTool() ToolDef {
 	return ToolDef{
 		Name:        "search_flights",
 		Title:       "Search Flights",
-		Description: "Search flights via Google Flights. Returns real-time pricing, durations, stops, and leg details for a given route and date.",
+		Description: "Search flights via Google Flights. Returns real-time pricing, durations, stops, and leg details for a given route and date. IMPORTANT: call get_preferences before your first search in a conversation to load the user's home airport and flight preferences. If the profile is empty, interview the user first — get_preferences returns instructions. Use home_airports as default origin when the user doesn't specify where from.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{

@@ -93,7 +93,7 @@ func searchHotelsTool() ToolDef {
 	return ToolDef{
 		Name:        "search_hotels",
 		Title:       "Search Hotels",
-		Description: "Search hotels via Google Hotels. Returns real-time pricing, ratings, star levels, and amenities for a given location and dates.",
+		Description: "Search hotels via Google Hotels. Returns real-time pricing, ratings, star levels, and amenities for a given location and dates. IMPORTANT: call get_preferences before your first search in a conversation. If the profile is empty, interview the user first — get_preferences returns instructions. Preferences are applied server-side (star/rating filters, hostel exclusion, neighborhood prioritization) but also check the notes field for soft preferences like 'boutique only' or 'no chains' and apply those yourself.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
