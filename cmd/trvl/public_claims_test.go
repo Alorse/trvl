@@ -121,7 +121,7 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 				fmt.Sprintf("Full v2025-11-25 — %d tools", toolCount),
 				fmt.Sprintf("%d commands (+ %d watch subcommands)", cliCommandCount, watchSubcommandCount),
 				fmt.Sprintf("Full JSON Schema validation for all %d tool responses", toolCount),
-				fmt.Sprintf("The repo includes %d Claude Code skill file", skillCount),
+				"install the bundled skill that teaches Claude how to use trvl",
 				fmt.Sprintf("trvl searches %d ground transport providers in parallel, covering most of Europe. Airport transfers add taxi estimates on top of that, so trvl exposes %d transport providers overall:", groundProviderCount, totalProviderCount),
 				fmt.Sprintf("Searches %d providers in parallel:", groundProviderCount),
 			},
