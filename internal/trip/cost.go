@@ -112,6 +112,9 @@ func CalculateTripCost(ctx context.Context, input TripCostInput) (*TripCostResul
 		if prefs.MinHotelRating > 0 {
 			hotelOpts.MinRating = prefs.MinHotelRating
 		}
+		if prefs.BudgetPerNightMax > 0 {
+			hotelOpts.MaxPrice = prefs.BudgetPerNightMax
+		}
 	}
 
 	// Search all three in parallel — sequential was causing timeouts

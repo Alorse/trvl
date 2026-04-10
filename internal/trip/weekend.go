@@ -171,6 +171,9 @@ func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions
 				if prefs.MinHotelRating > 0 {
 					hotelOpts.MinRating = prefs.MinHotelRating
 				}
+				if prefs.BudgetPerNightMax > 0 {
+					hotelOpts.MaxPrice = prefs.BudgetPerNightMax
+				}
 			}
 
 			hr, searchErr := hotels.SearchHotels(ctx, cityName, hotelOpts)

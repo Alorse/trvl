@@ -169,6 +169,18 @@ func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error
 			// Sort by flight price, keep top 5 per window to bound hotel searches.
 			dests := res.Destinations
 			sort.Slice(dests, func(i, j int) bool { return dests[i].Price < dests[j].Price })
+
+			// Drop destinations whose flight price exceeds the user's budget.
+			if prefs != nil && prefs.BudgetFlightMax > 0 {
+				filtered := dests[:0]
+				for _, d := range dests {
+					if d.Price <= prefs.BudgetFlightMax {
+						filtered = append(filtered, d)
+					}
+				}
+				dests = filtered
+			}
+
 			if len(dests) > 5 {
 				dests = dests[:5]
 			}
@@ -261,6 +273,9 @@ func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error
 				}
 				if prefs.MinHotelRating > 0 {
 					hotelOpts.MinRating = prefs.MinHotelRating
+				}
+				if prefs.BudgetPerNightMax > 0 {
+					hotelOpts.MaxPrice = prefs.BudgetPerNightMax
 				}
 			}
 

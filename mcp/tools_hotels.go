@@ -174,10 +174,25 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc, sampling Samplin
 		}
 	}
 
+	// Load preferences early — used for guest count default and filter overrides.
+	prefs, _ := preferences.Load()
+
+	// Determine guest count: use the caller's explicit value, or fall back to
+	// DefaultCompanions + 1 (companions + the user), or the tool default (2).
+	guests := argInt(args, "guests", 0)
+	if guests == 0 {
+		// Caller did not provide guests explicitly.
+		if prefs != nil && prefs.DefaultCompanions > 0 {
+			guests = prefs.DefaultCompanions + 1
+		} else {
+			guests = 2 // tool default
+		}
+	}
+
 	opts := hotels.HotelSearchOptions{
 		CheckIn:         checkIn,
 		CheckOut:        checkOut,
-		Guests:          argInt(args, "guests", 2),
+		Guests:          guests,
 		Stars:           argInt(args, "stars", 0),
 		Sort:            argString(args, "sort"),
 		MinPrice:        argFloat(args, "min_price", 0),
@@ -189,13 +204,18 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc, sampling Samplin
 	}
 
 	// Apply user preferences when MCP caller hasn't set these explicitly.
-	prefs, _ := preferences.Load()
 	if prefs != nil {
 		if opts.Stars == 0 && prefs.MinHotelStars > 0 {
 			opts.Stars = prefs.MinHotelStars
 		}
 		if opts.MinRating == 0 && prefs.MinHotelRating > 0 {
 			opts.MinRating = prefs.MinHotelRating
+		}
+		if opts.MaxPrice == 0 && prefs.BudgetPerNightMax > 0 {
+			opts.MaxPrice = prefs.BudgetPerNightMax
+		}
+		if opts.MinPrice == 0 && prefs.BudgetPerNightMin > 0 {
+			opts.MinPrice = prefs.BudgetPerNightMin
 		}
 	}
 

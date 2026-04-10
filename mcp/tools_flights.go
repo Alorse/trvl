@@ -8,6 +8,7 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"github.com/MikkoParkkola/trvl/internal/preferences"
 	"github.com/MikkoParkkola/trvl/internal/trip"
 )
 
@@ -231,6 +232,14 @@ func handleSearchFlights(args map[string]any, elicit ElicitFunc, sampling Sampli
 	result, err := flights.SearchFlights(ctx, origin, dest, date, opts)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// Apply preference-based post-filters (budget, departure time window).
+	prefs, _ := preferences.Load()
+	if prefs != nil && result != nil && result.Success {
+		result.Flights = flights.FilterFlightsByBudget(result.Flights, prefs.BudgetFlightMax)
+		result.Flights = flights.FilterFlightsByTimePreference(result.Flights, prefs.FlightTimeEarliest, prefs.FlightTimeLatest)
+		result.Count = len(result.Flights)
 	}
 
 	// Build suggestions for progressive disclosure.

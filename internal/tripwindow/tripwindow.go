@@ -161,12 +161,18 @@ func Find(ctx context.Context, in Input) ([]Candidate, error) {
 			var flightCost, hotelCost float64
 			var curr, hotelName string
 
+			// Determine flight budget cap from preferences.
+			var flightBudget float64
+			if prefs != nil && prefs.BudgetFlightMax > 0 {
+				flightBudget = prefs.BudgetFlightMax
+			}
+
 			// Flight and hotel in parallel for this candidate.
 			var sub sync.WaitGroup
 			sub.Add(2)
 			go func() {
 				defer sub.Done()
-				flightCost, curr = cheapestFlight(ctx, origin, dest, depDate, retDate)
+				flightCost, curr = cheapestFlightWithBudget(ctx, origin, dest, depDate, retDate, flightBudget)
 			}()
 			go func() {
 				defer sub.Done()
@@ -279,6 +285,9 @@ func cheapestHotel(ctx context.Context, dest, checkIn, checkOut string, nights i
 		if prefs.MinHotelRating > 0 {
 			opts.MinRating = prefs.MinHotelRating
 		}
+		if prefs.BudgetPerNightMax > 0 {
+			opts.MaxPrice = prefs.BudgetPerNightMax
+		}
 	}
 
 	result, err := hotels.SearchHotels(ctx, hotelLocation, opts)
@@ -308,7 +317,15 @@ func cheapestHotel(ctx context.Context, dest, checkIn, checkOut string, nights i
 
 // cheapestFlight returns the cheapest round-trip price and currency for the
 // given origin→destination on the given dates. Returns (0, "") on any error.
+// When prefs is non-nil and BudgetFlightMax > 0, flights exceeding that
+// budget are skipped.
 func cheapestFlight(ctx context.Context, origin, dest, depDate, retDate string) (float64, string) {
+	return cheapestFlightWithBudget(ctx, origin, dest, depDate, retDate, 0)
+}
+
+// cheapestFlightWithBudget is cheapestFlight with an optional per-flight
+// budget cap. When maxPrice > 0, results exceeding it are ignored.
+func cheapestFlightWithBudget(ctx context.Context, origin, dest, depDate, retDate string, maxPrice float64) (float64, string) {
 	if origin == "" || dest == "" || depDate == "" {
 		return 0, ""
 	}
@@ -325,7 +342,13 @@ func cheapestFlight(ctx context.Context, origin, dest, depDate, retDate string) 
 	var best float64
 	var bestCurr string
 	for _, f := range result.Flights {
-		if f.Price > 0 && (best == 0 || f.Price < best) {
+		if f.Price <= 0 {
+			continue
+		}
+		if maxPrice > 0 && f.Price > maxPrice {
+			continue
+		}
+		if best == 0 || f.Price < best {
 			best = f.Price
 			bestCurr = f.Currency
 		}

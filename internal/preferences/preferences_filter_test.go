@@ -345,6 +345,49 @@ func TestFilterHotels_MinReviewThreshold(t *testing.T) {
 	}
 }
 
+func TestFilterHotels_BudgetPerNightMin_DropsCheap(t *testing.T) {
+	hotels := []models.HotelResult{
+		{Name: "Suspiciously Cheap", Price: 8},
+		{Name: "Normal Hotel", Price: 50},
+		{Name: "Luxury Hotel", Price: 200},
+		{Name: "Unknown Price", Price: 0}, // no price data — keep
+	}
+	p := Default()
+	p.BudgetPerNightMin = 20
+
+	got := FilterHotels(hotels, "Prague", p)
+	names := make(map[string]bool)
+	for _, h := range got {
+		names[h.Name] = true
+	}
+	if names["Suspiciously Cheap"] {
+		t.Error("hotel priced below BudgetPerNightMin should be filtered out")
+	}
+	if !names["Normal Hotel"] {
+		t.Error("Normal Hotel should survive filter")
+	}
+	if !names["Luxury Hotel"] {
+		t.Error("Luxury Hotel should survive filter")
+	}
+	if !names["Unknown Price"] {
+		t.Error("hotel with 0 price (unknown) should be kept")
+	}
+}
+
+func TestFilterHotels_BudgetPerNightMin_Zero_NoFilter(t *testing.T) {
+	hotels := []models.HotelResult{
+		{Name: "Cheap Hotel", Price: 5},
+		{Name: "Normal Hotel", Price: 50},
+	}
+	p := Default()
+	// BudgetPerNightMin defaults to 0 — should not filter anything.
+
+	got := FilterHotels(hotels, "London", p)
+	if len(got) != 2 {
+		t.Errorf("BudgetPerNightMin=0: expected 2 hotels, got %d", len(got))
+	}
+}
+
 func TestFilterHotels_DefaultDistricts_Prioritises(t *testing.T) {
 	hotels := []models.HotelResult{
 		{Name: "Suburb Hotel", Address: "Far Away"},

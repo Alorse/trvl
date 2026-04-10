@@ -264,6 +264,10 @@ func FilterHotels(hotels []models.HotelResult, city string, p *Preferences) []mo
 		if p.MinHotelRating > 0 && h.ReviewCount == 0 && h.Rating == 0 {
 			continue
 		}
+		// Drop suspiciously cheap hotels when BudgetPerNightMin is set.
+		if p.BudgetPerNightMin > 0 && h.Price > 0 && h.Price < p.BudgetPerNightMin {
+			continue
+		}
 		out = append(out, h)
 	}
 
