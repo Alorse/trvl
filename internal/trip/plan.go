@@ -42,15 +42,19 @@ type PlanFlight struct {
 
 // PlanHotel is a hotel option in the trip plan.
 type PlanHotel struct {
-	Name      string  `json:"name"`
-	Rating    float64 `json:"rating"`
-	Reviews   int     `json:"reviews"`
-	PerNight  float64 `json:"per_night"`
-	Total     float64 `json:"total"`
-	Currency  string  `json:"currency"`
-	Amenities string  `json:"amenities,omitempty"`
-	Lat       float64 `json:"lat,omitempty"`
-	Lon       float64 `json:"lon,omitempty"`
+	Name       string  `json:"name"`
+	HotelID    string  `json:"hotel_id,omitempty"`
+	Rating     float64 `json:"rating"`
+	Reviews    int     `json:"reviews"`
+	PerNight   float64 `json:"per_night"`
+	Total      float64 `json:"total"`
+	Currency   string  `json:"currency"`
+	Amenities  string  `json:"amenities,omitempty"`
+	Lat        float64 `json:"lat,omitempty"`
+	Lon        float64 `json:"lon,omitempty"`
+	OSMStars   int     `json:"osm_stars,omitempty"`
+	Website    string  `json:"website,omitempty"`
+	Wheelchair string  `json:"wheelchair,omitempty"`
 }
 
 // PlanBreakfast is a breakfast spot within walking distance of the chosen hotel.
@@ -62,6 +66,24 @@ type PlanBreakfast struct {
 	Hours     string `json:"opening_hours,omitempty"`
 	Website   string `json:"website,omitempty"`
 	HotelName string `json:"hotel_name,omitempty"` // which hotel this is walkable from
+}
+
+// PlanReviewSnippet is a short review excerpt for the chosen hotel.
+type PlanReviewSnippet struct {
+	Rating    float64 `json:"rating"`
+	Text      string  `json:"text"`
+	Author    string  `json:"author,omitempty"`
+	Date      string  `json:"date,omitempty"`
+	HotelName string  `json:"hotel_name,omitempty"`
+}
+
+// PlanDestinationContext is a short travel-guide blurb about the destination,
+// extracted from Wikivoyage.
+type PlanDestinationContext struct {
+	Summary   string `json:"summary,omitempty"`
+	WhenToGo  string `json:"when_to_go,omitempty"`
+	GetAround string `json:"get_around,omitempty"`
+	Source    string `json:"source,omitempty"`
 }
 
 // PlanSummary shows the cheapest combination.
@@ -76,19 +98,21 @@ type PlanSummary struct {
 
 // PlanResult is the full trip plan response.
 type PlanResult struct {
-	Success         bool            `json:"success"`
-	Origin          string          `json:"origin"`
-	Destination     string          `json:"destination"`
-	DepartDate      string          `json:"depart_date"`
-	ReturnDate      string          `json:"return_date"`
-	Nights          int             `json:"nights"`
-	Guests          int             `json:"guests"`
-	OutboundFlights []PlanFlight    `json:"outbound_flights"`
-	ReturnFlights   []PlanFlight    `json:"return_flights"`
-	Hotels          []PlanHotel     `json:"hotels"`
-	Breakfast       []PlanBreakfast `json:"breakfast,omitempty"`
-	Summary         PlanSummary     `json:"summary"`
-	Error           string          `json:"error,omitempty"`
+	Success         bool                    `json:"success"`
+	Origin          string                  `json:"origin"`
+	Destination     string                  `json:"destination"`
+	DepartDate      string                  `json:"depart_date"`
+	ReturnDate      string                  `json:"return_date"`
+	Nights          int                     `json:"nights"`
+	Guests          int                     `json:"guests"`
+	OutboundFlights []PlanFlight            `json:"outbound_flights"`
+	ReturnFlights   []PlanFlight            `json:"return_flights"`
+	Hotels          []PlanHotel             `json:"hotels"`
+	Breakfast       []PlanBreakfast         `json:"breakfast,omitempty"`
+	ReviewSnippets  []PlanReviewSnippet     `json:"review_snippets,omitempty"`
+	Context         *PlanDestinationContext `json:"context,omitempty"`
+	Summary         PlanSummary             `json:"summary"`
+	Error           string                  `json:"error,omitempty"`
 }
 
 // PlanTrip searches flights and hotels in parallel and returns the top options
@@ -205,19 +229,117 @@ func PlanTrip(ctx context.Context, input PlanInput) (*PlanResult, error) {
 	// Searches top hotels in order — the first one with at least 3 spots
 	// within 500m is picked. This biases toward hotels in lively areas
 	// rather than the absolute cheapest (which may be in a food desert).
-	for _, h := range result.Hotels {
+	var chosenHotel *PlanHotel
+	for i := range result.Hotels {
+		h := &result.Hotels[i]
 		if h.Lat == 0 && h.Lon == 0 {
 			continue
 		}
 		spots := findBreakfastNearHotel(ctx, h.Lat, h.Lon)
 		if len(spots) >= 3 {
-			for i := range spots {
-				spots[i].HotelName = h.Name
+			for j := range spots {
+				spots[j].HotelName = h.Name
 			}
 			result.Breakfast = spots
+			chosenHotel = h
 			break
 		}
 	}
+	if chosenHotel == nil && len(result.Hotels) > 0 {
+		chosenHotel = &result.Hotels[0]
+	}
+
+	// Fetch reviews for the chosen hotel + destination context from Wikivoyage
+	// in parallel. These are "nice to have" enrichments — failures are silent.
+	var enrichWg sync.WaitGroup
+	var enrichMu sync.Mutex
+	enrichCtx, cancelEnrich := context.WithTimeout(ctx, 20*time.Second)
+	defer cancelEnrich()
+
+	if chosenHotel != nil && chosenHotel.HotelID != "" {
+		enrichWg.Add(1)
+		go func(hotelID, hotelName string) {
+			defer enrichWg.Done()
+			reviews, err := hotels.GetHotelReviews(enrichCtx, hotelID, hotels.ReviewOptions{Limit: 3, Sort: "highest"})
+			if err != nil || reviews == nil || len(reviews.Reviews) == 0 {
+				return
+			}
+			snippets := make([]PlanReviewSnippet, 0, len(reviews.Reviews))
+			for _, r := range reviews.Reviews {
+				if r.Text == "" {
+					continue
+				}
+				snippets = append(snippets, PlanReviewSnippet{
+					Rating:    r.Rating,
+					Text:      trimReview(r.Text, 180),
+					Author:    r.Author,
+					Date:      r.Date,
+					HotelName: hotelName,
+				})
+				if len(snippets) >= 3 {
+					break
+				}
+			}
+			enrichMu.Lock()
+			result.ReviewSnippets = snippets
+			enrichMu.Unlock()
+		}(chosenHotel.HotelID, chosenHotel.Name)
+	}
+
+	// Wikivoyage destination context.
+	enrichWg.Add(1)
+	go func() {
+		defer enrichWg.Done()
+		location := models.ResolveLocationName(input.Destination)
+		guide, err := destinations.GetWikivoyageGuide(enrichCtx, location)
+		if err != nil || guide == nil {
+			return
+		}
+		planCtx := &PlanDestinationContext{
+			Source: guide.URL,
+		}
+		if guide.Summary != "" {
+			planCtx.Summary = trimGuideSection(guide.Summary, 280)
+		}
+		if s, ok := firstSectionByKey(guide.Sections, "When to go", "Understand", "Climate"); ok {
+			planCtx.WhenToGo = trimGuideSection(s, 220)
+		}
+		if s, ok := firstSectionByKey(guide.Sections, "Get around", "Getting around"); ok {
+			planCtx.GetAround = trimGuideSection(s, 220)
+		}
+		if planCtx.Summary == "" && planCtx.WhenToGo == "" && planCtx.GetAround == "" {
+			return
+		}
+		enrichMu.Lock()
+		result.Context = planCtx
+		enrichMu.Unlock()
+	}()
+
+	// Enrich the chosen hotel with OSM tags (stars, website, wheelchair,
+	// operator) by matching nearby tourism=hotel POIs by name.
+	if chosenHotel != nil && chosenHotel.Lat != 0 && chosenHotel.Lon != 0 {
+		enrichWg.Add(1)
+		go func(hotelName string, lat, lon float64) {
+			defer enrichWg.Done()
+			extra := destinations.EnrichHotelFromOSM(enrichCtx, hotelName, lat, lon)
+			if extra == nil {
+				return
+			}
+			enrichMu.Lock()
+			if extra.Stars > 0 && chosenHotel.OSMStars == 0 {
+				chosenHotel.OSMStars = extra.Stars
+			}
+			if extra.Website != "" && chosenHotel.Website == "" {
+				chosenHotel.Website = extra.Website
+			}
+			if extra.Wheelchair != "" {
+				chosenHotel.Wheelchair = extra.Wheelchair
+			}
+			enrichMu.Unlock()
+		}(chosenHotel.Name, chosenHotel.Lat, chosenHotel.Lon)
+	}
+
+	enrichWg.Wait()
 
 	if input.Currency != "" {
 		convertPlanFlights(ctx, result.OutboundFlights, input.Currency)
@@ -327,6 +449,54 @@ func extractTopFlights(flts []models.FlightResult, n int) []PlanFlight {
 		result = append(result, pf)
 	}
 	return result
+}
+
+// trimReview cuts a review text to n characters at a word boundary.
+func trimReview(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	// Find last space before n.
+	cut := n
+	for cut > 0 && s[cut] != ' ' {
+		cut--
+	}
+	if cut == 0 {
+		cut = n
+	}
+	return strings.TrimSpace(s[:cut]) + "..."
+}
+
+// trimGuideSection cuts a Wikivoyage section to n chars at a sentence boundary.
+func trimGuideSection(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	// Prefer ending at a period.
+	cut := n
+	for i := n; i > n/2; i-- {
+		if i < len(s) && s[i] == '.' {
+			cut = i + 1
+			break
+		}
+	}
+	return strings.TrimSpace(s[:cut])
+}
+
+// firstSectionByKey returns the first section whose key (case-insensitive)
+// matches any of the given candidates.
+func firstSectionByKey(sections map[string]string, candidates ...string) (string, bool) {
+	for _, want := range candidates {
+		wl := strings.ToLower(want)
+		for k, v := range sections {
+			if strings.ToLower(k) == wl && strings.TrimSpace(v) != "" {
+				return v, true
+			}
+		}
+	}
+	return "", false
 }
 
 // findBreakfastNearHotel returns up to 5 cafes and restaurants within 600m of
@@ -447,6 +617,7 @@ func extractTopHotels(htls []models.HotelResult, nights, n int) []PlanHotel {
 		}
 		ph := PlanHotel{
 			Name:     h.Name,
+			HotelID:  h.HotelID,
 			Rating:   h.Rating,
 			Reviews:  h.ReviewCount,
 			PerNight: h.Price,

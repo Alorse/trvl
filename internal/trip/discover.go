@@ -1,0 +1,390 @@
+// Package trip — inverted search: give me a budget and a time range,
+// I return the best quality-per-euro trips that fit my preferences.
+//
+// This is the trip you'd have if every other tool understood that travelers
+// don't start with a destination: they start with a budget, a calendar gap,
+// and a vague idea of what they want out of it.
+package trip
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/MikkoParkkola/trvl/internal/explore"
+	"github.com/MikkoParkkola/trvl/internal/flights"
+	"github.com/MikkoParkkola/trvl/internal/hotels"
+	"github.com/MikkoParkkola/trvl/internal/models"
+	"github.com/MikkoParkkola/trvl/internal/preferences"
+)
+
+// DiscoverOptions configures an inverted-search discovery.
+type DiscoverOptions struct {
+	Origin     string  // IATA (default: first home_airport from prefs)
+	From       string  // earliest depart date YYYY-MM-DD (required)
+	Until      string  // latest return date YYYY-MM-DD (required)
+	Budget     float64 // max total EUR (required)
+	MinNights  int     // default 2
+	MaxNights  int     // default 4
+	Top        int     // results to return (default 5)
+	FlexDays   int     // how many start-of-trip candidates to enumerate (default: all Fridays in window)
+}
+
+// DiscoverResult is a single ranked trip option.
+type DiscoverResult struct {
+	Destination   string  `json:"destination"`
+	AirportCode   string  `json:"airport_code"`
+	DepartDate    string  `json:"depart_date"`
+	ReturnDate    string  `json:"return_date"`
+	Nights        int     `json:"nights"`
+	FlightPrice   float64 `json:"flight_price"`
+	HotelPrice    float64 `json:"hotel_price"`
+	HotelName     string  `json:"hotel_name"`
+	HotelRating   float64 `json:"hotel_rating"`
+	Total         float64 `json:"total"`
+	Currency      string  `json:"currency"`
+	ValueScore    float64 `json:"value_score"`  // 0..1 — higher is better
+	BudgetSlack   float64 `json:"budget_slack"` // currency units remaining
+	Reasoning     string  `json:"reasoning,omitempty"`
+}
+
+// DiscoverOutput is the top-level response.
+type DiscoverOutput struct {
+	Success bool             `json:"success"`
+	Origin  string           `json:"origin"`
+	From    string           `json:"from"`
+	Until   string           `json:"until"`
+	Budget  float64          `json:"budget"`
+	Count   int              `json:"count"`
+	Trips   []DiscoverResult `json:"trips"`
+	Error   string           `json:"error,omitempty"`
+}
+
+func (o *DiscoverOptions) applyDefaults() {
+	if o.MinNights <= 0 {
+		o.MinNights = 2
+	}
+	if o.MaxNights <= 0 {
+		o.MaxNights = 4
+	}
+	if o.MaxNights < o.MinNights {
+		o.MaxNights = o.MinNights
+	}
+	if o.Top <= 0 {
+		o.Top = 5
+	}
+}
+
+// Discover finds the best-quality trips that fit within a budget and a
+// flexible date window, applying user preferences.
+//
+// The strategy is "explore-then-verify": query Google's explore API for each
+// candidate weekend to get cheapest destinations, then search real hotel
+// prices for top candidates with preferences applied. Results are ranked by
+// a value score that rewards hotel quality and remaining budget slack.
+func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error) {
+	opts.applyDefaults()
+
+	if opts.Budget <= 0 {
+		return nil, fmt.Errorf("budget must be > 0")
+	}
+	if opts.From == "" || opts.Until == "" {
+		return nil, fmt.Errorf("from and until dates are required")
+	}
+	if opts.Origin == "" {
+		return nil, fmt.Errorf("origin is required (or set home_airports in preferences)")
+	}
+
+	fromDate, err := time.Parse("2006-01-02", opts.From)
+	if err != nil {
+		return nil, fmt.Errorf("invalid from date: %w", err)
+	}
+	untilDate, err := time.Parse("2006-01-02", opts.Until)
+	if err != nil {
+		return nil, fmt.Errorf("invalid until date: %w", err)
+	}
+	if untilDate.Before(fromDate) {
+		return nil, fmt.Errorf("until must be after from")
+	}
+
+	// Enumerate candidate trip windows: every Friday in [from, until]
+	// with nights = MinNights..MaxNights.
+	type candidateWindow struct {
+		start  time.Time
+		end    time.Time
+		nights int
+	}
+	var windows []candidateWindow
+	for d := fromDate; !d.After(untilDate); d = d.AddDate(0, 0, 1) {
+		if d.Weekday() != time.Friday {
+			continue
+		}
+		for nights := opts.MinNights; nights <= opts.MaxNights; nights++ {
+			end := d.AddDate(0, 0, nights)
+			if end.After(untilDate) {
+				continue
+			}
+			windows = append(windows, candidateWindow{start: d, end: end, nights: nights})
+		}
+	}
+	if len(windows) == 0 {
+		return &DiscoverOutput{Success: true, Origin: opts.Origin, From: opts.From, Until: opts.Until, Budget: opts.Budget}, nil
+	}
+
+	prefs, _ := preferences.Load()
+	client := flights.DefaultClient()
+
+	// Phase 1: for each candidate window, run an explore query to find
+	// cheap destinations. Bounded concurrency (3 parallel explore calls).
+	type exploreFinding struct {
+		window candidateWindow
+		dests  []models.ExploreDestination
+	}
+	var exploreMu sync.Mutex
+	var findings []exploreFinding
+
+	exploreSem := make(chan struct{}, 3)
+	var exploreWg sync.WaitGroup
+
+	for _, w := range windows {
+		w := w
+		exploreWg.Add(1)
+		go func() {
+			defer exploreWg.Done()
+			exploreSem <- struct{}{}
+			defer func() { <-exploreSem }()
+
+			res, err := explore.SearchExplore(ctx, client, opts.Origin, explore.ExploreOptions{
+				DepartureDate: w.start.Format("2006-01-02"),
+				ReturnDate:    w.end.Format("2006-01-02"),
+				Adults:        1,
+			})
+			if err != nil || res == nil || len(res.Destinations) == 0 {
+				return
+			}
+
+			// Sort by flight price, keep top 5 per window to bound hotel searches.
+			dests := res.Destinations
+			sort.Slice(dests, func(i, j int) bool { return dests[i].Price < dests[j].Price })
+			if len(dests) > 5 {
+				dests = dests[:5]
+			}
+
+			exploreMu.Lock()
+			findings = append(findings, exploreFinding{window: w, dests: dests})
+			exploreMu.Unlock()
+		}()
+	}
+	exploreWg.Wait()
+
+	if len(findings) == 0 {
+		return &DiscoverOutput{Success: true, Origin: opts.Origin, From: opts.From, Until: opts.Until, Budget: opts.Budget}, nil
+	}
+
+	// Detect currency once (explore API doesn't label prices).
+	currency := "EUR"
+	for _, f := range findings {
+		if len(f.dests) > 0 {
+			if detected := flights.DetectSourceCurrency(ctx, opts.Origin, f.dests[0].AirportCode); detected != "" {
+				currency = detected
+			}
+			break
+		}
+	}
+
+	// Phase 2: for each (window, destination) candidate, search real hotels
+	// with user preferences applied. Bounded concurrency (5 parallel).
+	type trialKey struct {
+		airport string
+		nights  int
+	}
+	type trial struct {
+		window candidateWindow
+		dest   models.ExploreDestination
+	}
+	// Dedupe by airport code + nights — multiple explore responses may return
+	// the same destination on different dates, but we only need to cost the
+	// cheapest window per destination.
+	bestPerKey := make(map[trialKey]*trial)
+	for i := range findings {
+		f := &findings[i]
+		for _, d := range f.dests {
+			k := trialKey{airport: d.AirportCode, nights: f.window.nights}
+			if existing, ok := bestPerKey[k]; !ok || d.Price < existing.dest.Price {
+				bestPerKey[k] = &trial{window: f.window, dest: d}
+			}
+		}
+	}
+
+	var trials []trial
+	for _, t := range bestPerKey {
+		trials = append(trials, *t)
+	}
+
+	type hotelInfo struct {
+		price  float64
+		total  float64
+		name   string
+		rating float64
+	}
+	hotelMu := sync.Mutex{}
+	hotelResults := make(map[trialKey]*hotelInfo)
+
+	hotelSem := make(chan struct{}, 5)
+	var hotelWg sync.WaitGroup
+
+	for _, t := range trials {
+		t := t
+		hotelWg.Add(1)
+		go func() {
+			defer hotelWg.Done()
+			hotelSem <- struct{}{}
+			defer func() { <-hotelSem }()
+
+			cityName := t.dest.CityName
+			if cityName == "" {
+				cityName = models.LookupAirportName(t.dest.AirportCode)
+			}
+
+			hotelOpts := hotels.HotelSearchOptions{
+				CheckIn:  t.window.start.Format("2006-01-02"),
+				CheckOut: t.window.end.Format("2006-01-02"),
+				Guests:   1,
+				Sort:     "cheapest",
+			}
+			if prefs != nil {
+				if prefs.MinHotelStars > 0 {
+					hotelOpts.Stars = prefs.MinHotelStars
+				}
+				if prefs.MinHotelRating > 0 {
+					hotelOpts.MinRating = prefs.MinHotelRating
+				}
+			}
+
+			hr, err := hotels.SearchHotels(ctx, cityName, hotelOpts)
+			if err != nil || hr == nil || !hr.Success || len(hr.Hotels) == 0 {
+				return
+			}
+
+			filtered := hr.Hotels
+			if prefs != nil {
+				filtered = preferences.FilterHotels(filtered, cityName, prefs)
+			}
+			if len(filtered) == 0 {
+				return
+			}
+
+			// Pick cheapest with rating >= preference minimum (already filtered).
+			cheapest := filtered[0]
+			for _, h := range filtered[1:] {
+				if h.Price > 0 && h.Price < cheapest.Price {
+					cheapest = h
+				}
+			}
+			if cheapest.Price <= 0 {
+				return
+			}
+
+			hotelMu.Lock()
+			hotelResults[trialKey{airport: t.dest.AirportCode, nights: t.window.nights}] = &hotelInfo{
+				price:  cheapest.Price,
+				total:  cheapest.Price * float64(t.window.nights),
+				name:   cheapest.Name,
+				rating: cheapest.Rating,
+			}
+			hotelMu.Unlock()
+		}()
+	}
+	hotelWg.Wait()
+
+	// Phase 3: build ranked results. Score each candidate by value:
+	// value = budget_fit * quality
+	// where:
+	//   budget_fit = max(0, 1 - total/budget)  (1.0 when free, 0 when at budget)
+	//   quality   = 0.5 + 0.5 * (rating / 5)   (0.5..1.0 — rating is a multiplier)
+	//
+	// This rewards trips that come in well under budget AT a quality hotel,
+	// and penalizes trips that blow budget or have weak ratings.
+	var results []DiscoverResult
+	for _, t := range trials {
+		k := trialKey{airport: t.dest.AirportCode, nights: t.window.nights}
+		h, ok := hotelResults[k]
+		if !ok {
+			continue
+		}
+
+		total := t.dest.Price + h.total
+		if total > opts.Budget {
+			continue
+		}
+
+		budgetFit := 1.0 - (total / opts.Budget)
+		if budgetFit < 0 {
+			budgetFit = 0
+		}
+		quality := 0.5
+		if h.rating > 0 {
+			quality = 0.5 + 0.5*(h.rating/5.0)
+		}
+		valueScore := budgetFit * quality
+		slack := opts.Budget - total
+
+		cityName := t.dest.CityName
+		if cityName == "" {
+			cityName = models.LookupAirportName(t.dest.AirportCode)
+		}
+
+		reasoning := buildDiscoverReasoning(quality, budgetFit, h.rating, slack, currency)
+
+		results = append(results, DiscoverResult{
+			Destination: cityName,
+			AirportCode: t.dest.AirportCode,
+			DepartDate:  t.window.start.Format("2006-01-02"),
+			ReturnDate:  t.window.end.Format("2006-01-02"),
+			Nights:      t.window.nights,
+			FlightPrice: t.dest.Price,
+			HotelPrice:  h.total,
+			HotelName:   h.name,
+			HotelRating: h.rating,
+			Total:       total,
+			Currency:    currency,
+			ValueScore:  valueScore,
+			BudgetSlack: slack,
+			Reasoning:   reasoning,
+		})
+	}
+
+	// Rank by value score descending.
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].ValueScore > results[j].ValueScore
+	})
+	if len(results) > opts.Top {
+		results = results[:opts.Top]
+	}
+
+	return &DiscoverOutput{
+		Success: true,
+		Origin:  opts.Origin,
+		From:    opts.From,
+		Until:   opts.Until,
+		Budget:  opts.Budget,
+		Count:   len(results),
+		Trips:   results,
+	}, nil
+}
+
+func buildDiscoverReasoning(quality, budgetFit, rating, slack float64, currency string) string {
+	var parts []string
+	if rating > 0 {
+		parts = append(parts, fmt.Sprintf("%.1f★ hotel", rating))
+	}
+	if slack > 0 {
+		parts = append(parts, fmt.Sprintf("%s %.0f under budget", currency, slack))
+	}
+	_ = quality
+	_ = budgetFit
+	return strings.Join(parts, ", ")
+}

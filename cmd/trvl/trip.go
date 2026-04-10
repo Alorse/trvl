@@ -201,6 +201,47 @@ func printTripPlan(ctx context.Context, targetCurrency string, result *trip.Plan
 		fmt.Println()
 	}
 
+	// Destination context from Wikivoyage.
+	if result.Context != nil {
+		fmt.Printf("  %s About %s\n\n", models.Bold("📖"), destName)
+		if result.Context.Summary != "" {
+			fmt.Printf("  %s\n", result.Context.Summary)
+		}
+		if result.Context.WhenToGo != "" {
+			fmt.Printf("  %s %s\n", models.Bold("When to go:"), result.Context.WhenToGo)
+		}
+		if result.Context.GetAround != "" {
+			fmt.Printf("  %s %s\n", models.Bold("Getting around:"), result.Context.GetAround)
+		}
+		if result.Context.Source != "" {
+			fmt.Printf("  Source: %s\n", result.Context.Source)
+		}
+		fmt.Println()
+	}
+
+	// Review snippets for the chosen hotel.
+	if len(result.ReviewSnippets) > 0 {
+		hotelName := result.ReviewSnippets[0].HotelName
+		if hotelName != "" {
+			fmt.Printf("  %s Guest reviews for %s\n\n", models.Bold("💬"), truncateName(hotelName, 40))
+		} else {
+			fmt.Printf("  %s Guest reviews\n\n", models.Bold("💬"))
+		}
+		for _, r := range result.ReviewSnippets {
+			rating := ""
+			if r.Rating > 0 {
+				rating = fmt.Sprintf("%.1f★ ", r.Rating)
+			}
+			author := r.Author
+			if author == "" {
+				author = "anonymous"
+			}
+			fmt.Printf("  %s— %s (%s)\n", rating, author, r.Date)
+			fmt.Printf("    \"%s\"\n", r.Text)
+		}
+		fmt.Println()
+	}
+
 	// Breakfast spots within walking distance of the chosen hotel.
 	if len(result.Breakfast) > 0 {
 		hotelName := result.Breakfast[0].HotelName
