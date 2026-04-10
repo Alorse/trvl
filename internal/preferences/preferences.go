@@ -232,8 +232,26 @@ func FilterHotels(hotels []models.HotelResult, city string, p *Preferences) []mo
 }
 
 // dormKeywords are substrings that indicate shared-room accommodation.
+// Includes generic terms + known hostel chains that don't contain "hostel"
+// in their brand name (St Christopher's Inn, Generator, MEININGER, etc.).
 var dormKeywords = []string{
+	// Generic terms
 	"hostel", "dorm", "dormitory", "capsule", "pod hotel", "bunk",
+	"youth hostel", "backpacker",
+	// Known hostel/hybrid chains (lowercase substring match)
+	"st christopher", // St Christopher's Inn
+	"generator ",     // Generator Hostels (trailing space to avoid "generator hotel" false positives)
+	"meininger",      // MEININGER Hotels (hybrid hostel/hotel)
+	"wombat",         // Wombats Hostels
+	"clink",          // Clink Hostels
+	"safestay",       // Safestay
+	"yha ",           // YHA hostels
+	"nomad cave",     // Nomad Cave (budget shared-room)
+	"nomad city",     // Nomad City (budget shared-room)
+	"a&o",            // A&O Hotels and Hostels
+	"rygerfjord",     // Rygerfjord (Stockholm hostel boat)
+	"citybox",        // Citybox (Nordic budget self-service, shared kitchens)
+	"travelodge",     // Travelodge (debatable — UK budget chain, but avg < 4★ experience)
 }
 
 // isDormitory returns true when the hotel name or amenities suggest shared sleeping.
