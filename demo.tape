@@ -41,7 +41,7 @@ Enter
 Sleep 300ms
 Type "trvl explore HEL --format table 2>/dev/null"
 Enter
-Sleep 20s
+Sleep 4s
 
 # ═══════════════════════════════════════════════════════════
 # ACT 2: Multi-Modal Route — THE HERO FEATURE
@@ -56,7 +56,7 @@ Enter
 Sleep 300ms
 Type "trvl route Helsinki Dubrovnik 2026-05-01 2>/dev/null"
 Enter
-Sleep 25s
+Sleep 5s
 
 # ═══════════════════════════════════════════════════════════
 # ACT 3: Ferry Search — live prices from 4 providers
@@ -71,7 +71,7 @@ Enter
 Sleep 300ms
 Type "trvl ground Helsinki Tallinn 2026-05-01 2>/dev/null"
 Enter
-Sleep 10s
+Sleep 4s
 
 # ═══════════════════════════════════════════════════════════
 # ACT 4: Trip Planning — flights + hotel in one search
@@ -86,7 +86,7 @@ Enter
 Sleep 300ms
 Type "trvl trip HEL BCN --depart 2026-05-01 --return 2026-05-08 2>/dev/null"
 Enter
-Sleep 25s
+Sleep 5s
 
 Type ""
 Enter
