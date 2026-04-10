@@ -10,7 +10,7 @@
 
 # trvl — The Travel MCP Server
 
-![trvl demo](demo.gif)
+![trvl demo](https://raw.githubusercontent.com/MikkoParkkola/trvl/main/demo.gif?v=0.3.1)
 
 > **33 travel tools for your AI assistant — flights, hotels, trains, buses, ferries, price alerts, travel hacks, weather forecasts, baggage rules, destination intel. Free. API-first.**
 >
