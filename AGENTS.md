@@ -7,39 +7,32 @@
 
 You are setting up `trvl` — a travel MCP server that gives you real-time Google Flights and Google Hotels data. No API keys needed. Run these steps in order:
 
-### Step 1: Install the binary
+### Step 1: Install
 
 ```bash
-# Detect OS and architecture, download, extract to PATH
+brew install MikkoParkkola/tap/trvl
+```
+
+Pre-built binary, no toolchain needed, 1 second. If Homebrew is not available:
+
+```bash
+# Manual: detect OS/arch, download, extract
 curl -fsSL https://github.com/MikkoParkkola/trvl/releases/latest/download/trvl_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz | tar xz -C /usr/local/bin trvl
 ```
 
-If that fails (permissions), try:
+### Step 2: Register as MCP server
+
 ```bash
-# Alternative: install to ~/bin
-mkdir -p ~/bin
-curl -fsSL https://github.com/MikkoParkkola/trvl/releases/latest/download/trvl_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz | tar xz -C ~/bin trvl
-export PATH="$HOME/bin:$PATH"
+trvl mcp install                       # Claude Desktop (default)
+trvl mcp install --client cursor       # Cursor / Windsurf
+trvl mcp install --client claude-code  # Claude Code
 ```
 
-Other options: `brew install MikkoParkkola/tap/trvl` or `go install github.com/MikkoParkkola/trvl/cmd/trvl@latest`
+Then restart your MCP client. No JSON editing needed.
 
-### Step 2: Register the MCP server
-
+For Claude Code, you can also run:
 ```bash
 claude mcp add trvl --transport stdio -- trvl mcp
-```
-
-If using Claude Desktop instead of Claude Code, add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-```json
-{
-  "mcpServers": {
-    "trvl": {
-      "command": "trvl",
-      "args": ["mcp"]
-    }
-  }
-}
 ```
 
 ### Step 3: Install the bundled skill (makes you smarter about travel searches)
@@ -57,7 +50,7 @@ This bundled skill file teaches you how to use trvl optimally whenever the user 
 
 ```bash
 trvl version
-# Expected: trvl v0.2.0 (or later)
+# Expected: trvl 0.3.0 (or later)
 
 trvl flights HEL LHR 2026-07-01 --format json | head -5
 # Expected: JSON with flight results
@@ -198,5 +191,5 @@ Returns: optimal visit order, per-segment prices, total cost, savings vs worst o
 ## Source
 
 - GitHub: https://github.com/MikkoParkkola/trvl
-- License: MIT
+- License: PolyForm Noncommercial 1.0.0
 - Inspired by [fli](https://github.com/punitarani/fli) by Punit Arani
