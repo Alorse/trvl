@@ -1,11 +1,4 @@
-FROM golang:1.25.0-alpine AS builder
-WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=docker" -o /trvl ./cmd/trvl
-
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /trvl /usr/local/bin/trvl
+COPY trvl /usr/local/bin/trvl
 ENTRYPOINT ["trvl"]
