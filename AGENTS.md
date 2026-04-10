@@ -56,7 +56,7 @@ trvl flights HEL LHR 2026-07-01 --format json | head -5
 # Expected: JSON with flight results
 ```
 
-Tell the user: "trvl is installed with 32 MCP tools and 1 bundled Claude skill. I can search flights, hotels, destinations, plan trips, find weekend getaways, find optimal travel windows, optimize multi-city routes, find nearby restaurants, check local events, search ground transport, detect travel hacks, check weather forecasts, and look up airline baggage rules. Just ask me anything about travel."
+Tell the user: "trvl is installed with 33 MCP tools and 1 bundled Claude skill. I can search flights, hotels, destinations, plan trips, find weekend getaways, find optimal travel windows, optimize multi-city routes, find nearby restaurants, check local events, search ground transport, detect travel hacks, check weather forecasts, and look up airline baggage rules. Just ask me anything about travel."
 
 ### Step 5: (Optional) Set up free API keys for enhanced data
 
@@ -80,86 +80,99 @@ Use `/setup-api-keys` command for the guided wizard.
 
 ### Step 6: Build the traveller profile
 
-This is the most important step. A good profile means every search is
-personalized from the first query. The profile lives at
-`~/.trvl/preferences.json` and drives real filtering: hotels get filtered
-by stars, ratings, and neighborhood; hostels and airport hotels get excluded;
-flights get sorted by loyalty airlines.
+The profile lives at `~/.trvl/preferences.json`. **Only ask about things
+that actually change search results.** Don't ask about fields that aren't
+wired to code behavior yet.
 
-**How to interview: open-ended, not a form.**
+**The interview: 4 questions.**
 
-Start with ONE question:
+> **Q1:** "Where do you usually fly from?"
+> Sets `home_airports` — the default origin for every search.
+> Infer `display_currency` from their location.
 
-> "Tell me about yourself as a traveller — where do you live, what kind of
-> trips do you usually take, and what matters most when you're booking?"
+> **Q2:** "Hotels: any dealbreakers? Hostels OK or hotels only? Need your
+> own bathroom? Minimum stars or review score you'd accept?"
+> Sets `no_dormitories`, `ensuite_only`, `min_hotel_stars`, `min_hotel_rating`.
 
-Then listen. Their answer tells you which follow-ups matter. Examples:
+> **Q3:** "Carry-on only, or do you check bags?"
+> Sets `carry_on_only` — unlocks hidden-city and throwaway-ticket hacks.
 
-- They mention **work travel** → ask about loyalty programs, cabin class, expenses
-- They mention **digital nomad** → ask about wifi, co-working, long-stay discounts
-- They mention **family** → ask about family members, checked bags, accessibility
-- They mention **budget** → skip luxury hotel questions, ask about hostels
-- They mention **specific cities** → ask about preferred neighborhoods
-- They mention **quality** → ask about minimum stars, review thresholds
+> **Q4:** "Direct flights important, or connections fine if cheaper?"
+> Sets `prefer_direct`.
 
-Ask follow-ups **2-3 at a time**, never more. Each round should feel like
-a natural conversation, not a questionnaire. Adapt based on what they said.
+Save with `update_preferences`. Show what you saved. Done. Don't ask about
+neighborhoods upfront — learn those from usage.
 
-After 3-4 rounds you should have enough to fill most of these fields:
+**What each field actually does in the code:**
 
-| Field | What it controls |
-|-------|-----------------|
-| `home_airports` | Default origin for searches (e.g. `["HEL", "AMS"]`) |
-| `home_cities` | Cities to exclude from destination suggestions |
-| `carry_on_only` | Enables hidden-city and throwaway-ticketing hacks |
-| `prefer_direct` | Prioritizes nonstop flights |
-| `no_dormitories` | Removes hostels, capsule hotels, shared rooms |
-| `ensuite_only` | Requires private bathroom |
-| `fast_wifi_needed` | Flags for co-working / remote work properties |
-| `min_hotel_stars` | 0=any, 3=no motels, 4=business-grade |
-| `min_hotel_rating` | e.g. 4.0 — also activates 20-review minimum |
-| `preferred_districts` | Per-city neighborhoods (e.g. `{"Prague": ["Prague 1"]}`) |
-| `display_currency` | Price display (EUR, USD, GBP, etc.) |
-| `locale` | Language/region for formatting |
-| `loyalty_airlines` | IATA codes (e.g. `["AY", "KL"]`) |
-| `loyalty_hotels` | e.g. `["Marriott Bonvoy"]` |
-| `family_members` | People the user books for, with notes |
+| Field | Behavior |
+|-------|----------|
+| `home_airports` | Default origin for flight/trip/weekend/discover searches |
+| `display_currency` | Price display across all 33 tools |
+| `no_dormitories` | `FilterHotels()` drops hostels, capsules, guesthouse rooms by chain name + regex |
+| `ensuite_only` | `FilterHotels()` drops shared-bathroom properties |
+| `min_hotel_stars` | Passed to Google Hotels API as search filter |
+| `min_hotel_rating` | Passed to search + activates 20-review minimum gate |
+| `preferred_districts` | `FilterHotels()` strict-filters or prioritizes by neighborhood |
+| `carry_on_only` | Travel hack detectors: hidden-city and throwaway require carry-on |
+| `prefer_direct` | Flight search: nonstop filter |
+| `default_companions` | 0=solo, 1=couple, 2+=family/group — personalizes search defaults |
+| `trip_types` | e.g. `["city_break","beach","adventure"]` — destination suggestions |
+| `seat_preference` | "window", "aisle", "no_preference" |
+| `budget_per_night_min` | Filters too-cheap-to-trust hotels |
+| `budget_per_night_max` | Max hotel price per night |
+| `budget_flight_max` | Max one-way flight price |
+| `deal_tolerance` | "price" (6am flight? yes), "comfort" (pay more), "balanced" |
+| `flight_time_earliest` | e.g. "06:00" — no flights before this |
+| `flight_time_latest` | e.g. "23:00" — no flights after this |
+| `red_eye_ok` | Overnight flights acceptable? |
+| `nationality` | ISO 3166-1 alpha-2 (e.g. "FI") — visa warnings |
+| `languages` | Spoken languages, e.g. `["en","fi","sv"]` |
+| `previous_trips` | Cities/countries visited — avoids repeat suggestions |
+| `bucket_list` | Dream destinations — prioritized in suggestions |
+| `activity_preferences` | e.g. `["museums","food","nature"]` — destination matching |
+| `dietary_needs` | e.g. `["vegetarian","halal"]` — restaurant filtering |
+| `notes` | Free-text for anything else |
 
-Save to `~/.trvl/preferences.json` using the `update_preferences` tool,
-or write the file directly. Show the user what you saved and ask if
-anything needs adjusting.
+**Don't ask upfront — learn from usage:**
 
-**Keeping the profile current — iterative learning:**
+- **Neighborhoods**: user picks Prague 1 hotels twice → "Want me to
+  remember Prague 1 as your preferred area?"
+- **Star rating**: user adds `--stars 4` three times → "Set 4-star as
+  your default?"
+- **Hostel filter**: user rejects a hostel result → "Filter hostels
+  automatically from now on?"
+- **Home airport change**: user searches from AMS repeatedly → "Add
+  Amsterdam to your home airports?"
+- **Budget drift**: user rejects hotels above a price → "Set a max
+  nightly budget?"
+- **Trip log**: after booking → "Add [destination] to previous trips?"
+- **Bucket list**: user mentions dream destination → "Add to bucket list?"
+- **Activities**: user searches food tours repeatedly → "Add 'food' to
+  your activity preferences?"
 
-The profile is never "done". Update it as you learn from conversations:
+**Extended profile follow-ups** (ask after the 4 core questions if
+the conversation naturally leads there):
 
-1. **Observe patterns**: User searches 4-star hotels 3 times → ask:
-   "You keep picking 4-star properties — want me to set that as your
-   minimum so I filter automatically?"
+- **Flights**: "Any flight preferences? Early mornings OK, red-eyes?"
+  → `seat_preference`, `flight_time_earliest/latest`, `red_eye_ok`, `deal_tolerance`
+- **Budget**: "Typical budget range for hotels and flights?"
+  → `budget_per_night_min/max`, `budget_flight_max`
+- **Identity**: "Nationality? Languages?" → `nationality`, `languages`
+- **Past & future**: "Where have you been? Dream destinations?"
+  → `previous_trips`, `bucket_list`
+- **Activities & food**: "What do you do on trips? Dietary needs?"
+  → `activity_preferences`, `dietary_needs`
+- **Catch-all**: "Anything else?" → `notes`
 
-2. **Catch life changes**: "You've been searching from AMS a lot lately.
-   Should I add Amsterdam to your home airports?"
-
-3. **Explicit corrections**: User says "I got SkyTeam Elite Plus" → update
-   loyalty immediately, confirm what changed.
-
-4. **New cities**: User explores a city for the first time, then picks
-   hotels in a specific area → ask: "Want me to remember [neighborhood]
-   as your preferred area in [city] for next time?"
-
-5. **Family updates**: "I see you're booking for someone new — want me
-   to add them to your profile?"
-
-Always confirm before updating. Use the `update_preferences` MCP tool
-to write changes — it merges fields, so you only send what changed.
-
-Or use the interactive CLI wizard: `trvl prefs init`
+Always confirm before updating. Use `update_preferences` to merge
+individual fields. CLI alternative: `trvl prefs init`
 
 ---
 
 ## How To Use (after setup)
 
-You now have 32 MCP tools available. Use them when the user asks about travel:
+You now have 33 MCP tools available. Use them when the user asks about travel:
 
 ### search_flights — Find flights between airports
 ```json
@@ -227,6 +240,14 @@ Returns: 3 cheapest dates, weekday vs weekend analysis, savings insights, averag
 Optional: `return_date` ("2026-07-21")
 
 Returns: optimal visit order, per-segment prices, total cost, savings vs worst order. Tries all permutations (up to 6 cities).
+
+### update_preferences — Update user travel preferences
+```json
+{"min_hotel_stars": 4, "no_dormitories": true}
+```
+Merges individual fields into `~/.trvl/preferences.json`. Only send the
+fields you want to change — other fields are preserved. Always confirm
+with the user before calling this tool.
 
 ### MCP Prompts (for complex workflows)
 - `plan-trip` — Full trip planning: flights + hotels + budget analysis

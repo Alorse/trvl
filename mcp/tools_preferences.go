@@ -35,6 +35,23 @@ func getPreferencesTool() ToolDef {
 				"loyalty_airlines":    map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 				"loyalty_hotels":      map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 				"preferred_districts": map[string]interface{}{"type": "object"},
+				"default_companions":     map[string]interface{}{"type": "integer"},
+				"trip_types":             map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"seat_preference":        map[string]interface{}{"type": "string"},
+				"budget_per_night_min":   map[string]interface{}{"type": "number"},
+				"budget_per_night_max":   map[string]interface{}{"type": "number"},
+				"budget_flight_max":      map[string]interface{}{"type": "number"},
+				"deal_tolerance":         map[string]interface{}{"type": "string"},
+				"flight_time_earliest":   map[string]interface{}{"type": "string"},
+				"flight_time_latest":     map[string]interface{}{"type": "string"},
+				"red_eye_ok":             map[string]interface{}{"type": "boolean"},
+				"nationality":            map[string]interface{}{"type": "string"},
+				"languages":              map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"previous_trips":         map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"bucket_list":            map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"activity_preferences":   map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"dietary_needs":          map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"notes":                  map[string]interface{}{"type": "string"},
 				"family_members": map[string]interface{}{
 					"type": "array",
 					"items": map[string]interface{}{
@@ -87,6 +104,40 @@ func handleGetPreferences(args map[string]any, _ ElicitFunc, _ SamplingFunc, pro
 		summary += " Hotel filters: " + joinStrings(filters, ", ") + "."
 	}
 
+	// Budget summary.
+	if p.BudgetPerNightMax > 0 {
+		if p.BudgetPerNightMin > 0 {
+			summary += fmt.Sprintf(" Budget: %.0f-%.0f/night.", p.BudgetPerNightMin, p.BudgetPerNightMax)
+		} else {
+			summary += fmt.Sprintf(" Budget: up to %.0f/night.", p.BudgetPerNightMax)
+		}
+	}
+	if p.BudgetFlightMax > 0 {
+		summary += fmt.Sprintf(" Max flight: %.0f.", p.BudgetFlightMax)
+	}
+
+	// Identity summary.
+	if p.Nationality != "" {
+		summary += fmt.Sprintf(" Nationality: %s.", p.Nationality)
+	}
+	if len(p.Languages) > 0 {
+		summary += fmt.Sprintf(" Languages: %v.", p.Languages)
+	}
+
+	// Travel style summary.
+	if len(p.TripTypes) > 0 {
+		summary += fmt.Sprintf(" Trip types: %v.", p.TripTypes)
+	}
+	if p.SeatPreference != "" && p.SeatPreference != "no_preference" {
+		summary += fmt.Sprintf(" Seat: %s.", p.SeatPreference)
+	}
+	if p.DealTolerance != "" {
+		summary += fmt.Sprintf(" Deal tolerance: %s.", p.DealTolerance)
+	}
+	if p.Notes != "" {
+		summary += fmt.Sprintf(" Notes: %s", p.Notes)
+	}
+
 	content, err := buildAnnotatedContentBlocks(summary, p)
 	if err != nil {
 		return nil, nil, err
@@ -125,6 +176,28 @@ You MUST confirm with the user before calling this tool. Never update silently.`
 				"loyalty_hotels":      {Type: "string", Description: "JSON array of hotel programme names, e.g. [\"Marriott Bonvoy\"]. Replaces existing list."},
 				"preferred_districts": {Type: "string", Description: "JSON object mapping city names to district arrays, e.g. {\"Prague\":[\"Prague 1\",\"Prague 2\"]}. Merged with existing districts (new cities added, existing cities replaced)."},
 				"family_members":      {Type: "string", Description: "JSON array of family member objects with name, relationship, and notes fields. Replaces entire family list."},
+				// Travel style (extended)
+				"default_companions":    {Type: "integer", Description: "Default number of companions. 0 = solo, 1 = couple, 2+ = family/group."},
+				"trip_types":            {Type: "string", Description: "JSON array of trip types, e.g. [\"city_break\",\"beach\",\"adventure\"]. Replaces existing list."},
+				"seat_preference":       {Type: "string", Description: "Preferred seat: \"window\", \"aisle\", or \"no_preference\"."},
+				// Budget
+				"budget_per_night_min":  {Type: "number", Description: "Minimum acceptable hotel price per night (filters too-cheap-to-trust)."},
+				"budget_per_night_max":  {Type: "number", Description: "Maximum hotel price per night."},
+				"budget_flight_max":     {Type: "number", Description: "Maximum one-way flight price."},
+				"deal_tolerance":        {Type: "string", Description: "Price sensitivity: \"price\" (6am flight to save money), \"comfort\" (pay for convenience), or \"balanced\"."},
+				// Flight preferences
+				"flight_time_earliest":  {Type: "string", Description: "Earliest acceptable flight departure time, e.g. \"06:00\"."},
+				"flight_time_latest":    {Type: "string", Description: "Latest acceptable flight departure time, e.g. \"23:00\"."},
+				"red_eye_ok":            {Type: "boolean", Description: "True if overnight (red-eye) flights are acceptable."},
+				// Identity
+				"nationality":           {Type: "string", Description: "ISO 3166-1 alpha-2 country code, e.g. \"FI\". Used for visa warnings."},
+				"languages":             {Type: "string", Description: "JSON array of spoken language codes, e.g. [\"en\",\"fi\",\"sv\"]. Replaces existing list."},
+				// Context (personalization)
+				"previous_trips":        {Type: "string", Description: "JSON array of cities/countries visited, e.g. [\"Japan\",\"Barcelona\"]. Replaces existing list."},
+				"bucket_list":           {Type: "string", Description: "JSON array of dream destinations, e.g. [\"New Zealand\",\"Iceland\"]. Replaces existing list."},
+				"activity_preferences":  {Type: "string", Description: "JSON array of preferred activities, e.g. [\"museums\",\"food\",\"nature\"]. Replaces existing list."},
+				"dietary_needs":         {Type: "string", Description: "JSON array of dietary requirements, e.g. [\"vegetarian\",\"gluten_free\"]. Replaces existing list."},
+				"notes":                 {Type: "string", Description: "Free-text notes for anything that doesn't fit another field."},
 			},
 		},
 		OutputSchema: map[string]interface{}{
@@ -144,6 +217,23 @@ You MUST confirm with the user before calling this tool. Never update silently.`
 				"loyalty_airlines":    map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 				"loyalty_hotels":      map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 				"preferred_districts": map[string]interface{}{"type": "object"},
+				"default_companions":     map[string]interface{}{"type": "integer"},
+				"trip_types":             map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"seat_preference":        map[string]interface{}{"type": "string"},
+				"budget_per_night_min":   map[string]interface{}{"type": "number"},
+				"budget_per_night_max":   map[string]interface{}{"type": "number"},
+				"budget_flight_max":      map[string]interface{}{"type": "number"},
+				"deal_tolerance":         map[string]interface{}{"type": "string"},
+				"flight_time_earliest":   map[string]interface{}{"type": "string"},
+				"flight_time_latest":     map[string]interface{}{"type": "string"},
+				"red_eye_ok":             map[string]interface{}{"type": "boolean"},
+				"nationality":            map[string]interface{}{"type": "string"},
+				"languages":              map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"previous_trips":         map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"bucket_list":            map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"activity_preferences":   map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"dietary_needs":          map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"notes":                  map[string]interface{}{"type": "string"},
 				"family_members": map[string]interface{}{
 					"type": "array",
 					"items": map[string]interface{}{
@@ -271,6 +361,79 @@ func mergePreferenceArgs(p *preferences.Preferences, args map[string]any) *prefe
 	// Preferred districts: merge (add new cities, replace existing).
 	if v, ok := args["preferred_districts"]; ok {
 		mergeDistricts(p, v)
+	}
+
+	// --- New fields: travel style (extended) ---
+	if _, ok := args["default_companions"]; ok {
+		p.DefaultCompanions = argInt(args, "default_companions", p.DefaultCompanions)
+	}
+	if v := argStringSliceOrJSON(args, "trip_types"); v != nil {
+		p.TripTypes = v
+	}
+	if v, ok := args["seat_preference"]; ok {
+		if s, ok := v.(string); ok && s != "" {
+			p.SeatPreference = s
+		}
+	}
+
+	// --- New fields: budget ---
+	if _, ok := args["budget_per_night_min"]; ok {
+		p.BudgetPerNightMin = argFloat(args, "budget_per_night_min", p.BudgetPerNightMin)
+	}
+	if _, ok := args["budget_per_night_max"]; ok {
+		p.BudgetPerNightMax = argFloat(args, "budget_per_night_max", p.BudgetPerNightMax)
+	}
+	if _, ok := args["budget_flight_max"]; ok {
+		p.BudgetFlightMax = argFloat(args, "budget_flight_max", p.BudgetFlightMax)
+	}
+	if v, ok := args["deal_tolerance"]; ok {
+		if s, ok := v.(string); ok && s != "" {
+			p.DealTolerance = s
+		}
+	}
+
+	// --- New fields: flight preferences ---
+	if v, ok := args["flight_time_earliest"]; ok {
+		if s, ok := v.(string); ok && s != "" {
+			p.FlightTimeEarliest = s
+		}
+	}
+	if v, ok := args["flight_time_latest"]; ok {
+		if s, ok := v.(string); ok && s != "" {
+			p.FlightTimeLatest = s
+		}
+	}
+	if _, ok := args["red_eye_ok"]; ok {
+		p.RedEyeOK = argBool(args, "red_eye_ok", p.RedEyeOK)
+	}
+
+	// --- New fields: identity ---
+	if v, ok := args["nationality"]; ok {
+		if s, ok := v.(string); ok && s != "" {
+			p.Nationality = s
+		}
+	}
+	if v := argStringSliceOrJSON(args, "languages"); v != nil {
+		p.Languages = v
+	}
+
+	// --- New fields: context / personalization ---
+	if v := argStringSliceOrJSON(args, "previous_trips"); v != nil {
+		p.PreviousTrips = v
+	}
+	if v := argStringSliceOrJSON(args, "bucket_list"); v != nil {
+		p.BucketList = v
+	}
+	if v := argStringSliceOrJSON(args, "activity_preferences"); v != nil {
+		p.ActivityPreferences = v
+	}
+	if v := argStringSliceOrJSON(args, "dietary_needs"); v != nil {
+		p.DietaryNeeds = v
+	}
+	if v, ok := args["notes"]; ok {
+		if s, ok := v.(string); ok {
+			p.Notes = s
+		}
 	}
 
 	// Family members: full replacement.

@@ -1,11 +1,11 @@
 {
   "name": "trvl",
   "version": "0.3.0",
-  "description": "AI Travel Agent — 32 MCP tools for flights, hotels, trains, buses, ferries, deals, price alerts, and destination intel. Free, no API keys.",
+  "description": "AI Travel Agent — 33 MCP tools for flights, hotels, trains, buses, ferries, deals, price alerts, and destination intel. Free, no API keys.",
   "author": {
     "name": "Mikko Parkkola",
     "url": "https://github.com/MikkoParkkola"
   },
   "repository": "https://github.com/MikkoParkkola/trvl",
-  "license": "MIT"
+  "license": "PolyForm-Noncommercial-1.0.0"
 }

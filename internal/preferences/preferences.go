@@ -43,6 +43,33 @@ type Preferences struct {
 	LoyaltyAirlines []string `json:"loyalty_airlines,omitempty"` // IATA codes, e.g. ["KL", "AY"]
 	LoyaltyHotels   []string `json:"loyalty_hotels,omitempty"`   // e.g. ["Marriott Bonvoy", "IHG"]
 
+	// Travel style (extended)
+	DefaultCompanions int      `json:"default_companions"`          // 0 = solo, 1 = couple, 2+ = family/group
+	TripTypes         []string `json:"trip_types,omitempty"`        // "city_break", "beach", "adventure", "business", "remote_work"
+	SeatPreference    string   `json:"seat_preference"`             // "window", "aisle", "no_preference"
+
+	// Budget
+	BudgetPerNightMin float64 `json:"budget_per_night_min"` // min acceptable hotel price (filters too-cheap-to-trust)
+	BudgetPerNightMax float64 `json:"budget_per_night_max"` // max hotel price per night
+	BudgetFlightMax   float64 `json:"budget_flight_max"`    // max one-way flight price
+	DealTolerance     string  `json:"deal_tolerance"`       // "price", "comfort", "balanced"
+
+	// Flight preferences
+	FlightTimeEarliest string `json:"flight_time_earliest"` // "06:00" — won't take flights before this
+	FlightTimeLatest   string `json:"flight_time_latest"`   // "23:00" — won't take flights after this
+	RedEyeOK           bool   `json:"red_eye_ok"`           // overnight flights acceptable?
+
+	// Identity
+	Nationality string   `json:"nationality"`          // ISO 3166-1 alpha-2 (e.g. "FI") — for visa warnings
+	Languages   []string `json:"languages,omitempty"`   // spoken languages (e.g. ["en", "fi", "sv"])
+
+	// Context (free-text, not filtered but used for personalization)
+	PreviousTrips       []string `json:"previous_trips,omitempty"`       // cities/countries visited
+	BucketList          []string `json:"bucket_list,omitempty"`          // dream destinations
+	ActivityPreferences []string `json:"activity_preferences,omitempty"` // "museums", "nightlife", "food", "nature", etc.
+	DietaryNeeds        []string `json:"dietary_needs,omitempty"`        // "vegetarian", "halal", "gluten_free", etc.
+	Notes               string   `json:"notes,omitempty"`                // free-text for anything else
+
 	// Family members for booking on behalf of
 	FamilyMembers []FamilyMember `json:"family_members,omitempty"`
 }

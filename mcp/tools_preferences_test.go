@@ -354,3 +354,205 @@ func TestUpdatePreferencesTool_Annotations(t *testing.T) {
 		t.Errorf("Name = %q, want update_preferences", tool.Name)
 	}
 }
+
+func TestUpdatePreferences_BudgetFields(t *testing.T) {
+	initial := &preferences.Preferences{
+		DisplayCurrency: "EUR",
+		Locale:          "en-FI",
+		MinHotelStars:   3,
+	}
+	path := setupTempPrefs(t, initial)
+
+	args := map[string]any{
+		"budget_per_night_min": float64(60),
+		"budget_per_night_max": float64(200),
+		"budget_flight_max":    float64(350),
+		"deal_tolerance":       "balanced",
+	}
+
+	_, structured, err := handleUpdatePreferencesWithPath(args, path, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := structured.(*preferences.Preferences)
+	if result.BudgetPerNightMin != 60 {
+		t.Errorf("BudgetPerNightMin = %f, want 60", result.BudgetPerNightMin)
+	}
+	if result.BudgetPerNightMax != 200 {
+		t.Errorf("BudgetPerNightMax = %f, want 200", result.BudgetPerNightMax)
+	}
+	if result.BudgetFlightMax != 350 {
+		t.Errorf("BudgetFlightMax = %f, want 350", result.BudgetFlightMax)
+	}
+	if result.DealTolerance != "balanced" {
+		t.Errorf("DealTolerance = %q, want balanced", result.DealTolerance)
+	}
+	// Preserved fields.
+	if result.MinHotelStars != 3 {
+		t.Errorf("MinHotelStars = %d, want 3 (preserved)", result.MinHotelStars)
+	}
+
+	// Verify persistence.
+	reloaded, err := preferences.LoadFrom(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.BudgetPerNightMax != 200 {
+		t.Errorf("reloaded BudgetPerNightMax = %f, want 200", reloaded.BudgetPerNightMax)
+	}
+}
+
+func TestUpdatePreferences_NationalityAndLanguages(t *testing.T) {
+	initial := preferences.Default()
+	path := setupTempPrefs(t, initial)
+
+	args := map[string]any{
+		"nationality": "FI",
+		"languages":   `["en","fi","sv"]`,
+	}
+
+	_, structured, err := handleUpdatePreferencesWithPath(args, path, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := structured.(*preferences.Preferences)
+	if result.Nationality != "FI" {
+		t.Errorf("Nationality = %q, want FI", result.Nationality)
+	}
+	if len(result.Languages) != 3 {
+		t.Fatalf("Languages len = %d, want 3", len(result.Languages))
+	}
+	if result.Languages[0] != "en" || result.Languages[1] != "fi" || result.Languages[2] != "sv" {
+		t.Errorf("Languages = %v, want [en fi sv]", result.Languages)
+	}
+}
+
+func TestUpdatePreferences_TripTypesAndSeat(t *testing.T) {
+	initial := preferences.Default()
+	path := setupTempPrefs(t, initial)
+
+	args := map[string]any{
+		"trip_types":      []any{"city_break", "adventure", "remote_work"},
+		"seat_preference": "window",
+		"default_companions": float64(1),
+	}
+
+	_, structured, err := handleUpdatePreferencesWithPath(args, path, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := structured.(*preferences.Preferences)
+	if len(result.TripTypes) != 3 {
+		t.Fatalf("TripTypes len = %d, want 3", len(result.TripTypes))
+	}
+	if result.TripTypes[0] != "city_break" {
+		t.Errorf("TripTypes[0] = %q, want city_break", result.TripTypes[0])
+	}
+	if result.SeatPreference != "window" {
+		t.Errorf("SeatPreference = %q, want window", result.SeatPreference)
+	}
+	if result.DefaultCompanions != 1 {
+		t.Errorf("DefaultCompanions = %d, want 1", result.DefaultCompanions)
+	}
+}
+
+func TestUpdatePreferences_NotesAndContextFields(t *testing.T) {
+	initial := preferences.Default()
+	path := setupTempPrefs(t, initial)
+
+	args := map[string]any{
+		"notes":                "I have a fear of flying but manage with medication",
+		"previous_trips":      `["Japan","Spain","Germany"]`,
+		"bucket_list":         `["New Zealand","Iceland"]`,
+		"activity_preferences": `["museums","food","nature"]`,
+		"dietary_needs":       `["vegetarian"]`,
+	}
+
+	_, structured, err := handleUpdatePreferencesWithPath(args, path, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := structured.(*preferences.Preferences)
+	if result.Notes != "I have a fear of flying but manage with medication" {
+		t.Errorf("Notes = %q, want fear-of-flying note", result.Notes)
+	}
+	if len(result.PreviousTrips) != 3 {
+		t.Errorf("PreviousTrips = %v, want 3 entries", result.PreviousTrips)
+	}
+	if len(result.BucketList) != 2 {
+		t.Errorf("BucketList = %v, want 2 entries", result.BucketList)
+	}
+	if len(result.ActivityPreferences) != 3 {
+		t.Errorf("ActivityPreferences = %v, want 3 entries", result.ActivityPreferences)
+	}
+	if len(result.DietaryNeeds) != 1 || result.DietaryNeeds[0] != "vegetarian" {
+		t.Errorf("DietaryNeeds = %v, want [vegetarian]", result.DietaryNeeds)
+	}
+}
+
+func TestUpdatePreferences_FlightPreferences(t *testing.T) {
+	initial := preferences.Default()
+	path := setupTempPrefs(t, initial)
+
+	args := map[string]any{
+		"flight_time_earliest": "07:00",
+		"flight_time_latest":   "22:00",
+		"red_eye_ok":           false,
+	}
+
+	_, structured, err := handleUpdatePreferencesWithPath(args, path, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := structured.(*preferences.Preferences)
+	if result.FlightTimeEarliest != "07:00" {
+		t.Errorf("FlightTimeEarliest = %q, want 07:00", result.FlightTimeEarliest)
+	}
+	if result.FlightTimeLatest != "22:00" {
+		t.Errorf("FlightTimeLatest = %q, want 22:00", result.FlightTimeLatest)
+	}
+	if result.RedEyeOK {
+		t.Error("RedEyeOK should be false")
+	}
+}
+
+func TestUpdatePreferences_NewFields_PreserveExisting(t *testing.T) {
+	initial := &preferences.Preferences{
+		HomeAirports:    []string{"HEL"},
+		DisplayCurrency: "EUR",
+		Locale:          "en-FI",
+		Nationality:     "FI",
+		BudgetPerNightMax: 150,
+	}
+	path := setupTempPrefs(t, initial)
+
+	// Update only notes — all other new fields should be preserved.
+	args := map[string]any{
+		"notes": "Prefer ground floor rooms",
+	}
+
+	_, structured, err := handleUpdatePreferencesWithPath(args, path, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := structured.(*preferences.Preferences)
+	if result.Notes != "Prefer ground floor rooms" {
+		t.Errorf("Notes = %q, want Prefer ground floor rooms", result.Notes)
+	}
+	// Preserved.
+	if result.Nationality != "FI" {
+		t.Errorf("Nationality = %q, want FI (preserved)", result.Nationality)
+	}
+	if result.BudgetPerNightMax != 150 {
+		t.Errorf("BudgetPerNightMax = %f, want 150 (preserved)", result.BudgetPerNightMax)
+	}
+	if len(result.HomeAirports) != 1 || result.HomeAirports[0] != "HEL" {
+		t.Errorf("HomeAirports = %v, want [HEL] (preserved)", result.HomeAirports)
+	}
+}
