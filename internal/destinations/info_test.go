@@ -41,9 +41,11 @@ func mockAPIs(t *testing.T) func() {
 	// --- REST Countries mock ---
 	countries := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode([]restCountryResponse{{
-			Name:    struct{ Common string `json:"common"` }{Common: "Japan"},
-			CCA2:    "JP",
-			Capital: []string{"Tokyo"},
+			Name: struct {
+				Common string `json:"common"`
+			}{Common: "Japan"},
+			CCA2:      "JP",
+			Capital:   []string{"Tokyo"},
 			Languages: map[string]string{"jpn": "Japanese"},
 			Currencies: map[string]struct {
 				Name   string `json:"name"`
@@ -206,9 +208,11 @@ func TestGetDestinationInfo_GracefulDegradation(t *testing.T) {
 
 	countries := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode([]restCountryResponse{{
-			Name:    struct{ Common string `json:"common"` }{Common: "France"},
-			CCA2:    "FR",
-			Capital: []string{"Paris"},
+			Name: struct {
+				Common string `json:"common"`
+			}{Common: "France"},
+			CCA2:      "FR",
+			Capital:   []string{"Paris"},
 			Languages: map[string]string{"fra": "French"},
 			Currencies: map[string]struct {
 				Name   string `json:"name"`
