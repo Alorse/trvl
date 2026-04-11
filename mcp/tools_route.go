@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/route"
@@ -77,7 +76,7 @@ func routeItinerariesOutputSchema() interface{} {
 	}
 }
 
-func handleSearchRoute(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSearchRoute(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	origin := argString(args, "origin")
 	dest := argString(args, "destination")
 	date := argString(args, "date")
@@ -87,9 +86,6 @@ func handleSearchRoute(args map[string]any, elicit ElicitFunc, sampling Sampling
 	}
 
 	sendProgress(progress, 0, 100, fmt.Sprintf("Resolving %s and %s...", origin, dest))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
 
 	opts := route.Options{
 		DepartAfter:           argString(args, "depart_after"),

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -84,8 +85,8 @@ func registerTools(s *Server) {
 // then post-processes the result to add resource_link blocks and record the
 // search in trip state.
 func (s *Server) wrapHandler(inner ToolHandler) ToolHandler {
-	return func(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
-		content, structured, err := inner(args, elicit, sampling, progress)
+	return func(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+		content, structured, err := inner(ctx, args, elicit, sampling, progress)
 		if err != nil {
 			return content, structured, err
 		}

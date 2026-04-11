@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/preferences"
 	"github.com/MikkoParkkola/trvl/internal/tripwindow"
@@ -124,7 +123,7 @@ func findTripWindowOutputSchema() interface{} {
 }
 
 // handleFindTripWindow handles the find_trip_window tool.
-func handleFindTripWindow(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleFindTripWindow(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	destination := argString(args, "destination")
 	origin := argString(args, "origin")
 	windowStart := argString(args, "window_start")
@@ -164,9 +163,6 @@ func handleFindTripWindow(args map[string]any, elicit ElicitFunc, sampling Sampl
 	}
 
 	sendProgress(progress, 10, 100, fmt.Sprintf("Searching trip windows to %s...", destination))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	candidates, err := tripwindow.Find(ctx, in)
 	if err != nil {

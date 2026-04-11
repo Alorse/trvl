@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -335,7 +336,7 @@ func TestAllToolHandlers(t *testing.T) {
 				t.Fatalf("handler not found for %s", tt.name)
 			}
 
-			content, structured, err := handler(tt.args, nil, nil, nil)
+			content, structured, err := handler(context.Background(), tt.args, nil, nil, nil)
 			if err != nil {
 				if tt.mayError {
 					// Expected: fake hotel ID may fail with real API.
@@ -380,7 +381,7 @@ func TestAllToolHandlers_NilArgs(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			handler := s.handlers[name]
 			// All handlers should return an error for nil args (missing required fields).
-			_, _, err := handler(nil, nil, nil, nil)
+			_, _, err := handler(context.Background(), nil, nil, nil, nil)
 			if err == nil {
 				t.Error("expected error for nil args")
 			}

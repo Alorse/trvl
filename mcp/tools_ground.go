@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/ground"
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -125,7 +124,7 @@ func airportTransferOutputSchema() interface{} {
 	}
 }
 
-func handleSearchGround(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSearchGround(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	from := models.ResolveLocationName(argString(args, "from"))
 	to := models.ResolveLocationName(argString(args, "to"))
 	date := argString(args, "date")
@@ -133,9 +132,6 @@ func handleSearchGround(args map[string]any, elicit ElicitFunc, sampling Samplin
 	if from == "" || to == "" || date == "" {
 		return nil, nil, fmt.Errorf("from, to, and date are required")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	opts := ground.SearchOptions{
 		Currency:              argString(args, "currency"),
@@ -173,7 +169,7 @@ func handleSearchGround(args map[string]any, elicit ElicitFunc, sampling Samplin
 	return content, result, nil
 }
 
-func handleSearchAirportTransfers(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSearchAirportTransfers(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	input := trip.AirportTransferInput{
 		AirportCode: argString(args, "airport_code"),
 		Destination: argString(args, "destination"),
@@ -189,9 +185,6 @@ func handleSearchAirportTransfers(args map[string]any, elicit ElicitFunc, sampli
 	if input.AirportCode == "" || input.Destination == "" || input.Date == "" {
 		return nil, nil, fmt.Errorf("airport_code, destination, and date are required")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	result, err := trip.SearchAirportTransfers(ctx, input)
 	if err != nil {

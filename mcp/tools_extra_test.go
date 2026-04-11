@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -103,21 +104,21 @@ func TestArgStringSlice_EmptyString(t *testing.T) {
 // --- handleWeekendGetaway validation ---
 
 func TestHandleWeekendGetaway_MissingOrigin(t *testing.T) {
-	_, _, err := handleWeekendGetaway(map[string]any{"month": "july-2026"}, nil, nil, nil)
+	_, _, err := handleWeekendGetaway(context.Background(), map[string]any{"month": "july-2026"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing origin")
 	}
 }
 
 func TestHandleWeekendGetaway_MissingMonth(t *testing.T) {
-	_, _, err := handleWeekendGetaway(map[string]any{"origin": "HEL"}, nil, nil, nil)
+	_, _, err := handleWeekendGetaway(context.Background(), map[string]any{"origin": "HEL"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing month")
 	}
 }
 
 func TestHandleWeekendGetaway_InvalidIATA(t *testing.T) {
-	_, _, err := handleWeekendGetaway(map[string]any{"origin": "XX", "month": "july-2026"}, nil, nil, nil)
+	_, _, err := handleWeekendGetaway(context.Background(), map[string]any{"origin": "XX", "month": "july-2026"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for invalid IATA")
 	}
@@ -126,14 +127,14 @@ func TestHandleWeekendGetaway_InvalidIATA(t *testing.T) {
 // --- handleSuggestDates validation ---
 
 func TestHandleSuggestDates_MissingParams(t *testing.T) {
-	_, _, err := handleSuggestDates(map[string]any{}, nil, nil, nil)
+	_, _, err := handleSuggestDates(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
 	}
 }
 
 func TestHandleSuggestDates_MissingTargetDate(t *testing.T) {
-	_, _, err := handleSuggestDates(map[string]any{
+	_, _, err := handleSuggestDates(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "BCN",
 	}, nil, nil, nil)
@@ -143,7 +144,7 @@ func TestHandleSuggestDates_MissingTargetDate(t *testing.T) {
 }
 
 func TestHandleSuggestDates_InvalidOrigin(t *testing.T) {
-	_, _, err := handleSuggestDates(map[string]any{
+	_, _, err := handleSuggestDates(context.Background(), map[string]any{
 		"origin":      "XX",
 		"destination": "BCN",
 		"target_date": "2026-07-15",
@@ -154,7 +155,7 @@ func TestHandleSuggestDates_InvalidOrigin(t *testing.T) {
 }
 
 func TestHandleSuggestDates_InvalidDest(t *testing.T) {
-	_, _, err := handleSuggestDates(map[string]any{
+	_, _, err := handleSuggestDates(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "12",
 		"target_date": "2026-07-15",
@@ -167,7 +168,7 @@ func TestHandleSuggestDates_InvalidDest(t *testing.T) {
 // --- handleOptimizeMultiCity validation ---
 
 func TestHandleOptimizeMultiCity_MissingHome(t *testing.T) {
-	_, _, err := handleOptimizeMultiCity(map[string]any{
+	_, _, err := handleOptimizeMultiCity(context.Background(), map[string]any{
 		"cities":      "BCN,ROM",
 		"depart_date": "2026-07-01",
 	}, nil, nil, nil)
@@ -177,7 +178,7 @@ func TestHandleOptimizeMultiCity_MissingHome(t *testing.T) {
 }
 
 func TestHandleOptimizeMultiCity_MissingCities(t *testing.T) {
-	_, _, err := handleOptimizeMultiCity(map[string]any{
+	_, _, err := handleOptimizeMultiCity(context.Background(), map[string]any{
 		"home_airport": "HEL",
 		"depart_date":  "2026-07-01",
 	}, nil, nil, nil)
@@ -187,7 +188,7 @@ func TestHandleOptimizeMultiCity_MissingCities(t *testing.T) {
 }
 
 func TestHandleOptimizeMultiCity_MissingDate(t *testing.T) {
-	_, _, err := handleOptimizeMultiCity(map[string]any{
+	_, _, err := handleOptimizeMultiCity(context.Background(), map[string]any{
 		"home_airport": "HEL",
 		"cities":       "BCN,ROM",
 	}, nil, nil, nil)
@@ -197,7 +198,7 @@ func TestHandleOptimizeMultiCity_MissingDate(t *testing.T) {
 }
 
 func TestHandleOptimizeMultiCity_InvalidHome(t *testing.T) {
-	_, _, err := handleOptimizeMultiCity(map[string]any{
+	_, _, err := handleOptimizeMultiCity(context.Background(), map[string]any{
 		"home_airport": "XX",
 		"cities":       "BCN,ROM",
 		"depart_date":  "2026-07-01",
@@ -363,7 +364,7 @@ func TestSearchHotelsTool_RequiredUnchanged(t *testing.T) {
 // --- handleSearchHotels filter args parsing ---
 
 func TestHandleSearchHotels_FilterArgsDefaults(t *testing.T) {
-	_, _, err := handleSearchHotels(map[string]any{
+	_, _, err := handleSearchHotels(context.Background(), map[string]any{
 		"location":  "Helsinki",
 		"check_in":  "2026-06-15",
 		"check_out": "2026-06-18",
@@ -374,7 +375,7 @@ func TestHandleSearchHotels_FilterArgsDefaults(t *testing.T) {
 }
 
 func TestHandleSearchHotels_FilterArgsFloat(t *testing.T) {
-	_, _, err := handleSearchHotels(map[string]any{
+	_, _, err := handleSearchHotels(context.Background(), map[string]any{
 		"location":     "Helsinki",
 		"check_in":     "2026-06-15",
 		"check_out":    "2026-06-18",

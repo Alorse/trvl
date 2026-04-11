@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -67,7 +68,7 @@ type naturalSearchParams struct {
 }
 
 // handleSearchNatural handles the search_natural tool.
-func handleSearchNatural(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSearchNatural(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	query := strings.TrimSpace(argString(args, "query"))
 	if query == "" {
 		return nil, nil, fmt.Errorf("query is required")
@@ -83,11 +84,11 @@ func handleSearchNatural(args map[string]any, elicit ElicitFunc, sampling Sampli
 	sendProgress(progress, 30, 100, fmt.Sprintf("Dispatching %s search...", params.Intent))
 
 	// Dispatch to the appropriate handler.
-	return dispatchNatural(params, query, elicit, sampling, progress)
+	return dispatchNatural(ctx, params, query, elicit, sampling, progress)
 }
 
 // dispatchNatural routes parsed params to the right tool handler.
-func dispatchNatural(p naturalSearchParams, originalQuery string, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func dispatchNatural(ctx context.Context, p naturalSearchParams, originalQuery string, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	switch p.Intent {
 	case "hotel":
 		if p.Location == "" && p.Destination != "" {
@@ -110,7 +111,7 @@ func dispatchNatural(p naturalSearchParams, originalQuery string, elicit ElicitF
 		if p.MaxBudget > 0 {
 			hotelArgs["max_price"] = p.MaxBudget
 		}
-		return handleSearchHotels(hotelArgs, elicit, sampling, progress)
+		return handleSearchHotels(ctx, hotelArgs, elicit, sampling, progress)
 
 	case "flight":
 		if p.Origin == "" || p.Destination == "" || p.Date == "" {
@@ -124,7 +125,7 @@ func dispatchNatural(p naturalSearchParams, originalQuery string, elicit ElicitF
 		if p.ReturnDate != "" {
 			flightArgs["return_date"] = p.ReturnDate
 		}
-		return handleSearchFlights(flightArgs, elicit, sampling, progress)
+		return handleSearchFlights(ctx, flightArgs, elicit, sampling, progress)
 
 	case "route":
 		if p.Origin == "" || p.Destination == "" || p.Date == "" {
@@ -150,7 +151,7 @@ func dispatchNatural(p naturalSearchParams, originalQuery string, elicit ElicitF
 				routeArgs["avoid"] = "flight"
 			}
 		}
-		return handleSearchRoute(routeArgs, elicit, sampling, progress)
+		return handleSearchRoute(ctx, routeArgs, elicit, sampling, progress)
 
 	default:
 		// Fallback: return a helpful message describing what we parsed.

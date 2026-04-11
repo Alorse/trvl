@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/hotels"
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -149,7 +148,7 @@ func hotelPricesTool() ToolDef {
 
 // --- Tool handlers ---
 
-func handleSearchHotels(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSearchHotels(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	location := models.ResolveLocationName(argString(args, "location"))
 	checkIn := argString(args, "check_in")
 	checkOut := argString(args, "check_out")
@@ -219,8 +218,6 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc, sampling Samplin
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
 	result, err := hotels.SearchHotels(ctx, location, opts)
 	if err != nil {
 		return nil, nil, err
@@ -258,7 +255,7 @@ func handleSearchHotels(args map[string]any, elicit ElicitFunc, sampling Samplin
 	return content, resp, nil
 }
 
-func handleHotelPrices(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleHotelPrices(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	hotelID := argString(args, "hotel_id")
 	checkIn := argString(args, "check_in")
 	checkOut := argString(args, "check_out")
@@ -276,8 +273,6 @@ func handleHotelPrices(args map[string]any, elicit ElicitFunc, sampling Sampling
 		return nil, nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
 	result, err := hotels.GetHotelPrices(ctx, hotelID, checkIn, checkOut, currency)
 	if err != nil {
 		return nil, nil, err
@@ -405,7 +400,7 @@ func hotelReviewsOutputSchema() interface{} {
 	}
 }
 
-func handleHotelReviews(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleHotelReviews(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	hotelID := argString(args, "hotel_id")
 	if hotelID == "" {
 		return nil, nil, fmt.Errorf("hotel_id is required")
@@ -419,8 +414,6 @@ func handleHotelReviews(args map[string]any, elicit ElicitFunc, sampling Samplin
 		opts.Sort = "newest"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
 	result, err := hotels.GetHotelReviews(ctx, hotelID, opts)
 	if err != nil {
 		return nil, nil, err
@@ -505,7 +498,7 @@ func hotelRoomsOutputSchema() interface{} {
 	}
 }
 
-func handleHotelRooms(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleHotelRooms(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	hotelName := argString(args, "hotel_name")
 	checkIn := argString(args, "check_in")
 	checkOut := argString(args, "check_out")
@@ -521,9 +514,6 @@ func handleHotelRooms(args map[string]any, elicit ElicitFunc, sampling SamplingF
 	if err := models.ValidateDateRange(checkIn, checkOut); err != nil {
 		return nil, nil, err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
 
 	// Resolve hotel name to a Google ID.
 	hotel, err := hotels.SearchHotelByName(ctx, hotelName, checkIn, checkOut)

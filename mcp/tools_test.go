@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -166,21 +167,21 @@ func TestArgBool_IntValue(t *testing.T) {
 // --- handleDestinationInfo ---
 
 func TestHandleDestinationInfo_MissingLocation(t *testing.T) {
-	_, _, err := handleDestinationInfo(map[string]any{}, nil, nil, nil)
+	_, _, err := handleDestinationInfo(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing location")
 	}
 }
 
 func TestHandleDestinationInfo_NilArgs(t *testing.T) {
-	_, _, err := handleDestinationInfo(nil, nil, nil, nil)
+	_, _, err := handleDestinationInfo(context.Background(), nil, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for nil args")
 	}
 }
 
 func TestHandleDestinationInfo_EmptyLocation(t *testing.T) {
-	_, _, err := handleDestinationInfo(map[string]any{"location": ""}, nil, nil, nil)
+	_, _, err := handleDestinationInfo(context.Background(), map[string]any{"location": ""}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for empty location")
 	}
@@ -453,7 +454,7 @@ func TestHotelSuggestions_HighRatedHotel(t *testing.T) {
 // --- handleSearchFlights validation ---
 
 func TestHandleSearchFlights_MissingOriginDest(t *testing.T) {
-	_, _, err := handleSearchFlights(map[string]any{
+	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"departure_date": "2026-06-15",
 	}, nil, nil, nil)
 	if err == nil {
@@ -462,7 +463,7 @@ func TestHandleSearchFlights_MissingOriginDest(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidIATA(t *testing.T) {
-	_, _, err := handleSearchFlights(map[string]any{
+	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "XX", // too short, even uppercased
 		"destination":    "NRT",
 		"departure_date": "2026-06-15",
@@ -473,7 +474,7 @@ func TestHandleSearchFlights_InvalidIATA(t *testing.T) {
 }
 
 func TestHandleSearchFlights_MissingDate(t *testing.T) {
-	_, _, err := handleSearchFlights(map[string]any{
+	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "NRT",
 	}, nil, nil, nil)
@@ -483,7 +484,7 @@ func TestHandleSearchFlights_MissingDate(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidCabinClass(t *testing.T) {
-	_, _, err := handleSearchFlights(map[string]any{
+	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
 		"departure_date": "2026-06-15",
@@ -495,7 +496,7 @@ func TestHandleSearchFlights_InvalidCabinClass(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidMaxStops(t *testing.T) {
-	_, _, err := handleSearchFlights(map[string]any{
+	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
 		"departure_date": "2026-06-15",
@@ -507,7 +508,7 @@ func TestHandleSearchFlights_InvalidMaxStops(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidSortBy(t *testing.T) {
-	_, _, err := handleSearchFlights(map[string]any{
+	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
 		"departure_date": "2026-06-15",
@@ -519,7 +520,7 @@ func TestHandleSearchFlights_InvalidSortBy(t *testing.T) {
 }
 
 func TestHandleSearchFlights_PastDate(t *testing.T) {
-	_, _, err := handleSearchFlights(map[string]any{
+	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
 		"departure_date": "2020-01-01",
@@ -530,7 +531,7 @@ func TestHandleSearchFlights_PastDate(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidReturnDate(t *testing.T) {
-	_, _, err := handleSearchFlights(map[string]any{
+	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
 		"departure_date": "2026-06-15",
@@ -544,14 +545,14 @@ func TestHandleSearchFlights_InvalidReturnDate(t *testing.T) {
 // --- handleSearchDates validation ---
 
 func TestHandleSearchDates_MissingParams(t *testing.T) {
-	_, _, err := handleSearchDates(map[string]any{}, nil, nil, nil)
+	_, _, err := handleSearchDates(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
 	}
 }
 
 func TestHandleSearchDates_InvalidIATA(t *testing.T) {
-	_, _, err := handleSearchDates(map[string]any{
+	_, _, err := handleSearchDates(context.Background(), map[string]any{
 		"origin":      "XX", // too short, even uppercased
 		"destination": "NRT",
 		"start_date":  "2026-06-01",
@@ -563,7 +564,7 @@ func TestHandleSearchDates_InvalidIATA(t *testing.T) {
 }
 
 func TestHandleSearchDates_InvalidDestIATA(t *testing.T) {
-	_, _, err := handleSearchDates(map[string]any{
+	_, _, err := handleSearchDates(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "12", // too short, even uppercased
 		"start_date":  "2026-06-01",
@@ -575,7 +576,7 @@ func TestHandleSearchDates_InvalidDestIATA(t *testing.T) {
 }
 
 func TestHandleSearchDates_InvalidDateRange(t *testing.T) {
-	_, _, err := handleSearchDates(map[string]any{
+	_, _, err := handleSearchDates(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "NRT",
 		"start_date":  "2026-06-30",
@@ -589,14 +590,14 @@ func TestHandleSearchDates_InvalidDateRange(t *testing.T) {
 // --- handleSearchHotels validation ---
 
 func TestHandleSearchHotels_MissingParams(t *testing.T) {
-	_, _, err := handleSearchHotels(map[string]any{}, nil, nil, nil)
+	_, _, err := handleSearchHotels(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
 	}
 }
 
 func TestHandleSearchHotels_InvalidDateRange(t *testing.T) {
-	_, _, err := handleSearchHotels(map[string]any{
+	_, _, err := handleSearchHotels(context.Background(), map[string]any{
 		"location":  "Helsinki",
 		"check_in":  "2026-06-22",
 		"check_out": "2026-06-15",
@@ -607,7 +608,7 @@ func TestHandleSearchHotels_InvalidDateRange(t *testing.T) {
 }
 
 func TestHandleSearchHotels_MissingLocation(t *testing.T) {
-	_, _, err := handleSearchHotels(map[string]any{
+	_, _, err := handleSearchHotels(context.Background(), map[string]any{
 		"check_in":  "2026-06-15",
 		"check_out": "2026-06-18",
 	}, nil, nil, nil)
@@ -619,14 +620,14 @@ func TestHandleSearchHotels_MissingLocation(t *testing.T) {
 // --- handleHotelPrices validation ---
 
 func TestHandleHotelPrices_MissingParams(t *testing.T) {
-	_, _, err := handleHotelPrices(map[string]any{}, nil, nil, nil)
+	_, _, err := handleHotelPrices(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
 	}
 }
 
 func TestHandleHotelPrices_InvalidDateRange(t *testing.T) {
-	_, _, err := handleHotelPrices(map[string]any{
+	_, _, err := handleHotelPrices(context.Background(), map[string]any{
 		"hotel_id":  "/g/123",
 		"check_in":  "2026-06-22",
 		"check_out": "2026-06-15",
@@ -637,7 +638,7 @@ func TestHandleHotelPrices_InvalidDateRange(t *testing.T) {
 }
 
 func TestHandleHotelPrices_MissingHotelID(t *testing.T) {
-	_, _, err := handleHotelPrices(map[string]any{
+	_, _, err := handleHotelPrices(context.Background(), map[string]any{
 		"check_in":  "2026-06-15",
 		"check_out": "2026-06-18",
 	}, nil, nil, nil)
@@ -648,7 +649,7 @@ func TestHandleHotelPrices_MissingHotelID(t *testing.T) {
 
 func TestHandleHotelPrices_DefaultCurrency(t *testing.T) {
 	// Empty currency should default to "USD", not error.
-	_, _, err := handleHotelPrices(map[string]any{
+	_, _, err := handleHotelPrices(context.Background(), map[string]any{
 		"hotel_id":  "/g/abc",
 		"check_in":  "2026-06-15",
 		"check_out": "2026-06-18",

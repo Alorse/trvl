@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -90,7 +89,7 @@ func nearbyPlacesOutputSchema() interface{} {
 	}
 }
 
-func handleNearbyPlaces(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleNearbyPlaces(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	lat := argFloat(args, "lat", 0)
 	lon := argFloat(args, "lon", 0)
 	if lat == 0 && lon == 0 {
@@ -102,9 +101,6 @@ func handleNearbyPlaces(args map[string]any, elicit ElicitFunc, sampling Samplin
 	if category == "" {
 		category = "all"
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
 
 	result, err := destinations.GetNearbyPlaces(ctx, lat, lon, radius, category)
 	if err != nil {
@@ -184,14 +180,11 @@ func travelGuideOutputSchema() interface{} {
 	}
 }
 
-func handleTravelGuide(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleTravelGuide(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	location := argString(args, "location")
 	if location == "" {
 		return nil, nil, fmt.Errorf("location is required")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 
 	guide, err := destinations.GetWikivoyageGuide(ctx, location)
 	if err != nil {
@@ -282,7 +275,7 @@ func localEventsOutputSchema() interface{} {
 	}
 }
 
-func handleLocalEvents(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleLocalEvents(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	location := argString(args, "location")
 	startDate := argString(args, "start_date")
 	endDate := argString(args, "end_date")
@@ -307,9 +300,6 @@ func handleLocalEvents(args map[string]any, elicit ElicitFunc, sampling Sampling
 		}
 		return content, result, nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 
 	events, err := destinations.GetEvents(ctx, location, startDate, endDate)
 	if err != nil {

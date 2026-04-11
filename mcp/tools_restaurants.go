@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -63,7 +62,7 @@ func restaurantSearchOutputSchema() interface{} {
 	}
 }
 
-func handleSearchRestaurants(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSearchRestaurants(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	location := argString(args, "location")
 	if location == "" {
 		return nil, nil, fmt.Errorf("location is required")
@@ -83,9 +82,6 @@ func handleSearchRestaurants(args map[string]any, elicit ElicitFunc, sampling Sa
 	if limit > 20 {
 		limit = 20
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
 
 	// Geocode the location name to coordinates.
 	geo, err := destinations.Geocode(ctx, location)

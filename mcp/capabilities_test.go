@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -105,7 +106,7 @@ func TestSearchNaturalTool_Registered(t *testing.T) {
 
 // TestSearchNatural_EmptyQuery returns an error for missing query.
 func TestSearchNatural_EmptyQuery(t *testing.T) {
-	_, _, err := handleSearchNatural(map[string]any{"query": ""}, nil, nil, nil)
+	_, _, err := handleSearchNatural(context.Background(), map[string]any{"query": ""}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for empty query, got nil")
 	}
@@ -113,7 +114,7 @@ func TestSearchNatural_EmptyQuery(t *testing.T) {
 
 // TestSearchNatural_MissingQuery returns an error for absent query key.
 func TestSearchNatural_MissingQuery(t *testing.T) {
-	_, _, err := handleSearchNatural(map[string]any{}, nil, nil, nil)
+	_, _, err := handleSearchNatural(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing query, got nil")
 	}
@@ -173,6 +174,7 @@ func TestSearchNatural_SamplingNilFallback(t *testing.T) {
 	// A query with no recognizable destination should return a fallback message,
 	// not panic.
 	content, _, err := handleSearchNatural(
+		context.Background(),
 		map[string]any{"query": "I want to go somewhere interesting"},
 		nil,
 		nil,
@@ -338,7 +340,7 @@ func TestDetectHacks_ProgressEmitted(t *testing.T) {
 		t.Skip("skipping detector progress test in short mode (requires network)")
 	}
 
-	handleDetectTravelHacks(map[string]any{
+	handleDetectTravelHacks(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "PRG",
 		"date":        "2026-07-15",
@@ -369,7 +371,7 @@ func TestSearchRoute_ProgressEmitted(t *testing.T) {
 		t.Skip("skipping route progress test in short mode (requires network)")
 	}
 
-	handleSearchRoute(map[string]any{
+	handleSearchRoute(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "PRG",
 		"date":        "2026-07-15",
@@ -398,7 +400,7 @@ func TestDetectHacks_ProgressCalls_Unit(t *testing.T) {
 
 	// Missing origin/dest/date — function will still call sendProgress before ctx cancel.
 	// The detectors will run but return no hacks.
-	handleDetectTravelHacks(map[string]any{
+	handleDetectTravelHacks(context.Background(), map[string]any{
 		"origin":      "",
 		"destination": "",
 		"date":        "",

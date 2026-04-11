@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -58,7 +59,7 @@ func baggageOutputSchema() interface{} {
 	}
 }
 
-func handleGetBaggageRules(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleGetBaggageRules(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
 	code := strings.ToUpper(strings.TrimSpace(argString(args, "airline_code")))
 
 	if code == "ALL" || code == "" {

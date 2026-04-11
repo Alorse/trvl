@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -207,7 +208,7 @@ func markTripBookedTool() ToolDef {
 
 // --- Handlers ---
 
-func handleListTrips(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleListTrips(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
 	store, err := defaultTripStore()
 	if err != nil {
 		return nil, nil, err
@@ -232,7 +233,7 @@ func handleListTrips(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ Progre
 	return content, list, nil
 }
 
-func handleGetTrip(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleGetTrip(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
 	id := argString(args, "id")
 	if id == "" {
 		return nil, nil, fmt.Errorf("id is required")
@@ -266,7 +267,7 @@ func handleGetTrip(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ Progress
 	return content, trip, nil
 }
 
-func handleCreateTrip(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleCreateTrip(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
 	name := argString(args, "name")
 	if name == "" {
 		return nil, nil, fmt.Errorf("name is required")
@@ -306,7 +307,7 @@ func handleCreateTrip(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ Progr
 	return content, result, nil
 }
 
-func handleAddTripLeg(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleAddTripLeg(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
 	tripID := argString(args, "trip_id")
 	if tripID == "" {
 		return nil, nil, fmt.Errorf("trip_id is required")
@@ -346,7 +347,7 @@ func handleAddTripLeg(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ Progr
 	return content, result, nil
 }
 
-func handleMarkTripBooked(args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleMarkTripBooked(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
 	tripID := argString(args, "trip_id")
 	provider := argString(args, "provider")
 	reference := argString(args, "reference")

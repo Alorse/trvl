@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -117,7 +116,7 @@ func destinationInfoOutputSchema() interface{} {
 
 // --- Tool handler ---
 
-func handleDestinationInfo(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleDestinationInfo(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	location := argString(args, "location")
 	if location == "" {
 		return nil, nil, fmt.Errorf("location is required")
@@ -134,9 +133,6 @@ func handleDestinationInfo(args map[string]any, elicit ElicitFunc, sampling Samp
 			dates.CheckIn = strings.TrimSpace(parts[0])
 		}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 
 	info, err := destinations.GetDestinationInfo(ctx, location, dates)
 	if err != nil {
@@ -239,7 +235,7 @@ func weekendGetawayTool() ToolDef {
 	}
 }
 
-func handleWeekendGetaway(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleWeekendGetaway(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	origin := strings.ToUpper(argString(args, "origin"))
 	month := argString(args, "month")
 
@@ -253,9 +249,6 @@ func handleWeekendGetaway(args map[string]any, elicit ElicitFunc, sampling Sampl
 	if err := models.ValidateIATA(origin); err != nil {
 		return nil, nil, fmt.Errorf("invalid origin: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	opts := trip.WeekendOptions{
 		Month:     month,
@@ -346,7 +339,7 @@ func tripCostOutputSchema() interface{} {
 	}
 }
 
-func handleTripCost(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleTripCost(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	origin := strings.ToUpper(argString(args, "origin"))
 	dest := strings.ToUpper(argString(args, "destination"))
 	departDate := argString(args, "depart_date")
@@ -367,9 +360,6 @@ func handleTripCost(args map[string]any, elicit ElicitFunc, sampling SamplingFun
 	if err := models.ValidateIATA(dest); err != nil {
 		return nil, nil, fmt.Errorf("invalid destination: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	result, err := trip.CalculateTripCost(ctx, trip.TripCostInput{
 		Origin:      origin,
@@ -538,7 +528,7 @@ func planTripTool() ToolDef {
 	}
 }
 
-func handlePlanTrip(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handlePlanTrip(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	origin := strings.ToUpper(argString(args, "origin"))
 	dest := strings.ToUpper(argString(args, "destination"))
 	departDate := argString(args, "depart_date")
@@ -547,9 +537,6 @@ func handlePlanTrip(args map[string]any, elicit ElicitFunc, sampling SamplingFun
 	if origin == "" || dest == "" || departDate == "" || returnDate == "" {
 		return nil, nil, fmt.Errorf("origin, destination, depart_date, and return_date are required")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
 
 	input := trip.PlanInput{
 		Origin:      origin,

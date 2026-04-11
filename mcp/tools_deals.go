@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/deals"
 )
@@ -65,14 +64,11 @@ func dealsSearchOutputSchema() interface{} {
 	}
 }
 
-func handleSearchDeals(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSearchDeals(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	originsRaw := argString(args, "origins")
 	if originsRaw == "" {
 		return nil, nil, fmt.Errorf("origins is required")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	filter := deals.DealFilter{
 		MaxPrice: argFloat(args, "max_price", 0),

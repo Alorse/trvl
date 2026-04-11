@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -166,7 +165,7 @@ func searchDatesTool() ToolDef {
 
 // --- Tool handlers ---
 
-func handleSearchFlights(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSearchFlights(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	origin := strings.ToUpper(argString(args, "origin"))
 	dest := strings.ToUpper(argString(args, "destination"))
 	date := argString(args, "departure_date")
@@ -227,8 +226,6 @@ func handleSearchFlights(args map[string]any, elicit ElicitFunc, sampling Sampli
 		opts.SortBy = parsed
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 	result, err := flights.SearchFlights(ctx, origin, dest, date, opts)
 	if err != nil {
 		return nil, nil, err
@@ -263,7 +260,7 @@ func handleSearchFlights(args map[string]any, elicit ElicitFunc, sampling Sampli
 	return content, resp, nil
 }
 
-func handleSearchDates(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSearchDates(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	origin := strings.ToUpper(argString(args, "origin"))
 	dest := strings.ToUpper(argString(args, "destination"))
 	startDate := argString(args, "start_date")
@@ -293,8 +290,6 @@ func handleSearchDates(args map[string]any, elicit ElicitFunc, sampling Sampling
 		RoundTrip: argBool(args, "is_round_trip", false),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 	result, err := flights.SearchDates(ctx, origin, dest, opts)
 	if err != nil {
 		return nil, nil, err
@@ -511,7 +506,7 @@ func suggestDatesTool() ToolDef {
 	}
 }
 
-func handleSuggestDates(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleSuggestDates(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	origin := strings.ToUpper(argString(args, "origin"))
 	dest := strings.ToUpper(argString(args, "destination"))
 	targetDate := argString(args, "target_date")
@@ -529,9 +524,6 @@ func handleSuggestDates(args map[string]any, elicit ElicitFunc, sampling Samplin
 	if err := models.ValidateIATA(dest); err != nil {
 		return nil, nil, fmt.Errorf("invalid destination: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	opts := trip.SmartDateOptions{
 		TargetDate: targetDate,
@@ -635,7 +627,7 @@ func optimizeMultiCityTool() ToolDef {
 	}
 }
 
-func handleOptimizeMultiCity(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleOptimizeMultiCity(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	home := strings.ToUpper(argString(args, "home_airport"))
 	citiesStr := argString(args, "cities")
 	departDate := argString(args, "depart_date")
@@ -665,9 +657,6 @@ func handleOptimizeMultiCity(args map[string]any, elicit ElicitFunc, sampling Sa
 			return nil, nil, fmt.Errorf("invalid city %q: %w", c, err)
 		}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
 
 	opts := trip.MultiCityOptions{
 		DepartDate: departDate,

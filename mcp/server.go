@@ -15,6 +15,7 @@ package mcp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -63,10 +64,11 @@ type Server struct {
 
 // ToolHandler processes a tool call and returns content blocks, optional
 // structured content, and an error.
+// The ctx parameter carries the request deadline and cancellation signal.
 // The elicit parameter may be nil if the client does not support elicitation.
 // The sampling parameter may be nil if the client does not support sampling.
 // The progress parameter may be nil if notifications are not available (HTTP).
-type ToolHandler func(args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error)
+type ToolHandler func(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error)
 
 // NewServer creates a new MCP server with the standard trvl tools registered.
 func NewServer() *Server {
@@ -281,7 +283,12 @@ func (s *Server) handleToolsCall(req *Request) *Response {
 	progressToken := fmt.Sprintf("%s-%v", params.Name, req.ID)
 	progress := s.makeProgressFunc(progressToken)
 
-	content, structured, err := handler(params.Arguments, elicit, sampling, progress)
+	// Create a context with a generous ceiling; individual handlers may derive
+	// shorter deadlines for sub-operations.
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	content, structured, err := handler(ctx, params.Arguments, elicit, sampling, progress)
 	if err != nil {
 		return &Response{
 			JSONRPC: "2.0",

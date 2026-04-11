@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -74,7 +75,7 @@ func getPreferencesTool() ToolDef {
 }
 
 // handleGetPreferences returns the user's preferences as structured data.
-func handleGetPreferences(args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleGetPreferences(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	p, err := preferences.Load()
 	if err != nil {
 		return nil, nil, fmt.Errorf("load preferences: %w", err)
@@ -283,7 +284,7 @@ You MUST confirm with the user before calling this tool. Never update silently.`
 
 // handleUpdatePreferences merges provided fields into the existing preferences
 // and saves back to disk. Only fields present in the request are updated.
-func handleUpdatePreferences(args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleUpdatePreferences(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	return handleUpdatePreferencesWithPath(args, "", progress)
 }
 

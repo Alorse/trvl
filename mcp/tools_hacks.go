@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/hacks"
 )
@@ -76,7 +75,7 @@ var detectorNames = []string{
 	"Tuesday booking", "low-cost carriers",
 }
 
-func handleDetectTravelHacks(args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleDetectTravelHacks(ctx context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	origin := strings.ToUpper(argString(args, "origin"))
 	destination := strings.ToUpper(argString(args, "destination"))
 	date := argString(args, "date")
@@ -89,9 +88,6 @@ func handleDetectTravelHacks(args map[string]any, _ ElicitFunc, _ SamplingFunc, 
 	naivePrice := argFloat(args, "naive_price", 0)
 
 	sendProgress(progress, 0, 100, fmt.Sprintf("Analysing %s→%s for travel hacks...", origin, destination))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
 
 	input := hacks.DetectorInput{
 		Origin:      origin,
@@ -217,7 +213,7 @@ func accommodationHacksOutputSchema() interface{} {
 	}
 }
 
-func handleDetectAccommodationHacks(args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleDetectAccommodationHacks(ctx context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	city := argString(args, "city")
 	checkin := argString(args, "checkin")
 	checkout := argString(args, "checkout")
@@ -227,9 +223,6 @@ func handleDetectAccommodationHacks(args map[string]any, _ ElicitFunc, _ Samplin
 	}
 	maxSplits := argInt(args, "max_splits", 3)
 	guests := argInt(args, "guests", 2)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
 
 	in := hacks.AccommodationSplitInput{
 		City:      city,

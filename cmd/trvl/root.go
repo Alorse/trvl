@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/spf13/cobra"
@@ -11,6 +12,7 @@ import (
 
 var format string
 var noCache bool
+var cliTimeout time.Duration
 
 var rootCmd = &cobra.Command{
 	Use:   "trvl",
@@ -33,6 +35,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&format, "format", "table", "output format (table, json)")
 	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "bypass response cache")
+	rootCmd.PersistentFlags().DurationVar(&cliTimeout, "timeout", 120*time.Second, "request timeout (e.g. 30s, 2m)")
 
 	rootCmd.AddCommand(flightsCmd())
 	rootCmd.AddCommand(datesCmd())

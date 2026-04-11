@@ -60,7 +60,7 @@ func weatherOutputSchema() interface{} {
 	}
 }
 
-func handleGetWeather(args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+func handleGetWeather(ctx context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	city := argString(args, "city")
 	fromDate := argString(args, "from_date")
 	toDate := argString(args, "to_date")
@@ -73,9 +73,6 @@ func handleGetWeather(args map[string]any, _ ElicitFunc, _ SamplingFunc, progres
 	}
 
 	sendProgress(progress, 10, 100, fmt.Sprintf("Geocoding %s...", city))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 
 	sendProgress(progress, 40, 100, "Fetching forecast from Open-Meteo...")
 
