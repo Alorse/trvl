@@ -308,8 +308,10 @@ func bagsFilter(carryOn, checked int) any {
 }
 
 // filterFlightsWithCheckedBag returns only flights that include at least one
-// free checked bag. This is a client-side post-filter since Google's
-// batchexecute API has no server-side checked bag filter.
+// free checked bag. This is a client-side post-filter on parsed response data
+// (offer[4][6]). The server-side bags filter at outer[1][10] is a price
+// recalculation hint, not a result filter — it changes displayed prices but
+// doesn't remove flights.
 func filterFlightsWithCheckedBag(flights []models.FlightResult) []models.FlightResult {
 	filtered := flights[:0]
 	for _, f := range flights {
