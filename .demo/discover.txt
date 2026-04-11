@@ -1,9 +1,0 @@
-Top 5 value trips from HEL within EUR 500
-
-  #  Destination       Dates                    Flight   Hotel                      Total    Slack
-+----+-----------------+--------------------------+---------+----------------------------+---------+---------+
-  1  Vienna (VIE)     06-09 -> 06-12  3 nights   EUR 127  Hotel Capri                EUR 265  EUR 235
-  2  Krakow (KRK)     06-16 -> 06-19  3 nights   EUR 89   Hotel Stary                EUR 191  EUR 309
-  3  Dubrovnik (DBV)  06-23 -> 06-26  3 nights   EUR 167  Old Town Studios           EUR 251  EUR 249
-  4  Lisbon (LIS)     06-10 -> 06-14  4 nights   EUR 189  Alma Lusa Baixa-Chiado     EUR 385  EUR 115
-  5  Milan (MXP)      06-15 -> 06-18  3 nights   EUR 109  Biocity Hotel              EUR 244  EUR 256

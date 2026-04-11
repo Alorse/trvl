@@ -1,8 +1,0 @@
-Helsinki -> Tallinn  (17 providers, 4 found)
-
-  Provider     Departs   Arrives   Duration  Price     Type
-+--------------+---------+---------+-----------+---------+----------+
-  Tallink      08:00     10:30     2h 30m    EUR 22    ferry
-  Eckerö Line  09:00     11:30     2h 30m    EUR 19    ferry
-  Viking Line  10:30     13:00     2h 30m    EUR 25    ferry
-  FlixBus      07:15     11:45     4h 30m    EUR 15    bus

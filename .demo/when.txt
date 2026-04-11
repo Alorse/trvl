@@ -1,7 +1,0 @@
-Best windows HEL -> BCN (avoiding Jul 11-13)
-
-  #  Dates                  Nights  Flight   Hotel          Total
-+----+------------------------+--------+---------+----------------+---------+
-  1  Jun 23 -> Jun 26        3       EUR 127  Casa Bonay     EUR 268
-  2  Jul 07 -> Jul 10        3       EUR 149  Yurbban        EUR 284
-  3  Aug 18 -> Aug 22        4       EUR 144  Sir Victor     EUR 320

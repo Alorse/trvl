@@ -1,8 +1,0 @@
-Optimal route (6 permutations): HEL -> KRK -> PRG -> MAD -> HEL
-
-  Helsinki -> Krakow      EUR 89
-  Krakow -> Prague        EUR 34
-  Prague -> Madrid        EUR 112
-  Madrid -> Helsinki      EUR 148
-  ─────────────────────────────
-  Total: EUR 383  (saves EUR 174 vs worst order)

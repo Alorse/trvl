@@ -1,3 +1,0 @@
-Installed trvl MCP server for claude-code
-  34 tools · 5 prompts · 9 resources
-  Restart claude-code to activate.
