@@ -15,8 +15,10 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// tallinkAPIBase is the Tallink voyage availability API base URL.
-const tallinkAPIBase = "https://book.tallink.com/api"
+// tallinkBookingBase is the Tallink booking SPA base URL.
+// The timetables API lives under this domain and requires a JSESSIONID cookie
+// obtained by first loading the booking page.
+const tallinkBookingBase = "https://booking.tallink.com"
 
 // tallinkDealThreshold is the price (EUR) below which a sailing is flagged as a deal.
 // HEL-TAL typically costs EUR 20–40; anything below EUR 20 is promotional.
@@ -137,127 +139,159 @@ func tallinkRouteDuration(fromCode, toCode string) int {
 	return 120
 }
 
-// tallinkSailLeg is one leg of a sailing from the voyage-avails response.
-type tallinkSailLeg struct {
-	From struct {
-		Port          string `json:"port"`
-		Pier          string `json:"pier"`
-		LocalDateTime string `json:"localDateTime"` // "2026-04-10T07:30:00"
-	} `json:"from"`
-	To struct {
-		Port          string `json:"port"`
-		Pier          string `json:"pier"`
-		LocalDateTime string `json:"localDateTime"`
-	} `json:"to"`
+// tallinkSail is a single sailing from the booking timetables API response.
+type tallinkSail struct {
+	SailID               int64   `json:"sailId"`
+	ShipCode             string  `json:"shipCode"`
+	DepartureIsoDate     string  `json:"departureIsoDate"`     // "2026-05-01T07:30"
+	ArrivalIsoDate       string  `json:"arrivalIsoDate"`       // "2026-05-01T09:30"
+	PersonPrice          string  `json:"personPrice"`          // "38.90"
+	VehiclePrice         *string `json:"vehiclePrice"`         // null or "45.00"
+	Duration             float64 `json:"duration"`             // hours, e.g. 2.0
+	SailPackageCode      string  `json:"sailPackageCode"`      // "HEL-TAL"
+	SailPackageName      string  `json:"sailPackageName"`      // "Helsinki-Tallinn"
+	CityFrom             string  `json:"cityFrom"`             // "HEL"
+	CityTo               string  `json:"cityTo"`               // "TAL"
+	PierFrom             string  `json:"pierFrom"`
+	PierTo               string  `json:"pierTo"`
+	HasRoom              bool    `json:"hasRoom"`
+	IsOvernight          bool    `json:"isOvernight"`
+	IsDisabled           bool    `json:"isDisabled"`
+	PromotionApplied     bool    `json:"promotionApplied"`
+	MarketingMessage     *string `json:"marketingMessage"`
+	IsVoucherApplicable  bool    `json:"isVoucherApplicable"`
 }
 
-// tallinkTravelClass holds price information embedded in a voyage.
-type tallinkTravelClass struct {
-	MinPrice float64 `json:"minPrice"`
+// tallinkDayTrips holds outward and return sails for a single day.
+type tallinkDayTrips struct {
+	Outwards []tallinkSail `json:"outwards"`
+	Returns  []tallinkSail `json:"returns"`
 }
 
-// tallinkVoyageAvail is the inner voyage payload within a voyage-avails array entry.
-type tallinkVoyageAvail struct {
-	PackageID     int64              `json:"packageId"`
-	ShipCode      string             `json:"shipCode"`
-	SailType      string             `json:"sailType"`
-	TravelClass   tallinkTravelClass `json:"travelClass"`
-	SailLegs      []tallinkSailLeg   `json:"sailLegs"`
-	IsCheckInOpen bool               `json:"isCheckInOpen"`
-	IsOvernight   bool               `json:"isOvernight"`
-	PackageMode   string             `json:"packageMode"`
+// tallinkTimetableResponse is the top-level response from the booking timetables API.
+type tallinkTimetableResponse struct {
+	DefaultSelections struct {
+		OutwardSail int64 `json:"outwardSail"`
+		ReturnSail  int64 `json:"returnSail"`
+	} `json:"defaultSelections"`
+	Trips map[string]tallinkDayTrips `json:"trips"` // key: "2026-05-01"
 }
 
-// tallinkVoyageAvailEntry is a top-level entry in the voyage-avails JSON array.
-// The API wraps each voyage in an {"initialSail": {...}} object.
-type tallinkVoyageAvailEntry struct {
-	InitialSail tallinkVoyageAvail `json:"initialSail"`
-}
-
-// buildTallinkBookingURL constructs a Tallink booking URL using the new site.
+// buildTallinkBookingURL constructs a Tallink booking URL for the user.
 func buildTallinkBookingURL(fromCode, toCode, date string) string {
 	return fmt.Sprintf(
-		"https://book.tallink.com/?departure=%s-%s&date=%s&adults=1",
-		fromCode, toCode, date,
+		"https://booking.tallink.com/?from=%s&to=%s&date=%s&locale=en&country=FI&voyageType=TRANSPORT",
+		strings.ToLower(fromCode), strings.ToLower(toCode), date,
 	)
 }
 
-// fetchTallinkVoyages calls the Tallink voyage-avails API and returns available sailings.
-func fetchTallinkVoyages(ctx context.Context, fromCode, toCode, country string) ([]tallinkVoyageAvail, error) {
-	if country == "" {
-		country = "FI"
+// tallinkGetSession loads the booking page to obtain a JSESSIONID cookie,
+// which is required for subsequent API calls. Returns cookies to attach.
+func tallinkGetSession(ctx context.Context, fromCode, toCode, date string) ([]*http.Cookie, error) {
+	pageURL := buildTallinkBookingURL(fromCode, toCode, date)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html")
+
+	// Use a client that does NOT follow redirects so we can capture cookies.
+	noRedirectClient := &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
-	reqURL := fmt.Sprintf(
-		"%s/voyage-avails?sailType=TRANSPORT&routes=%s-%s&routeSeqN=1&country=%s",
-		tallinkAPIBase, fromCode, toCode, country,
+	resp, err := noRedirectClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("tallink session: %w", err)
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck
+
+	cookies := resp.Cookies()
+	if len(cookies) == 0 {
+		return nil, fmt.Errorf("tallink session: no cookies returned")
+	}
+	return cookies, nil
+}
+
+// fetchTallinkTimetables calls the booking.tallink.com timetables API
+// which supports arbitrary future dates (unlike the old voyage-avails endpoint).
+func fetchTallinkTimetables(ctx context.Context, fromCode, toCode, date string) (*tallinkTimetableResponse, error) {
+	// Step 1: obtain session cookie
+	cookies, err := tallinkGetSession(ctx, fromCode, toCode, date)
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 2: call timetables API with the session cookie
+	// dateFrom/dateTo: 3-day window like the SPA does
+	dateTo := date // single day is fine; API returns what's in range
+	parsedDate, err := time.Parse("2006-01-02", date)
+	if err == nil {
+		dateTo = parsedDate.Add(2 * 24 * time.Hour).Format("2006-01-02")
+	}
+
+	apiURL := fmt.Sprintf(
+		"%s/api/timetables?locale=en&country=FI&from=%s&to=%s&oneWay=false&dateFrom=%s&dateTo=%s&voyageType=SHUTTLE&includeOvernight=false&searchFutureSails=false",
+		tallinkBookingBase,
+		strings.ToLower(fromCode), strings.ToLower(toCode),
+		date, dateTo,
 	)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 
 	resp, err := tallinkClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("tallink voyage-avails: %w", err)
+		return nil, fmt.Errorf("tallink timetables: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("tallink voyage-avails: HTTP %d: %s", resp.StatusCode, body)
+		return nil, fmt.Errorf("tallink timetables: HTTP %d: %s", resp.StatusCode, body)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
 	if err != nil {
-		return nil, fmt.Errorf("tallink voyage-avails read: %w", err)
+		return nil, fmt.Errorf("tallink timetables read: %w", err)
 	}
 
-	// Response is a JSON array where each element wraps a voyage in {"initialSail": {...}}.
-	var entries []tallinkVoyageAvailEntry
-	if err := json.Unmarshal(body, &entries); err != nil {
-		return nil, fmt.Errorf("tallink voyage-avails decode: %w", err)
+	var result tallinkTimetableResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("tallink timetables decode: %w", err)
 	}
-	voyages := make([]tallinkVoyageAvail, 0, len(entries))
-	for _, e := range entries {
-		voyages = append(voyages, e.InitialSail)
-	}
-	return voyages, nil
+	return &result, nil
 }
 
-// tallinkParseLocalDateTime parses the ISO 8601 local date-time from the API.
-// Input: "2026-04-10T07:30:00" — returned as-is after validation.
-func tallinkParseLocalDateTime(s string) string {
+// tallinkNormalizeDateTime normalizes the timetable API datetime format.
+// Input: "2026-05-01T07:30" → "2026-05-01T07:30:00"
+func tallinkNormalizeDateTime(s string) string {
 	if s == "" {
 		return ""
 	}
-	t, err := time.Parse("2006-01-02T15:04:05", s)
-	if err != nil {
-		return s
+	// The timetables API returns "2026-05-01T07:30" (no seconds).
+	// Normalize to full ISO 8601 for consistency.
+	if len(s) == 16 { // "2006-01-02T15:04"
+		return s + ":00"
 	}
-	return t.Format("2006-01-02T15:04:05")
-}
-
-// tallinkFilterByDate returns only voyages whose first leg departure is on the given date ("2026-04-10").
-func tallinkFilterByDate(voyages []tallinkVoyageAvail, date string) []tallinkVoyageAvail {
-	var out []tallinkVoyageAvail
-	for _, v := range voyages {
-		if len(v.SailLegs) == 0 {
-			continue
-		}
-		dep := v.SailLegs[0].From.LocalDateTime
-		if strings.HasPrefix(dep, date) {
-			out = append(out, v)
-		}
-	}
-	return out
+	return s
 }
 
 // SearchTallink searches Tallink/Silja Line for ferry crossings between two cities.
-// It calls the public voyage-avails API (single call, includes prices).
+// Uses the booking.tallink.com timetables API which supports any future date.
 func SearchTallink(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
 	fromPort, ok := LookupTallinkPort(from)
 	if !ok {
@@ -282,17 +316,22 @@ func SearchTallink(ctx context.Context, from, to, date, currency string) ([]mode
 
 	slog.Debug("tallink search", "from", fromPort.City, "to", toPort.City, "date", date)
 
-	// Single API call returns schedules and prices together.
-	voyages, err := fetchTallinkVoyages(ctx, fromPort.Code, toPort.Code, "FI")
+	timetable, err := fetchTallinkTimetables(ctx, fromPort.Code, toPort.Code, date)
 	if err != nil {
 		return nil, fmt.Errorf("tallink: %w", err)
 	}
 
-	// Filter to the requested departure date.
-	voyages = tallinkFilterByDate(voyages, date)
-	slog.Debug("tallink voyages", "total", len(voyages))
+	// Collect outward sails for the requested date from the timetable.
+	dayTrips, ok := timetable.Trips[date]
+	if !ok {
+		slog.Debug("tallink: no trips for date", "date", date, "available_dates", len(timetable.Trips))
+		return nil, nil
+	}
 
-	if len(voyages) == 0 {
+	sails := dayTrips.Outwards
+	slog.Debug("tallink sails", "total", len(sails))
+
+	if len(sails) == 0 {
 		return nil, nil
 	}
 
@@ -300,28 +339,31 @@ func SearchTallink(ctx context.Context, from, to, date, currency string) ([]mode
 	defaultDuration := tallinkRouteDuration(fromPort.Code, toPort.Code)
 
 	var routes []models.GroundRoute
-	for _, v := range voyages {
-		if len(v.SailLegs) == 0 {
+	for _, s := range sails {
+		if s.IsDisabled {
 			continue
 		}
 
-		firstLeg := v.SailLegs[0]
-		lastLeg := v.SailLegs[len(v.SailLegs)-1]
-
-		depTime := tallinkParseLocalDateTime(firstLeg.From.LocalDateTime)
-		arrTime := tallinkParseLocalDateTime(lastLeg.To.LocalDateTime)
+		depTime := tallinkNormalizeDateTime(s.DepartureIsoDate)
+		arrTime := tallinkNormalizeDateTime(s.ArrivalIsoDate)
 
 		duration := defaultDuration
 		if computed := computeDurationMinutes(depTime, arrTime); computed > 0 {
 			duration = computed
 		}
 
-		price := v.TravelClass.MinPrice
+		// Parse price from string ("38.90").
+		var price float64
+		if s.PersonPrice != "" {
+			fmt.Sscanf(s.PersonPrice, "%f", &price)
+		}
 
-		// Flag promotional pricing.
 		var amenities []string
 		if price > 0 && price < tallinkDealThreshold {
 			amenities = append(amenities, "Deal")
+		}
+		if s.PromotionApplied {
+			amenities = append(amenities, "Promotion")
 		}
 
 		routes = append(routes, models.GroundRoute{
@@ -332,7 +374,7 @@ func SearchTallink(ctx context.Context, from, to, date, currency string) ([]mode
 			Duration: duration,
 			Departure: models.GroundStop{
 				City:    fromPort.City,
-				Station: fromPort.Name + tallinkShipSuffix(v.ShipCode),
+				Station: fromPort.Name + tallinkShipSuffix(s.ShipCode),
 				Time:    depTime,
 			},
 			Arrival: models.GroundStop{
@@ -358,14 +400,13 @@ func tallinkShipSuffix(shipName string) string {
 	return " (" + shipName + ")"
 }
 
-// newUUID generates a random UUID v4 string using crypto/rand.
+// newUUID is retained for potential future use (session tracking etc).
 func newUUID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		// Fallback: use time-based pseudo-random (extremely unlikely path).
 		return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 	}
-	b[6] = (b[6] & 0x0f) | 0x40 // version 4
-	b[8] = (b[8] & 0x3f) | 0x80 // variant bits
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }

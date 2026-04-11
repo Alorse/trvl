@@ -36,7 +36,7 @@ Enter
 Sleep 20s
 
 # ═══════════════════════════════════════════════════════════
-# ACT 3: Ferries — Helsinki to Tallinn TODAY (live prices)
+# ACT 3: Ferries — Helsinki to Tallinn (future date, live prices)
 # ═══════════════════════════════════════════════════════════
 
 Type "clear"
@@ -46,7 +46,7 @@ Sleep 300ms
 Type "# Helsinki to Tallinn: ferries + buses — live prices"
 Enter
 Sleep 300ms
-Type "trvl ground Helsinki Tallinn $(date +%Y-%m-%d)"
+Type "trvl ground Helsinki Tallinn 2026-05-15"
 Enter
 Sleep 30s
 

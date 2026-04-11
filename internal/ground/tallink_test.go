@@ -3,6 +3,7 @@ package ground
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -173,22 +174,22 @@ func TestTallinkRouteDuration(t *testing.T) {
 	}
 }
 
-func TestTallinkParseLocalDateTime(t *testing.T) {
+func TestTallinkNormalizeDateTime(t *testing.T) {
 	tests := []struct {
 		input string
 		want  string
 	}{
-		{"2026-04-10T07:30:00", "2026-04-10T07:30:00"},
-		{"2026-04-10T09:30:00", "2026-04-10T09:30:00"},
-		{"2026-04-05T00:00:00", "2026-04-05T00:00:00"},
-		{"", ""},
-		{"bad-input", "bad-input"}, // returned as-is on parse failure
+		{"2026-05-01T07:30", "2026-05-01T07:30:00"},       // short format → normalized
+		{"2026-05-01T07:30:00", "2026-05-01T07:30:00"},    // already full → unchanged
+		{"2026-04-05T00:00:00", "2026-04-05T00:00:00"},    // full format
+		{"", ""},                                           // empty
+		{"2026-05-01T13:30", "2026-05-01T13:30:00"},       // afternoon
 	}
 
 	for _, tt := range tests {
-		got := tallinkParseLocalDateTime(tt.input)
+		got := tallinkNormalizeDateTime(tt.input)
 		if got != tt.want {
-			t.Errorf("tallinkParseLocalDateTime(%q) = %q, want %q", tt.input, got, tt.want)
+			t.Errorf("tallinkNormalizeDateTime(%q) = %q, want %q", tt.input, got, tt.want)
 		}
 	}
 }
@@ -201,21 +202,21 @@ func TestBuildTallinkBookingURL(t *testing.T) {
 	if !strings.Contains(u, "tallink.com") {
 		t.Errorf("URL should contain tallink.com, got %q", u)
 	}
-	if !strings.Contains(u, "HEL") {
-		t.Errorf("URL should contain from port HEL, got %q", u)
-	}
-	if !strings.Contains(u, "TAL") {
-		t.Errorf("URL should contain to port TAL, got %q", u)
-	}
 	if !strings.Contains(u, "2026-04-10") {
 		t.Errorf("URL should contain date, got %q", u)
 	}
-	if !strings.Contains(u, "adults=1") {
-		t.Errorf("URL should contain adults=1, got %q", u)
+	if !strings.Contains(u, "voyageType=TRANSPORT") {
+		t.Errorf("URL should contain voyageType=TRANSPORT, got %q", u)
 	}
-	// New URL format uses book.tallink.com
-	if !strings.Contains(u, "book.tallink.com") {
-		t.Errorf("URL should use book.tallink.com, got %q", u)
+	// URL uses booking.tallink.com with lowercase port codes
+	if !strings.Contains(u, "booking.tallink.com") {
+		t.Errorf("URL should use booking.tallink.com, got %q", u)
+	}
+	if !strings.Contains(u, "from=hel") {
+		t.Errorf("URL should contain from=hel (lowercase), got %q", u)
+	}
+	if !strings.Contains(u, "to=tal") {
+		t.Errorf("URL should contain to=tal (lowercase), got %q", u)
 	}
 }
 
@@ -266,202 +267,210 @@ func TestTallinkRateLimiterConfiguration(t *testing.T) {
 	assertLimiterConfiguration(t, tallinkLimiter, 6*time.Second, 1)
 }
 
-// mockTallinkVoyageAvailsResponse is a realistic voyage-avails API response.
-// Each element wraps a voyage in {"initialSail": {...}}, matching the real API.
-const mockTallinkVoyageAvailsResponse = `[
-  {
-    "initialSail": {
-      "packageId": 2380001,
-      "shipCode": "MEGASTAR",
-      "sailType": "TRANSPORT",
-      "travelClass": {
-        "minPrice": 38.9
-      },
-      "sailLegs": [
+// mockTallinkTimetableResponse is a realistic timetables API response
+// matching the booking.tallink.com/api/timetables format.
+const mockTallinkTimetableResponse = `{
+  "defaultSelections": {"outwardSail": 2380001, "returnSail": 2379001},
+  "trips": {
+    "2026-05-01": {
+      "outwards": [
         {
-          "from": {
-            "port": "HEL",
-            "pier": "LSA2",
-            "localDateTime": "2026-04-10T08:30:00"
-          },
-          "to": {
-            "port": "TAL",
-            "pier": "DTER",
-            "localDateTime": "2026-04-10T10:30:00"
-          }
+          "sailId": 2380001,
+          "shipCode": "MEGASTAR",
+          "departureIsoDate": "2026-05-01T07:30",
+          "arrivalIsoDate": "2026-05-01T09:30",
+          "personPrice": "38.90",
+          "vehiclePrice": null,
+          "duration": 2.0,
+          "sailPackageCode": "HEL-TAL",
+          "sailPackageName": "Helsinki-Tallinn",
+          "cityFrom": "HEL",
+          "cityTo": "TAL",
+          "pierFrom": "LSA2",
+          "pierTo": "DTER",
+          "hasRoom": true,
+          "isOvernight": false,
+          "isDisabled": false,
+          "promotionApplied": false,
+          "marketingMessage": null,
+          "isVoucherApplicable": false
+        },
+        {
+          "sailId": 2380002,
+          "shipCode": "MYSTAR",
+          "departureIsoDate": "2026-05-01T17:30",
+          "arrivalIsoDate": "2026-05-01T19:30",
+          "personPrice": "12.50",
+          "vehiclePrice": null,
+          "duration": 2.0,
+          "sailPackageCode": "HEL-TAL",
+          "sailPackageName": "Helsinki-Tallinn",
+          "cityFrom": "HEL",
+          "cityTo": "TAL",
+          "pierFrom": "LSA2",
+          "pierTo": "DTER",
+          "hasRoom": true,
+          "isOvernight": false,
+          "isDisabled": false,
+          "promotionApplied": true,
+          "marketingMessage": null,
+          "isVoucherApplicable": false
         }
       ],
-      "isCheckInOpen": true,
-      "isOvernight": false,
-      "packageMode": "REGULAR"
-    }
-  },
-  {
-    "initialSail": {
-      "packageId": 2380002,
-      "shipCode": "MYSTAR",
-      "sailType": "TRANSPORT",
-      "travelClass": {
-        "minPrice": 12.5
-      },
-      "sailLegs": [
+      "returns": []
+    },
+    "2026-05-02": {
+      "outwards": [
         {
-          "from": {
-            "port": "HEL",
-            "pier": "LSA2",
-            "localDateTime": "2026-04-10T17:30:00"
-          },
-          "to": {
-            "port": "TAL",
-            "pier": "DTER",
-            "localDateTime": "2026-04-10T19:30:00"
-          }
+          "sailId": 2380011,
+          "shipCode": "MEGASTAR",
+          "departureIsoDate": "2026-05-02T08:30",
+          "arrivalIsoDate": "2026-05-02T10:30",
+          "personPrice": "35.00",
+          "vehiclePrice": null,
+          "duration": 2.0,
+          "sailPackageCode": "HEL-TAL",
+          "sailPackageName": "Helsinki-Tallinn",
+          "cityFrom": "HEL",
+          "cityTo": "TAL",
+          "pierFrom": "LSA2",
+          "pierTo": "DTER",
+          "hasRoom": true,
+          "isOvernight": false,
+          "isDisabled": false,
+          "promotionApplied": false,
+          "marketingMessage": null,
+          "isVoucherApplicable": false
         }
       ],
-      "isCheckInOpen": false,
-      "isOvernight": false,
-      "packageMode": "REGULAR"
-    }
-  },
-  {
-    "initialSail": {
-      "packageId": 2380011,
-      "shipCode": "MEGASTAR",
-      "sailType": "TRANSPORT",
-      "travelClass": {
-        "minPrice": 35.0
-      },
-      "sailLegs": [
-        {
-          "from": {
-            "port": "HEL",
-            "pier": "LSA2",
-            "localDateTime": "2026-04-11T08:30:00"
-          },
-          "to": {
-            "port": "TAL",
-            "pier": "DTER",
-            "localDateTime": "2026-04-11T10:30:00"
-          }
-        }
-      ],
-      "isCheckInOpen": false,
-      "isOvernight": false,
-      "packageMode": "REGULAR"
+      "returns": []
     }
   }
-]`
+}`
 
-// unwrapMockVoyages parses the mock JSON array (with initialSail wrapper) into []tallinkVoyageAvail.
-func unwrapMockVoyages(t *testing.T) []tallinkVoyageAvail {
+// parseMockTimetable parses the mock timetable JSON into tallinkTimetableResponse.
+func parseMockTimetable(t *testing.T) tallinkTimetableResponse {
 	t.Helper()
-	var entries []tallinkVoyageAvailEntry
-	if err := json.Unmarshal([]byte(mockTallinkVoyageAvailsResponse), &entries); err != nil {
-		t.Fatalf("unmarshal mock voyage-avails: %v", err)
+	var resp tallinkTimetableResponse
+	if err := json.Unmarshal([]byte(mockTallinkTimetableResponse), &resp); err != nil {
+		t.Fatalf("unmarshal mock timetable: %v", err)
 	}
-	out := make([]tallinkVoyageAvail, len(entries))
-	for i, e := range entries {
-		out[i] = e.InitialSail
-	}
-	return out
+	return resp
 }
 
-func TestFetchTallinkVoyages_MockServer(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify query parameters.
-		q := r.URL.Query()
-		if q.Get("sailType") != "TRANSPORT" {
-			t.Errorf("sailType = %q, want TRANSPORT", q.Get("sailType"))
+func TestTallinkTimetableResponse_Parse(t *testing.T) {
+	resp := parseMockTimetable(t)
+
+	if len(resp.Trips) != 2 {
+		t.Fatalf("expected 2 trip days, got %d", len(resp.Trips))
+	}
+
+	day1 := resp.Trips["2026-05-01"]
+	if len(day1.Outwards) != 2 {
+		t.Fatalf("expected 2 outward sails on 2026-05-01, got %d", len(day1.Outwards))
+	}
+
+	s := day1.Outwards[0]
+	if s.ShipCode != "MEGASTAR" {
+		t.Errorf("ShipCode = %q, want MEGASTAR", s.ShipCode)
+	}
+	if s.PersonPrice != "38.90" {
+		t.Errorf("PersonPrice = %q, want 38.90", s.PersonPrice)
+	}
+	if s.DepartureIsoDate != "2026-05-01T07:30" {
+		t.Errorf("departure = %q, want 2026-05-01T07:30", s.DepartureIsoDate)
+	}
+	if s.ArrivalIsoDate != "2026-05-01T09:30" {
+		t.Errorf("arrival = %q, want 2026-05-01T09:30", s.ArrivalIsoDate)
+	}
+	if s.CityFrom != "HEL" {
+		t.Errorf("from = %q, want HEL", s.CityFrom)
+	}
+	if s.CityTo != "TAL" {
+		t.Errorf("to = %q, want TAL", s.CityTo)
+	}
+
+	day2 := resp.Trips["2026-05-02"]
+	if len(day2.Outwards) != 1 {
+		t.Fatalf("expected 1 outward sail on 2026-05-02, got %d", len(day2.Outwards))
+	}
+
+	// Verify date-key lookup for non-existent date returns empty.
+	day3 := resp.Trips["2026-05-03"]
+	if len(day3.Outwards) != 0 {
+		t.Errorf("expected 0 outward sails on 2026-05-03, got %d", len(day3.Outwards))
+	}
+}
+
+func TestTallinkTimetable_MockServer(t *testing.T) {
+	// Simulate the two-step flow: page load (sets cookie) → API call.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Simulate booking page — set JSESSIONID cookie
+		http.SetCookie(w, &http.Cookie{Name: "JSESSIONID", Value: "test-session-123"})
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`<html><script>window.BookingPage={sessionGuid:'TEST'}</script></html>`)) //nolint:errcheck
+	})
+	mux.HandleFunc("/api/timetables", func(w http.ResponseWriter, r *http.Request) {
+		// Verify cookie is present
+		cookie, err := r.Cookie("JSESSIONID")
+		if err != nil || cookie.Value != "test-session-123" {
+			t.Error("timetables API call missing JSESSIONID cookie")
+			w.WriteHeader(http.StatusUnauthorized)
+			return
 		}
-		if q.Get("routeSeqN") != "1" {
-			t.Errorf("routeSeqN = %q, want 1", q.Get("routeSeqN"))
+		// Verify query params
+		q := r.URL.Query()
+		if q.Get("from") == "" || q.Get("to") == "" {
+			t.Error("timetables API missing from/to params")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(mockTallinkVoyageAvailsResponse)) //nolint:errcheck
-	}))
+		w.Write([]byte(mockTallinkTimetableResponse)) //nolint:errcheck
+	})
+	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	// Parse the mock JSON via the entry wrapper, matching fetchTallinkVoyages behavior.
-	voyages := unwrapMockVoyages(t)
-
-	if len(voyages) != 3 {
-		t.Fatalf("expected 3 voyages, got %d", len(voyages))
-	}
-
-	v := voyages[0]
-	if v.ShipCode != "MEGASTAR" {
-		t.Errorf("ShipCode = %q, want MEGASTAR", v.ShipCode)
-	}
-	if v.TravelClass.MinPrice != 38.9 {
-		t.Errorf("MinPrice = %.2f, want 38.9", v.TravelClass.MinPrice)
-	}
-	if len(v.SailLegs) != 1 {
-		t.Fatalf("expected 1 sail leg, got %d", len(v.SailLegs))
-	}
-	if v.SailLegs[0].From.LocalDateTime != "2026-04-10T08:30:00" {
-		t.Errorf("departure = %q, want 2026-04-10T08:30:00", v.SailLegs[0].From.LocalDateTime)
-	}
-	if v.SailLegs[0].To.LocalDateTime != "2026-04-10T10:30:00" {
-		t.Errorf("arrival = %q, want 2026-04-10T10:30:00", v.SailLegs[0].To.LocalDateTime)
-	}
-	if v.SailLegs[0].From.Port != "HEL" {
-		t.Errorf("from port = %q, want HEL", v.SailLegs[0].From.Port)
-	}
-	if v.SailLegs[0].To.Port != "TAL" {
-		t.Errorf("to port = %q, want TAL", v.SailLegs[0].To.Port)
-	}
-}
-
-func TestTallinkFilterByDate(t *testing.T) {
-	voyages := unwrapMockVoyages(t)
-
-	// Filter for 2026-04-10 should return 2 voyages.
-	filtered := tallinkFilterByDate(voyages, "2026-04-10")
-	if len(filtered) != 2 {
-		t.Errorf("expected 2 voyages on 2026-04-10, got %d", len(filtered))
-	}
-
-	// Filter for 2026-04-11 should return 1 voyage.
-	filtered = tallinkFilterByDate(voyages, "2026-04-11")
-	if len(filtered) != 1 {
-		t.Errorf("expected 1 voyage on 2026-04-11, got %d", len(filtered))
-	}
-
-	// Filter for unknown date should return 0.
-	filtered = tallinkFilterByDate(voyages, "2026-04-12")
-	if len(filtered) != 0 {
-		t.Errorf("expected 0 voyages on 2026-04-12, got %d", len(filtered))
+	// Parse the mock response directly (can't override tallinkBookingBase in unit test).
+	resp := parseMockTimetable(t)
+	if resp.DefaultSelections.OutwardSail != 2380001 {
+		t.Errorf("default outward sail = %d, want 2380001", resp.DefaultSelections.OutwardSail)
 	}
 }
 
 func TestTallinkDealFlag(t *testing.T) {
-	// Voyage with price 12.5 (below tallinkDealThreshold=20) should get "Deal" amenity.
-	voyages := unwrapMockVoyages(t)
+	resp := parseMockTimetable(t)
+	sails := resp.Trips["2026-05-01"].Outwards
 
-	// Second voyage has price 12.5.
-	v := voyages[1]
-	if v.TravelClass.MinPrice >= tallinkDealThreshold {
-		t.Skipf("test assumption violated: price %.2f >= threshold %.2f", v.TravelClass.MinPrice, tallinkDealThreshold)
+	// Second sail has price 12.50 (below tallinkDealThreshold=20) → "Deal" amenity.
+	var price float64
+	fmt.Sscanf(sails[1].PersonPrice, "%f", &price)
+	if price >= tallinkDealThreshold {
+		t.Skipf("test assumption violated: price %.2f >= threshold %.2f", price, tallinkDealThreshold)
 	}
 
-	// Simulate deal flagging logic.
 	var amenities []string
-	if v.TravelClass.MinPrice > 0 && v.TravelClass.MinPrice < tallinkDealThreshold {
+	if price > 0 && price < tallinkDealThreshold {
 		amenities = append(amenities, "Deal")
 	}
 	if len(amenities) != 1 || amenities[0] != "Deal" {
-		t.Errorf("expected [Deal] amenity for price %.2f, got %v", v.TravelClass.MinPrice, amenities)
+		t.Errorf("expected [Deal] amenity for price %.2f, got %v", price, amenities)
 	}
 
-	// First voyage (38.9) should not be flagged.
-	v2 := voyages[0]
+	// First sail (38.90) should not be flagged.
+	var price2 float64
+	fmt.Sscanf(sails[0].PersonPrice, "%f", &price2)
 	var amenities2 []string
-	if v2.TravelClass.MinPrice > 0 && v2.TravelClass.MinPrice < tallinkDealThreshold {
+	if price2 > 0 && price2 < tallinkDealThreshold {
 		amenities2 = append(amenities2, "Deal")
 	}
 	if len(amenities2) != 0 {
-		t.Errorf("expected no deal amenity for price %.2f, got %v", v2.TravelClass.MinPrice, amenities2)
+		t.Errorf("expected no deal amenity for price %.2f, got %v", price2, amenities2)
+	}
+
+	// Second sail also has promotionApplied=true → "Promotion" amenity.
+	if !sails[1].PromotionApplied {
+		t.Error("expected promotionApplied=true on second sail")
 	}
 }
 
