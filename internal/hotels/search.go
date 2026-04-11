@@ -316,7 +316,7 @@ func buildTravelURL(location string, opts HotelSearchOptions) string {
 
 // filterHotels applies all post-fetch filters to hotel results.
 func filterHotels(hotels []models.HotelResult, opts HotelSearchOptions) []models.HotelResult {
-	filtered := make([]models.HotelResult, 0, len(hotels))
+	filtered := hotels[:0]
 	for _, h := range hotels {
 		// Stars filter: h.Stars==0 means Google didn't annotate this hotel
 		// with star data (~92% of hotels). Pass those through rather than
@@ -355,13 +355,7 @@ func filterHotels(hotels []models.HotelResult, opts HotelSearchOptions) []models
 // Hotels with Stars==0 (no star data from Google) are kept, since "unknown"
 // should not be treated as "zero stars".
 func filterByStars(hotels []models.HotelResult, minStars int) []models.HotelResult {
-	filtered := make([]models.HotelResult, 0, len(hotels))
-	for _, h := range hotels {
-		if h.Stars == 0 || h.Stars >= minStars {
-			filtered = append(filtered, h)
-		}
-	}
-	return filtered
+	return filterHotels(hotels, HotelSearchOptions{Stars: minStars})
 }
 
 // hasAllAmenities returns true if the hotel's amenities contain every

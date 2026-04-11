@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -328,29 +329,10 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		allRoutes = append(allRoutes, r.routes...)
 	}
 
-	// Filter out zero-price routes and deduplicate (same provider+time+price).
-	allRoutes = filterUnavailableGroundRoutes(allRoutes)
-	allRoutes = deduplicateGroundRoutes(allRoutes)
-
-	// Apply filters
-	if opts.MaxPrice > 0 {
-		filtered := allRoutes[:0]
-		for _, r := range allRoutes {
-			if r.Price <= opts.MaxPrice {
-				filtered = append(filtered, r)
-			}
-		}
-		allRoutes = filtered
-	}
-	if opts.Type != "" {
-		filtered := allRoutes[:0]
-		for _, r := range allRoutes {
-			if strings.EqualFold(r.Type, opts.Type) {
-				filtered = append(filtered, r)
-			}
-		}
-		allRoutes = filtered
-	}
+	// Filter/deduplicate in one pass while preserving the current semantics:
+	// unavailable routes are removed first, then duplicate routes are suppressed
+	// before MaxPrice and Type filters are applied.
+	allRoutes = filterGroundRoutes(allRoutes, opts)
 
 	// Sort by price
 	sort.Slice(allRoutes, func(i, j int) bool {
@@ -413,13 +395,62 @@ func browserFallbacksEnabled(opts SearchOptions) bool {
 	return err == nil && enabled
 }
 
+type groundRouteKey struct {
+	provider      string
+	departureTime string
+	arrivalTime   string
+	priceCents    int64
+}
+
+func filterGroundRoutes(routes []models.GroundRoute, opts SearchOptions) []models.GroundRoute {
+	filtered := routes[:0]
+	seen := make(map[groundRouteKey]struct{}, len(routes))
+	hasTypeFilter := opts.Type != ""
+
+	for _, route := range routes {
+		if !shouldKeepGroundRoute(route) {
+			continue
+		}
+
+		key := groundRouteDedupKey(route)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		if opts.MaxPrice > 0 && route.Price > opts.MaxPrice {
+			continue
+		}
+		if hasTypeFilter && !strings.EqualFold(route.Type, opts.Type) {
+			continue
+		}
+
+		filtered = append(filtered, route)
+	}
+
+	return filtered
+}
+
+func groundRouteDedupKey(route models.GroundRoute) groundRouteKey {
+	return groundRouteKey{
+		provider:      route.Provider,
+		departureTime: route.Departure.Time,
+		arrivalTime:   route.Arrival.Time,
+		priceCents:    roundedPriceCents(route.Price),
+	}
+}
+
+func roundedPriceCents(price float64) int64 {
+	return int64(math.Round(price * 100))
+}
+
 func deduplicateGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
-	seen := make(map[string]bool)
+	seen := make(map[groundRouteKey]struct{}, len(routes))
 	result := routes[:0]
 	for _, r := range routes {
-		key := fmt.Sprintf("%s|%s|%.2f|%s", r.Provider, r.Departure.Time, r.Price, r.Arrival.Time)
-		if !seen[key] {
-			seen[key] = true
+		key := groundRouteDedupKey(r)
+		if _, exists := seen[key]; !exists {
+			seen[key] = struct{}{}
 			result = append(result, r)
 		}
 	}
@@ -434,10 +465,14 @@ var scheduleOnlyProviders = map[string]bool{
 	"dfds": true, "vikingline": true, "eckeroline": true, "finnlines": true,
 }
 
+func shouldKeepGroundRoute(route models.GroundRoute) bool {
+	return route.Price > 0 || scheduleOnlyProviders[strings.ToLower(route.Provider)]
+}
+
 func filterUnavailableGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
 	filtered := routes[:0]
 	for _, route := range routes {
-		if route.Price > 0 || scheduleOnlyProviders[strings.ToLower(route.Provider)] {
+		if shouldKeepGroundRoute(route) {
 			filtered = append(filtered, route)
 		}
 	}

@@ -83,3 +83,18 @@ func BenchmarkFilterUnavailableGroundRoutes(b *testing.B) {
 		_ = filterUnavailableGroundRoutes(input)
 	}
 }
+
+func BenchmarkFilterGroundRoutes(b *testing.B) {
+	routes := append(makeGroundRoutes(100), makeMixedGroundRoutes(100)...)
+	opts := SearchOptions{
+		MaxPrice: 100,
+		Type:     "bus",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		input := make([]models.GroundRoute, len(routes))
+		copy(input, routes)
+		_ = filterGroundRoutes(input, opts)
+	}
+}
