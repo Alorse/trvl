@@ -69,7 +69,7 @@ git clone https://github.com/MikkoParkkola/trvl.git && cd trvl && make build
 
 ### 2. Connect to your AI assistant
 
-**One command, no JSON editing** — trvl installs itself into your MCP client's config:
+**Automatic** (recommended) — trvl installs itself into your MCP client's config:
 
 ```bash
 trvl mcp install                       # Claude Desktop (default)
@@ -78,44 +78,33 @@ trvl mcp install --client claude-code  # Claude Code
 trvl mcp install --dry-run             # Preview first
 ```
 
+**Manual** — add to your MCP client config (Claude Desktop, Cursor, Windsurf, etc.):
+
+```json
+{
+  "mcpServers": {
+    "trvl": {
+      "command": "trvl",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
 Then restart your MCP client. That's it.
 
 <details>
-<summary>Or add it manually if you prefer</summary>
+<summary>Config file locations and Claude Code CLI</summary>
 
 **Claude Code:**
 ```bash
 claude mcp add trvl --transport stdio -- trvl mcp
 ```
 
-**Claude Desktop** — add to `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "trvl": {
-      "command": "trvl",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-Config file locations:
+**Claude Desktop** `claude_desktop_config.json`:
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-
-**Cursor / Windsurf / Other MCP clients** — add to your MCP config:
-```json
-{
-  "mcpServers": {
-    "trvl": {
-      "command": "trvl",
-      "args": ["mcp"]
-    }
-  }
-}
-```
 
 </details>
 
