@@ -1,8 +1,8 @@
 module github.com/MikkoParkkola/trvl
 
-go 1.25.0
+go 1.26.0
 
-toolchain go1.25.9
+toolchain go1.26.1
 
 require (
 	github.com/refraction-networking/utls v1.8.2
