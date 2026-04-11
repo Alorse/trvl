@@ -126,7 +126,8 @@ func searchFlightsTool() ToolDef {
 				"alliances":      {Type: "string", Description: "Filter by airline alliance (comma-separated): STAR_ALLIANCE, ONEWORLD, SKYTEAM (default: no filter)"},
 				"depart_after":   {Type: "string", Description: "Earliest departure time HH:MM, e.g. 06:00 (default: no filter)"},
 				"depart_before":  {Type: "string", Description: "Latest departure time HH:MM, e.g. 22:00 (default: no filter)"},
-				"less_emissions": {Type: "boolean", Description: "Only show flights with lower CO2 emissions (default: false)"},
+				"less_emissions":      {Type: "boolean", Description: "Only show flights with lower CO2 emissions (default: false)"},
+				"require_checked_bag": {Type: "boolean", Description: "Only show flights with ≥1 free checked bag included (default: false). Unique feature — filters on bag allowance data from Google responses."},
 			},
 			Required: []string{"origin", "destination", "departure_date"},
 		},
@@ -203,11 +204,12 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 	}
 
 	opts := flights.SearchOptions{
-		ReturnDate:    argString(args, "return_date"),
-		Alliances:     argStringSlice(args, "alliances"),
-		DepartAfter:   argString(args, "depart_after"),
-		DepartBefore:  argString(args, "depart_before"),
-		LessEmissions: argBool(args, "less_emissions", false),
+		ReturnDate:        argString(args, "return_date"),
+		Alliances:         argStringSlice(args, "alliances"),
+		DepartAfter:       argString(args, "depart_after"),
+		DepartBefore:      argString(args, "depart_before"),
+		LessEmissions:     argBool(args, "less_emissions", false),
+		RequireCheckedBag: argBool(args, "require_checked_bag", false),
 	}
 
 	if cc := argString(args, "cabin_class"); cc != "" {

@@ -45,6 +45,9 @@ type SearchOptions struct {
 	DepartAfter   string // Earliest departure time "HH:MM" (e.g. "06:00")
 	DepartBefore  string // Latest departure time "HH:MM" (e.g. "22:00")
 	LessEmissions bool   // Only show flights with less emissions
+
+	// Client-side post-filters (applied after server response).
+	RequireCheckedBag bool // Only show flights with ≥1 free checked bag
 }
 
 // defaults fills in zero-value fields with sensible defaults.
@@ -126,6 +129,13 @@ func SearchFlightsWithClient(ctx context.Context, client *batchexec.Client, orig
 	// Currency conversion, if needed, happens in the CLI display layer.
 	for i := range flights {
 		flights[i].BookingURL = buildFlightBookingURL(origin, destination, date)
+	}
+
+	// Client-side post-filter: require checked bag included.
+	// This is a unique feature — Google returns bag data in responses but
+	// doesn't offer a server-side checked bag filter.
+	if opts.RequireCheckedBag {
+		flights = filterFlightsWithCheckedBag(flights)
 	}
 
 	tripType := "one_way"
@@ -292,6 +302,19 @@ func bagsFilter(carryOn int) any {
 		return nil
 	}
 	return carryOn
+}
+
+// filterFlightsWithCheckedBag returns only flights that include at least one
+// free checked bag. This is a client-side post-filter since Google's
+// batchexecute API has no server-side checked bag filter.
+func filterFlightsWithCheckedBag(flights []models.FlightResult) []models.FlightResult {
+	filtered := flights[:0]
+	for _, f := range flights {
+		if f.CheckedBagsIncluded != nil && *f.CheckedBagsIncluded >= 1 {
+			filtered = append(filtered, f)
+		}
+	}
+	return filtered
 }
 
 // durationLimit returns the max duration in minutes, or nil if unset.
