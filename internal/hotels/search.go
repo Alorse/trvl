@@ -60,6 +60,14 @@ type HotelSearchOptions struct {
 	// because they only need the cheapest result, not 75 hotels.
 	// 0 means use the default (maxPages).
 	MaxPages int
+
+	// FreeCancellation filters for hotels offering free cancellation when true.
+	FreeCancellation bool
+
+	// PropertyType restricts results to a specific property category.
+	// Accepted values: "hotel", "apartment", "hostel", "resort", "bnb", "villa".
+	// Empty string means no filter.
+	PropertyType string
 }
 
 // SearchHotels searches for hotels in the given location.
@@ -330,6 +338,12 @@ func buildTravelURL(location string, opts HotelSearchOptions) string {
 	if opts.MaxDistanceKm > 0 {
 		// Google uses meters for the lrad (location radius) parameter.
 		query.Set("lrad", fmt.Sprintf("%.0f", opts.MaxDistanceKm*1000))
+	}
+	if opts.FreeCancellation {
+		query.Set("fc", "1")
+	}
+	if ptype := propertyTypeCode(opts.PropertyType); ptype != "" {
+		query.Set("ptype", ptype)
 	}
 
 	return fmt.Sprintf("https://www.google.com/travel/hotels/%s?%s", encoded, query.Encode())
@@ -637,6 +651,32 @@ func enrichHotelAmenities(ctx context.Context, hotels []models.HotelResult, limi
 	}
 
 	return hotels
+}
+
+// propertyTypeCode converts a human-readable property type string to the
+// Google Hotels &ptype= parameter value. Returns "" if the type is unknown
+// or empty (meaning: no filter applied).
+//
+// Known Google Hotels ptype values (reverse-engineered):
+//
+//	2 = hotel, 3 = apartment, 4 = hostel, 5 = resort, 7 = bnb, 8 = villa
+func propertyTypeCode(t string) string {
+	switch strings.ToLower(strings.TrimSpace(t)) {
+	case "hotel":
+		return "2"
+	case "apartment":
+		return "3"
+	case "hostel":
+		return "4"
+	case "resort":
+		return "5"
+	case "bnb", "bed_and_breakfast", "bed and breakfast":
+		return "7"
+	case "villa":
+		return "8"
+	default:
+		return ""
+	}
 }
 
 // mergeAmenities combines two amenity lists, deduplicating by lowercase name.

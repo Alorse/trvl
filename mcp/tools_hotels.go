@@ -106,8 +106,10 @@ func searchHotelsTool() ToolDef {
 				"max_price":        {Type: "number", Description: "Maximum price per night (default: no filter)"},
 				"min_rating":       {Type: "number", Description: "Minimum guest rating, e.g. 4.0 (default: no filter)"},
 				"max_distance":     {Type: "number", Description: "Maximum distance from city center in km (default: no filter)"},
-				"amenities":        {Type: "string", Description: "Filter by amenities (comma-separated, e.g. pool,wifi,breakfast)"},
-				"enrich_amenities": {Type: "boolean", Description: "Fetch detail pages for top results to get full amenity lists (slower, default: false)"},
+				"amenities":         {Type: "string", Description: "Filter by amenities (comma-separated, e.g. pool,wifi,breakfast)"},
+				"enrich_amenities":  {Type: "boolean", Description: "Fetch detail pages for top results to get full amenity lists (slower, default: false)"},
+				"free_cancellation": {Type: "boolean", Description: "Only show hotels with free cancellation (default: false)"},
+				"property_type":     {Type: "string", Description: "Filter by property type: hotel, apartment, hostel, resort, bnb, or villa (default: no filter)"},
 			},
 			Required: []string{"location", "check_in", "check_out"},
 		},
@@ -189,17 +191,19 @@ func handleSearchHotels(ctx context.Context, args map[string]any, elicit ElicitF
 	}
 
 	opts := hotels.HotelSearchOptions{
-		CheckIn:         checkIn,
-		CheckOut:        checkOut,
-		Guests:          guests,
-		Stars:           argInt(args, "stars", 0),
-		Sort:            argString(args, "sort"),
-		MinPrice:        argFloat(args, "min_price", 0),
-		MaxPrice:        argFloat(args, "max_price", 0),
-		MinRating:       argFloat(args, "min_rating", 0),
-		MaxDistanceKm:   argFloat(args, "max_distance", 0),
-		Amenities:       amenities,
-		EnrichAmenities: argBool(args, "enrich_amenities", false),
+		CheckIn:          checkIn,
+		CheckOut:         checkOut,
+		Guests:           guests,
+		Stars:            argInt(args, "stars", 0),
+		Sort:             argString(args, "sort"),
+		MinPrice:         argFloat(args, "min_price", 0),
+		MaxPrice:         argFloat(args, "max_price", 0),
+		MinRating:        argFloat(args, "min_rating", 0),
+		MaxDistanceKm:    argFloat(args, "max_distance", 0),
+		Amenities:        amenities,
+		EnrichAmenities:  argBool(args, "enrich_amenities", false),
+		FreeCancellation: argBool(args, "free_cancellation", false),
+		PropertyType:     argString(args, "property_type"),
 	}
 
 	// Apply user preferences when MCP caller hasn't set these explicitly.
