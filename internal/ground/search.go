@@ -287,6 +287,16 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		}()
 	}
 
+	// Finnlines — Helsinki ↔ Travemünde, Naantali ↔ Kapellskär, Malmö ↔ Świnoujście.
+	if useProvider("finnlines") && HasFinnlinesRoute(from, to) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			routes, err := SearchFinnlines(ctx, from, to, date, opts.Currency)
+			results <- providerResult{routes: routes, err: err, name: "finnlines"}
+		}()
+	}
+
 	// Transitous — coordinate-based, always available as a fallback.
 	// Requires geocoding city names to coordinates; skipped if geocoding fails.
 	if useProvider("transitous") {
@@ -421,7 +431,7 @@ func deduplicateGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
 var scheduleOnlyProviders = map[string]bool{
 	"distribusion": true, "transitous": true, "db": true, "ns": true,
 	"oebb": true, "vr": true, "tallink": true, "stenaline": true,
-	"dfds": true, "vikingline": true, "eckeroline": true,
+	"dfds": true, "vikingline": true, "eckeroline": true, "finnlines": true,
 }
 
 func filterUnavailableGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
