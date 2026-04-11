@@ -22,8 +22,8 @@ func TestPromptsList(t *testing.T) {
 		t.Fatalf("unmarshal result: %v", err)
 	}
 
-	if len(result.Prompts) != 5 {
-		t.Fatalf("expected 5 prompts, got %d", len(result.Prompts))
+	if len(result.Prompts) != 6 {
+		t.Fatalf("expected 6 prompts, got %d", len(result.Prompts))
 	}
 
 	expected := map[string]bool{
@@ -31,6 +31,7 @@ func TestPromptsList(t *testing.T) {
 		"where-should-i-go":  false,
 		"find-cheapest-dates": false,
 		"compare-hotels":     false,
+		"packing-list":       false,
 		"setup_profile":      false,
 	}
 	for _, p := range result.Prompts {
@@ -410,6 +411,103 @@ func TestGetPrompt_Unknown(t *testing.T) {
 }
 
 // --- argOr ---
+
+// --- promptPackingList ---
+
+func TestPromptsGet_PackingList_Basic(t *testing.T) {
+	s := NewServer()
+	params := PromptsGetParams{
+		Name: "packing-list",
+		Arguments: map[string]any{
+			"destination": "Tokyo",
+			"dates":       "2026-06-15 to 2026-06-22",
+		},
+	}
+	resp := sendRequest(t, s, "prompts/get", 1, params)
+	if resp == nil {
+		t.Fatal("expected response, got nil")
+	}
+	if resp.Error != nil {
+		t.Fatalf("error: %+v", resp.Error)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	var result PromptsGetResult
+	json.Unmarshal(resultJSON, &result)
+
+	if len(result.Messages) == 0 {
+		t.Fatal("expected messages")
+	}
+	if result.Messages[0].Role != "user" {
+		t.Errorf("role = %q, want user", result.Messages[0].Role)
+	}
+	text := result.Messages[0].Content.Text
+	if !strings.Contains(text, "Tokyo") {
+		t.Error("prompt should contain destination")
+	}
+	if !strings.Contains(text, "2026-06-15 to 2026-06-22") {
+		t.Error("prompt should contain dates")
+	}
+	if !strings.Contains(text, "leisure") {
+		t.Error("prompt should default to leisure trip type")
+	}
+}
+
+func TestPromptsGet_PackingList_AllArgs(t *testing.T) {
+	s := NewServer()
+	params := PromptsGetParams{
+		Name: "packing-list",
+		Arguments: map[string]any{
+			"destination": "Iceland",
+			"dates":       "2026-12-20 to 2026-12-27",
+			"trip_type":   "adventure",
+			"activities":  "hiking, hot springs, northern lights",
+		},
+	}
+	resp := sendRequest(t, s, "prompts/get", 1, params)
+	if resp == nil {
+		t.Fatal("expected response")
+	}
+	if resp.Error != nil {
+		t.Fatalf("error: %+v", resp.Error)
+	}
+
+	resultJSON, _ := json.Marshal(resp.Result)
+	var result PromptsGetResult
+	json.Unmarshal(resultJSON, &result)
+
+	text := result.Messages[0].Content.Text
+	if !strings.Contains(text, "adventure") {
+		t.Error("prompt should contain trip type")
+	}
+	if !strings.Contains(text, "hiking, hot springs, northern lights") {
+		t.Error("prompt should contain activities")
+	}
+	if !strings.Contains(text, "Iceland") {
+		t.Error("prompt should contain destination")
+	}
+	if result.Description == "" {
+		t.Error("description should not be empty")
+	}
+	if !strings.Contains(result.Description, "adventure") {
+		t.Error("description should contain trip type")
+	}
+}
+
+func TestPromptsGet_PackingList_MissingArgs(t *testing.T) {
+	s := NewServer()
+	params := PromptsGetParams{
+		Name:      "packing-list",
+		Arguments: map[string]any{"destination": "Tokyo"},
+	}
+	resp := sendRequest(t, s, "prompts/get", 1, params)
+	if resp == nil {
+		t.Fatal("expected response")
+	}
+	if resp.Error == nil {
+		t.Fatal("expected error for missing dates")
+	}
+}
 
 func TestArgOr_NilArgs(t *testing.T) {
 	got := argOr(nil, "key", "fallback")

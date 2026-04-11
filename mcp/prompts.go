@@ -45,6 +45,16 @@ func registerPrompts(s *Server) {
 			},
 		},
 		{
+			Name:        "packing-list",
+			Description: "Generate a smart packing list tailored to your destination, dates, and activities",
+			Arguments: []PromptArgument{
+				{Name: "destination", Description: "Destination city or country (e.g., Tokyo, Iceland)", Required: true},
+				{Name: "dates", Description: "Trip dates (e.g., 2026-06-15 to 2026-06-22)", Required: true},
+				{Name: "trip_type", Description: "Trip type: business, beach, adventure, city break (default: leisure)", Required: false},
+				{Name: "activities", Description: "Planned activities, comma-separated (e.g., hiking, swimming, formal dinner)", Required: false},
+			},
+		},
+		{
 			Name:        "setup_profile",
 			Description: "Guide the user through setting up their travel preference profile",
 			Arguments:   []PromptArgument{},
@@ -63,6 +73,8 @@ func getPrompt(name string, args map[string]any) (*PromptsGetResult, error) {
 		return promptCompareHotels(args)
 	case "where-should-i-go":
 		return promptWhereShouldIGo(args)
+	case "packing-list":
+		return promptPackingList(args)
 	case "setup_profile":
 		return promptSetupProfile()
 	default:
@@ -265,6 +277,72 @@ Follow these steps:
 
 	return &PromptsGetResult{
 		Description: desc,
+		Messages: []PromptMessage{
+			{
+				Role:    "user",
+				Content: ContentBlock{Type: "text", Text: prompt},
+			},
+		},
+	}, nil
+}
+
+func promptPackingList(args map[string]any) (*PromptsGetResult, error) {
+	dest := argOr(args, "destination", "")
+	dates := argOr(args, "dates", "")
+	tripType := argOr(args, "trip_type", "leisure")
+	activities := argOr(args, "activities", "")
+
+	if dest == "" || dates == "" {
+		return nil, fmt.Errorf("destination and dates are required")
+	}
+
+	activitiesLine := ""
+	if activities != "" {
+		activitiesLine = fmt.Sprintf("\n\nPlanned activities: %s. Include activity-specific gear for each (e.g., hiking boots, swimsuit, formal attire).", activities)
+	}
+
+	prompt := fmt.Sprintf(`Create a smart packing list for a %s trip to %s (%s).%s
+
+Follow these steps:
+
+1. **Check weather**: Use get_weather to look up the forecast for %s during %s. This determines clothing weight, rain gear, and sun protection needs.
+
+2. **Calculate trip duration**: Parse the dates %s to determine the number of nights. Use this to calculate clothing quantities (e.g., underwear = nights + 1, tops = nights / 2 rounded up for re-wear).
+
+3. **Check bag allowance**: Read the user's travel profile (trvl://preferences) to check if they prefer carry-on only or checked bags. Tailor the list accordingly:
+   - **Carry-on only**: Strict minimalism — compression bags, multi-purpose items, travel-size toiletries. Flag anything that won't fit or pass security.
+   - **Checked bag**: More flexibility, but still organized by category.
+
+4. **Build the packing list** organized by category:
+
+   **Documents & Tech**
+   - Passport/ID, boarding passes, travel insurance, chargers, adapters (destination-specific plug type)
+
+   **Clothing** (weather-appropriate for %s)
+   - Base layers, outerwear, footwear — quantities based on trip length
+   - Activity-specific clothing if applicable
+
+   **Toiletries & Health**
+   - Essentials, medications, sunscreen/insect repellent based on destination
+   - Note any items to buy on arrival vs. pack
+
+   **Day bag & Accessories**
+   - Day pack, water bottle, travel pillow, packing cubes
+
+5. **Smart suggestions**:
+   - Flag items people commonly forget for %s trips (e.g., power adapter type, visa printout)
+   - Suggest what NOT to pack (available cheaply at destination)
+   - Note any destination-specific considerations (dress codes, cultural norms, altitude, etc.)
+
+6. **Summary**: Present a final checklist with [ ] checkboxes, grouped by bag (carry-on vs personal item vs checked), with a total estimated weight.`,
+		tripType, dest, dates, activitiesLine,
+		dest, dates,
+		dates,
+		dest,
+		tripType)
+
+	return &PromptsGetResult{
+		Description: fmt.Sprintf("Packing list: %s trip to %s, %s", tripType, dest, dates),
 		Messages: []PromptMessage{
 			{
 				Role:    "user",
