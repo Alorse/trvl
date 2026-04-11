@@ -62,6 +62,26 @@ Examples:
 				return err
 			}
 
+			// Cache best result for `trvl share --last`.
+			if result != nil && len(result.Destinations) > 0 {
+				best := result.Destinations[0]
+				saveLastSearch(&LastSearch{
+					Command:        "weekend",
+					Origin:         result.Origin,
+					Destination:    best.Destination,
+					Nights:         result.Nights,
+					FlightPrice:    best.FlightPrice,
+					FlightCurrency: best.Currency,
+					FlightAirline:  best.AirlineName,
+					FlightStops:    best.Stops,
+					HotelPrice:     best.HotelPrice,
+					HotelCurrency:  best.Currency,
+					HotelName:      best.HotelName,
+					TotalPrice:     best.Total,
+					TotalCurrency:  best.Currency,
+				})
+			}
+
 			if formatOut == "json" {
 				return models.FormatJSON(os.Stdout, result)
 			}

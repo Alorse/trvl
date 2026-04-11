@@ -57,6 +57,9 @@ Examples:
 				return err
 			}
 
+			// Cache for `trvl share --last`.
+			saveTripPlanLastSearch(result)
+
 			if format == "json" {
 				return models.FormatJSON(os.Stdout, result)
 			}
@@ -322,4 +325,36 @@ func truncateName(s string, maxLen int) string {
 		return string(runes[:maxLen-3]) + "..."
 	}
 	return s
+}
+
+// saveTripPlanLastSearch caches a trip plan result for `trvl share --last`.
+func saveTripPlanLastSearch(r *trip.PlanResult) {
+	if r == nil {
+		return
+	}
+	ls := &LastSearch{
+		Command:     "trip",
+		Origin:      models.LookupAirportName(r.Origin),
+		Destination: models.LookupAirportName(r.Destination),
+		DepartDate:  r.DepartDate,
+		ReturnDate:  r.ReturnDate,
+		Nights:      r.Nights,
+		Guests:      r.Guests,
+	}
+	if len(r.OutboundFlights) > 0 {
+		f := r.OutboundFlights[0]
+		ls.FlightPrice = f.Price
+		ls.FlightCurrency = f.Currency
+		ls.FlightAirline = f.Airline
+		ls.FlightStops = f.Stops
+	}
+	if len(r.Hotels) > 0 {
+		h := r.Hotels[0]
+		ls.HotelPrice = h.Total
+		ls.HotelCurrency = h.Currency
+		ls.HotelName = h.Name
+	}
+	ls.TotalCurrency = r.Summary.Currency
+	ls.TotalPrice = r.Summary.GrandTotal
+	saveLastSearch(ls)
 }

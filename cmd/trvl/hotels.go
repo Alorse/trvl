@@ -104,6 +104,22 @@ func runHotels(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("hotel search: %w", err)
 	}
 
+	// Cache best result for `trvl share --last`.
+	if result != nil && len(result.Hotels) > 0 {
+		h := result.Hotels[0]
+		saveLastSearch(&LastSearch{
+			Command:       "hotels",
+			Destination:   location,
+			DepartDate:    checkin,
+			ReturnDate:    checkout,
+			HotelPrice:    h.Price,
+			HotelCurrency: h.Currency,
+			HotelName:     h.Name,
+			TotalPrice:    h.Price,
+			TotalCurrency: h.Currency,
+		})
+	}
+
 	if format == "json" {
 		return models.FormatJSON(os.Stdout, result)
 	}

@@ -61,6 +61,22 @@ Examples:
 				return err
 			}
 
+			// Cache best result for `trvl share --last`.
+			if result != nil && result.Success && len(result.Routes) > 0 {
+				r := result.Routes[0]
+				saveLastSearch(&LastSearch{
+					Command:        "ground",
+					Origin:         from,
+					Destination:    to,
+					DepartDate:     date,
+					FlightPrice:    r.Price,
+					FlightCurrency: r.Currency,
+					FlightAirline:  r.Provider,
+					TotalPrice:     r.Price,
+					TotalCurrency:  r.Currency,
+				})
+			}
+
 			if format == "json" {
 				return models.FormatJSON(os.Stdout, result)
 			}

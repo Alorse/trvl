@@ -117,6 +117,26 @@ Examples:
 				return err
 			}
 
+			// Cache best result for `trvl share --last`.
+			if len(candidates) > 0 {
+				best := candidates[0]
+				saveLastSearch(&LastSearch{
+					Command:        "when",
+					Origin:         origin,
+					Destination:    dest,
+					DepartDate:     best.Start,
+					ReturnDate:     best.End,
+					Nights:         best.Nights,
+					FlightPrice:    best.FlightCost,
+					FlightCurrency: best.Currency,
+					HotelPrice:     best.HotelCost,
+					HotelCurrency:  best.Currency,
+					HotelName:      best.HotelName,
+					TotalPrice:     best.EstimatedCost,
+					TotalCurrency:  best.Currency,
+				})
+			}
+
 			if formatOut == "json" {
 				return models.FormatJSON(os.Stdout, map[string]any{
 					"candidates":  candidates,

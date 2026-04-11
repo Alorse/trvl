@@ -89,6 +89,25 @@ Examples:
 				return err
 			}
 
+			// Cache best result for `trvl share --last`.
+			if result != nil && result.Success && len(result.Flights) > 0 {
+				f := result.Flights[0]
+				airline := ""
+				if len(f.Legs) > 0 {
+					airline = f.Legs[0].Airline
+				}
+				saveLastSearch(&LastSearch{
+					Command:        "flights",
+					Origin:         strings.Join(origins, ","),
+					Destination:    strings.Join(destinations, ","),
+					DepartDate:     date,
+					FlightPrice:    f.Price,
+					FlightCurrency: f.Currency,
+					FlightAirline:  airline,
+					FlightStops:    f.Stops,
+				})
+			}
+
 			if format == "json" {
 				return models.FormatJSON(os.Stdout, result)
 			}
