@@ -40,9 +40,10 @@ type Preferences struct {
 	Locale          string `json:"locale"`           // "en-FI"
 
 	// Loyalty programmes
-	LoyaltyAirlines      []string             `json:"loyalty_airlines,omitempty"`       // IATA codes, e.g. ["KL", "AY"]
-	LoyaltyHotels        []string             `json:"loyalty_hotels,omitempty"`         // e.g. ["Marriott Bonvoy", "IHG"]
+	LoyaltyAirlines       []string              `json:"loyalty_airlines,omitempty"`        // IATA codes, e.g. ["KL", "AY"]
+	LoyaltyHotels         []string              `json:"loyalty_hotels,omitempty"`          // e.g. ["Marriott Bonvoy", "IHG"]
 	FrequentFlyerPrograms []FrequentFlyerStatus `json:"frequent_flyer_programs,omitempty"` // alliance status tiers
+	LoungeCards           []string              `json:"lounge_cards,omitempty"`            // e.g. ["Priority Pass", "Diners Club"]
 
 	// Travel style (extended)
 	DefaultCompanions int      `json:"default_companions"`          // 0 = solo, 1 = couple, 2+ = family/group

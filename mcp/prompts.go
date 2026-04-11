@@ -44,6 +44,11 @@ func registerPrompts(s *Server) {
 				{Name: "budget", Description: "Maximum flight budget in local currency (e.g., 500)", Required: false},
 			},
 		},
+		{
+			Name:        "setup_profile",
+			Description: "Guide the user through setting up their travel preference profile",
+			Arguments:   []PromptArgument{},
+		},
 	}
 }
 
@@ -58,6 +63,8 @@ func getPrompt(name string, args map[string]any) (*PromptsGetResult, error) {
 		return promptCompareHotels(args)
 	case "where-should-i-go":
 		return promptWhereShouldIGo(args)
+	case "setup_profile":
+		return promptSetupProfile()
 	default:
 		return nil, fmt.Errorf("unknown prompt: %s", name)
 	}
@@ -258,6 +265,114 @@ Follow these steps:
 
 	return &PromptsGetResult{
 		Description: desc,
+		Messages: []PromptMessage{
+			{
+				Role:    "user",
+				Content: ContentBlock{Type: "text", Text: prompt},
+			},
+		},
+	}, nil
+}
+
+func promptSetupProfile() (*PromptsGetResult, error) {
+	prompt := `Help me set up my trvl travel profile so you can personalise all searches.
+
+First, read the trvl://onboarding resource to get the full questionnaire and
+check whether a profile already exists.
+
+If the profile is COMPLETE: show me the current profile summary and ask if
+anything needs updating.
+
+If the profile is EMPTY OR MISSING: work through the six categories below,
+one at a time. Ask one category, wait for my answers, then move on.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 1 — ESSENTIALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ask:
+• "What airport do you usually fly from?" → home_airports (IATA codes)
+• "What currency should prices be shown in?" → display_currency (ISO 4217)
+• "What's your nationality?" → nationality (ISO 3166-1 alpha-2)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 2 — LOYALTY & STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ask:
+• "Do you have any airline alliance status?
+  E.g. Oneworld Sapphire, Star Alliance Gold, SkyTeam Elite Plus."
+  → frequent_flyer_programs: [{"alliance": "oneworld", "tier": "sapphire", "airline_code": "AY"}]
+  Valid alliances: oneworld | star_alliance | skyteam
+  Oneworld tiers: ruby | sapphire | emerald
+  Star Alliance tiers: silver | gold
+  SkyTeam tiers: elite | elite_plus
+
+• "Which frequent flyer programmes are you a member of?
+  (Even without status. E.g. AY Plus, Flying Blue, Miles&More)"
+  → loyalty_airlines: IATA codes e.g. ["AY","KL","LH"]
+
+• "Do you have any lounge access cards?
+  E.g. Priority Pass, Diners Club, DragonPass, Amex Platinum."
+  → lounge_cards: card names e.g. ["Priority Pass","Diners Club"]
+
+• "Any hotel loyalty programmes?
+  E.g. Marriott Bonvoy, IHG One Rewards, Hilton Honors, World of Hyatt."
+  → loyalty_hotels: programme names e.g. ["Marriott Bonvoy"]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 3 — TRAVEL STYLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ask:
+• "Carry-on only or checked bags?" → carry_on_only: true/false
+• "Direct flights preferred, or connections fine?" → prefer_direct: true/false
+• "Window, aisle, or no preference?" → seat_preference: "window"|"aisle"|"no_preference"
+• "Are overnight red-eye flights OK?" → red_eye_ok: true/false
+• "Any flights you won't take — earliest or latest departure time?"
+  → flight_time_earliest: "HH:MM", flight_time_latest: "HH:MM"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 4 — ACCOMMODATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ask:
+• "Minimum hotel star rating or review score?"
+  → min_hotel_stars: 0-5, min_hotel_rating: e.g. 4.0
+• "Hostels / dorms OK, or hotels only?" → no_dormitories: true/false
+• "En-suite bathroom required?" → ensuite_only: true/false
+• "Fast wifi needed for work?" → fast_wifi_needed: true/false
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 5 — BUDGET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ask:
+• "Typical hotel budget per night (min–max)?"
+  → budget_per_night_min, budget_per_night_max
+• "Max one-way flight price you'd ever pay?"
+  → budget_flight_max
+• "Deal style — price (take the 6am connection), comfort (pay for convenience),
+  or balanced?"
+  → deal_tolerance: "price"|"comfort"|"balanced"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 6 — CONTEXT (optional)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ask:
+• "Solo, couple, or family?" → default_companions: 0|1|2+
+• "What kinds of trips? city_break|beach|adventure|business|remote_work"
+  → trip_types: array
+• "Languages you speak?" → languages: ISO 639-1 codes e.g. ["en","fi"]
+• "Dream destinations on your bucket list?" → bucket_list: place names
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SAVE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+After collecting all answers:
+1. Show a plain-text summary of everything collected.
+2. Ask: "Does this look right? Anything to change?"
+3. On confirmation, call update_preferences with all fields at once.
+4. Confirm: "Profile saved — I'll use these preferences for all your searches."
+`
+
+	return &PromptsGetResult{
+		Description: "Interactive setup for your trvl travel preference profile",
 		Messages: []PromptMessage{
 			{
 				Role:    "user",

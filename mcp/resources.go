@@ -4,16 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/flights"
+	"github.com/MikkoParkkola/trvl/internal/preferences"
 	"github.com/MikkoParkkola/trvl/internal/trips"
 )
 
 // registerResources adds all static resource definitions to the server.
 func registerResources(s *Server) {
 	s.resources = []ResourceDef{
+		{
+			URI:         "trvl://onboarding",
+			Name:        "Onboarding Guide",
+			Description: "First-run setup guide. Read this on first use to build the user's preference profile.",
+			MimeType:    "text/plain",
+		},
 		{
 			URI:         "trvl://airports/popular",
 			Name:        "Popular Airports",
@@ -153,6 +162,8 @@ func watchURIFromQuery(query string) string {
 // readResource returns the content for a resource URI, including dynamic resources.
 func (s *Server) readResource(uri string) (*ResourcesReadResult, error) {
 	switch {
+	case uri == "trvl://onboarding":
+		return readOnboarding()
 	case uri == "trvl://airports/popular":
 		return &ResourcesReadResult{
 			Contents: []ResourceContent{{
@@ -593,6 +604,238 @@ func (s *Server) readTripsAlerts() (*ResourcesReadResult, error) {
 		}},
 	}, nil
 }
+
+// readOnboarding returns the onboarding guide. When ~/.trvl/preferences.json
+// exists and has a home airport configured it returns a compact profile
+// summary; otherwise it returns the full questionnaire.
+func readOnboarding() (*ResourcesReadResult, error) {
+	// Detect preferences file state.
+	home, _ := os.UserHomeDir()
+	prefPath := filepath.Join(home, ".trvl", "preferences.json")
+
+	p, _ := preferences.LoadFrom(prefPath)
+	profileDone := p != nil && len(p.HomeAirports) > 0
+
+	var text string
+	if profileDone {
+		text = buildProfileSummary(p)
+	} else {
+		text = onboardingQuestionnaire
+	}
+
+	return &ResourcesReadResult{
+		Contents: []ResourceContent{{
+			URI:      "trvl://onboarding",
+			MimeType: "text/plain",
+			Text:     text,
+		}},
+	}, nil
+}
+
+// buildProfileSummary returns a short "profile complete" block.
+func buildProfileSummary(p *preferences.Preferences) string {
+	var b strings.Builder
+	b.WriteString("TRVL PROFILE — COMPLETE\n")
+	b.WriteString(strings.Repeat("=", 40))
+	b.WriteString("\n\n")
+	b.WriteString(fmt.Sprintf("Home airports: %s\n", strings.Join(p.HomeAirports, ", ")))
+	if len(p.HomeCities) > 0 {
+		b.WriteString(fmt.Sprintf("Home cities:   %s\n", strings.Join(p.HomeCities, ", ")))
+	}
+	if p.DisplayCurrency != "" {
+		b.WriteString(fmt.Sprintf("Currency:      %s\n", p.DisplayCurrency))
+	}
+	if p.Nationality != "" {
+		b.WriteString(fmt.Sprintf("Nationality:   %s\n", p.Nationality))
+	}
+	if len(p.FrequentFlyerPrograms) > 0 {
+		b.WriteString("FFP status:    ")
+		for i, ff := range p.FrequentFlyerPrograms {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(fmt.Sprintf("%s %s", ff.Alliance, ff.Tier))
+			if ff.AirlineCode != "" {
+				b.WriteString(fmt.Sprintf(" (%s)", ff.AirlineCode))
+			}
+		}
+		b.WriteString("\n")
+	}
+	if len(p.LoyaltyAirlines) > 0 {
+		b.WriteString(fmt.Sprintf("Loyalty air:   %s\n", strings.Join(p.LoyaltyAirlines, ", ")))
+	}
+	if len(p.LoungeCards) > 0 {
+		b.WriteString(fmt.Sprintf("Lounge cards:  %s\n", strings.Join(p.LoungeCards, ", ")))
+	}
+	if len(p.LoyaltyHotels) > 0 {
+		b.WriteString(fmt.Sprintf("Loyalty hotel: %s\n", strings.Join(p.LoyaltyHotels, ", ")))
+	}
+	if p.BudgetPerNightMax > 0 {
+		b.WriteString(fmt.Sprintf("Hotel budget:  %.0f-%.0f/night\n", p.BudgetPerNightMin, p.BudgetPerNightMax))
+	}
+	if p.BudgetFlightMax > 0 {
+		b.WriteString(fmt.Sprintf("Max flight:    %.0f\n", p.BudgetFlightMax))
+	}
+	b.WriteString("\nProfile is ready. Use get_preferences for full detail.")
+	return b.String()
+}
+
+const onboardingQuestionnaire = `TRVL ONBOARDING — BUILD USER PROFILE
+=====================================
+
+No preference profile found (~/.trvl/preferences.json). Ask the user the
+questions below to build their profile, then save it with update_preferences.
+
+APPROACH: Ask one category at a time. Do not dump all questions at once.
+Wait for each answer before asking the next group. Skip any question the
+user says is not applicable. After all categories, confirm and save.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 1 — ESSENTIALS (ask first)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q1.1  Home airport
+      "What airport do you usually fly from? (e.g. HEL, LHR, JFK)"
+      → field: home_airports (array of IATA codes)
+
+Q1.2  Display currency
+      "What currency should I show prices in? (e.g. EUR, GBP, USD)"
+      → field: display_currency
+
+Q1.3  Nationality
+      "What's your nationality? (2-letter country code, e.g. FI, GB, US)
+       I use this to warn you about visa requirements."
+      → field: nationality
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 2 — LOYALTY & STATUS (ask second — key differentiator)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q2.1  Frequent flyer status
+      "Do you have any airline loyalty status?
+       E.g. Oneworld Sapphire/Emerald, Star Alliance Gold, SkyTeam Elite Plus.
+       This unlocks lounge access, seat upgrades, and priority boarding hints."
+      → field: frequent_flyer_programs
+        format: [{"alliance": "oneworld", "tier": "sapphire", "airline_code": "AY"}]
+        alliance values: oneworld | star_alliance | skyteam
+        tier values (oneworld): ruby | sapphire | emerald
+        tier values (star alliance): silver | gold
+        tier values (skyteam): elite | elite_plus
+
+Q2.2  Frequent flyer memberships
+      "Which airline frequent flyer programs are you a member of?
+       (Even without status — miles still count. E.g. AY Plus, Flying Blue, Miles&More)"
+      → field: loyalty_airlines (array of IATA codes, e.g. ["AY", "KL", "LH"])
+
+Q2.3  Lounge access cards
+      "Do you have any lounge access cards?
+       E.g. Priority Pass, Diners Club, DragonPass, Amex Platinum lounge benefit."
+      → field: lounge_cards (array of card names)
+
+Q2.4  Hotel loyalty programs
+      "Any hotel loyalty programs?
+       E.g. Marriott Bonvoy, IHG One Rewards, Hilton Honors, World of Hyatt."
+      → field: loyalty_hotels (array of programme names)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 3 — TRAVEL STYLE (ask third)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q3.1  Luggage
+      "Do you travel carry-on only, or do you check bags?"
+      → field: carry_on_only (true/false)
+
+Q3.2  Stops
+      "Do you prefer direct/nonstop flights, or are connections fine?"
+      → field: prefer_direct (true/false)
+
+Q3.3  Seat preference
+      "Window, aisle, or no preference?"
+      → field: seat_preference ("window" | "aisle" | "no_preference")
+
+Q3.4  Red-eye flights
+      "Are overnight (red-eye) flights OK for you?"
+      → field: red_eye_ok (true/false)
+
+Q3.5  Flight time window (optional)
+      "Any flights you won't take? E.g. 'nothing before 7am' or 'not after 10pm'."
+      → fields: flight_time_earliest ("07:00"), flight_time_latest ("22:00")
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 4 — ACCOMMODATION (ask fourth)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q4.1  Hotel standard
+      "What's the minimum hotel star rating or review score you'd stay at?
+       E.g. '4 stars', '4.0 on Google', or 'any'."
+      → fields: min_hotel_stars (int), min_hotel_rating (float, e.g. 4.0)
+
+Q4.2  Shared rooms
+      "Would you ever stay in a hostel or shared dorm, or hotels only?"
+      → field: no_dormitories (true = hotels only)
+
+Q4.3  Private bathroom
+      "Do you need a private en-suite bathroom, or shared facilities are OK?"
+      → field: ensuite_only (true/false)
+
+Q4.4  Wifi
+      "Do you need fast wifi for work / co-working?"
+      → field: fast_wifi_needed (true/false)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 5 — BUDGET (ask fifth)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q5.1  Hotel budget
+      "What's your typical hotel budget per night?
+       E.g. '80-150 EUR' or 'up to 200 USD'."
+      → fields: budget_per_night_min, budget_per_night_max
+
+Q5.2  Max flight price
+      "Is there a one-way flight price above which you won't book?
+       E.g. 'I won't pay more than 400 EUR for a flight'."
+      → field: budget_flight_max
+
+Q5.3  Deal style
+      "How do you approach deals? Pick one:
+        price    — you'll take the 6am connection to save money
+        comfort  — you'll pay more for convenience / direct / better seats
+        balanced — you weigh both"
+      → field: deal_tolerance ("price" | "comfort" | "balanced")
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY 6 — CONTEXT (optional, ask last)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q6.1  Usual travel companions
+      "Do you usually travel solo, as a couple, or with family?"
+      → field: default_companions (0=solo, 1=couple, 2+=family)
+
+Q6.2  Trip types
+      "What kinds of trips do you take most?
+       city_break | beach | adventure | business | remote_work"
+      → field: trip_types (array)
+
+Q6.3  Languages
+      "What languages do you speak? (helps with destination suggestions)"
+      → field: languages (array of ISO 639-1 codes, e.g. ["en","fi"])
+
+Q6.4  Bucket list (optional)
+      "Any dream destinations you'd love to visit?"
+      → field: bucket_list (array of place names)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AFTER COLLECTING ANSWERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Summarise what you've collected: show the user a plain-text recap.
+2. Ask: "Does this look right? Anything to change?"
+3. Once confirmed, call update_preferences with all collected fields.
+4. Tell the user: "Profile saved — I'll use these preferences for all searches."
+
+The profile is a living document. Update it whenever the user mentions a
+change (new status, moved city, new lounge card, etc.).
+`
 
 const popularAirports = `HEL - Helsinki, Finland
 JFK - New York (John F. Kennedy), USA

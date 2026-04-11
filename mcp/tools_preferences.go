@@ -35,6 +35,7 @@ func getPreferencesTool() ToolDef {
 				"locale":              map[string]interface{}{"type": "string"},
 				"loyalty_airlines":    map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 				"loyalty_hotels":      map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"lounge_cards":        map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 				"preferred_districts": map[string]interface{}{"type": "object"},
 				"default_companions":     map[string]interface{}{"type": "integer"},
 				"trip_types":             map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
@@ -200,6 +201,7 @@ You MUST confirm with the user before calling this tool. Never update silently.`
 				"locale":             {Type: "string", Description: "BCP 47 locale tag, e.g. \"en-FI\"."},
 				"loyalty_airlines":    {Type: "string", Description: "JSON array of airline IATA codes, e.g. [\"KL\",\"AY\"]. Replaces existing list."},
 				"loyalty_hotels":      {Type: "string", Description: "JSON array of hotel programme names, e.g. [\"Marriott Bonvoy\"]. Replaces existing list."},
+				"lounge_cards":        {Type: "string", Description: "JSON array of lounge access card names, e.g. [\"Priority Pass\",\"Diners Club\"]. Replaces existing list."},
 				"preferred_districts": {Type: "string", Description: "JSON object mapping city names to district arrays, e.g. {\"Prague\":[\"Prague 1\",\"Prague 2\"]}. Merged with existing districts (new cities added, existing cities replaced)."},
 				"family_members":      {Type: "string", Description: "JSON array of family member objects with name, relationship, and notes fields. Replaces entire family list."},
 				// Travel style (extended)
@@ -242,6 +244,7 @@ You MUST confirm with the user before calling this tool. Never update silently.`
 				"locale":              map[string]interface{}{"type": "string"},
 				"loyalty_airlines":    map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 				"loyalty_hotels":      map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"lounge_cards":        map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
 				"preferred_districts": map[string]interface{}{"type": "object"},
 				"default_companions":     map[string]interface{}{"type": "integer"},
 				"trip_types":             map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
@@ -345,6 +348,9 @@ func mergePreferenceArgs(p *preferences.Preferences, args map[string]any) *prefe
 	}
 	if v := argStringSliceOrJSON(args, "loyalty_hotels"); v != nil {
 		p.LoyaltyHotels = v
+	}
+	if v := argStringSliceOrJSON(args, "lounge_cards"); v != nil {
+		p.LoungeCards = v
 	}
 
 	// Booleans: only update if the key is present.
