@@ -81,7 +81,19 @@ Examples:
 				return models.FormatJSON(os.Stdout, result)
 			}
 
-			return printRouteTable(ctx, currency, result)
+			if err := printRouteTable(ctx, currency, result); err != nil {
+				return err
+			}
+
+			if openFlag && result.Success && len(result.Itineraries) > 0 {
+				for _, leg := range result.Itineraries[0].Legs {
+					if leg.BookingURL != "" {
+						_ = openBrowser(leg.BookingURL)
+						break
+					}
+				}
+			}
+			return nil
 		},
 	}
 

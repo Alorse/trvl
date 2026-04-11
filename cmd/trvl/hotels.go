@@ -128,6 +128,10 @@ func runHotels(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if openFlag && len(result.Hotels) > 0 && result.Hotels[0].BookingURL != "" {
+		_ = openBrowser(result.Hotels[0].BookingURL)
+	}
+
 	// Auto-trigger: if the stay is >= 4 nights, silently check for an
 	// accommodation split and print a tip when one is found.
 	maybeShowAccomHackTip(cmd.Context(), location, checkin, checkout, currency, guests)

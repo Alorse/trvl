@@ -81,7 +81,14 @@ Examples:
 				return models.FormatJSON(os.Stdout, result)
 			}
 
-			return printGroundTable(cmd.Context(), currency, result)
+			if err := printGroundTable(cmd.Context(), currency, result); err != nil {
+				return err
+			}
+
+			if openFlag && result.Success && len(result.Routes) > 0 && result.Routes[0].BookingURL != "" {
+				_ = openBrowser(result.Routes[0].BookingURL)
+			}
+			return nil
 		},
 	}
 

@@ -13,6 +13,7 @@ import (
 var format string
 var noCache bool
 var cliTimeout time.Duration
+var openFlag bool
 
 var rootCmd = &cobra.Command{
 	Use:   "trvl",
@@ -36,6 +37,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&format, "format", "table", "output format (table, json)")
 	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "bypass response cache")
 	rootCmd.PersistentFlags().DurationVar(&cliTimeout, "timeout", 120*time.Second, "request timeout (e.g. 30s, 2m)")
+	rootCmd.PersistentFlags().BoolVar(&openFlag, "open", false, "open the first result's booking URL in the default browser")
 
 	// Star nudge: shown once after a few successful searches (CLI interactive only).
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, args []string) {

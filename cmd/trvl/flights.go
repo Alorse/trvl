@@ -112,7 +112,14 @@ Examples:
 				return models.FormatJSON(os.Stdout, result)
 			}
 
-			return printFlightsTable(cmd.Context(), strings.Join(origins, ","), strings.Join(destinations, ","), targetCurrency, result)
+			if err := printFlightsTable(cmd.Context(), strings.Join(origins, ","), strings.Join(destinations, ","), targetCurrency, result); err != nil {
+				return err
+			}
+
+			if openFlag && result.Success && len(result.Flights) > 0 && result.Flights[0].BookingURL != "" {
+				_ = openBrowser(result.Flights[0].BookingURL)
+			}
+			return nil
 		},
 	}
 
