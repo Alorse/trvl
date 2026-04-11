@@ -586,6 +586,17 @@ Built on the shoulders of:
 
 `trvl` accesses Google's public-facing internal APIs. It does not bypass authentication, access protected content, or circumvent rate limits. Same approach as [fli](https://github.com/punitarani/fli) (1K+ stars, MIT licensed).
 
+## More Tools
+
+| Tool | What it does |
+|------|-------------|
+| [axterminator](https://github.com/MikkoParkkola/axterminator) | macOS GUI automation — 30 MCP tools, audio/camera capture |
+| [mcp-gateway](https://github.com/MikkoParkkola/mcp-gateway) | Universal MCP gateway — single-port multiplexing |
+| [nab](https://github.com/MikkoParkkola/nab) | Token-optimized HTTP client for LLMs |
+| [nowifi](https://github.com/MikkoParkkola/nowifi) | One-command captive portal bypass |
+
+All tools: `brew tap MikkoParkkola/tap && brew install trvl axterminator mcp-gateway nab nowifi`
+
 ## License
 
 [PolyForm Noncommercial 1.0.0](LICENSE) — free for personal and noncommercial use. Commercial use requires a separate license.
