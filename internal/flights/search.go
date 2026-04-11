@@ -42,6 +42,9 @@ type SearchOptions struct {
 	// was removed after research confirmed no server-side checked bag filter exists.
 	ExcludeBasic  bool   // Exclude basic economy fares
 	Alliances     []string // Alliance filter; e.g. ["STAR_ALLIANCE", "ONEWORLD", "SKYTEAM"]
+	DepartAfter   string // Earliest departure time "HH:MM" (e.g. "06:00")
+	DepartBefore  string // Latest departure time "HH:MM" (e.g. "22:00")
+	LessEmissions bool   // Only show flights with less emissions
 }
 
 // defaults fills in zero-value fields with sensible defaults.
@@ -245,8 +248,8 @@ func buildSegment(from, to, date string, opts SearchOptions) any {
 		[]any{[]any{[]any{from, 0}}},
 		// [1] arrival airports
 		[]any{[]any{[]any{to, 0}}},
-		// [2] TODO: departure time window — likely []any{startHour, endHour} when SearchOptions gains DepartureTimeEarliest/Latest
-		nil,
+		// [2] departure time window [startHour, endHour] or nil
+		departTimeWindow(opts.DepartAfter, opts.DepartBefore),
 		// [3] stops
 		stops,
 		// [4] airlines
@@ -267,8 +270,8 @@ func buildSegment(from, to, date string, opts SearchOptions) any {
 		nil,
 		// [12] layover duration
 		nil,
-		// [13] emissions
-		nil,
+		// [13] emissions filter (1 = less emissions only)
+		emissionsFilter(opts.LessEmissions),
 		// [14]
 		3,
 	}
@@ -321,4 +324,54 @@ func alliancesFilter(alliances []string) any {
 		entries[i] = strings.ToUpper(strings.TrimSpace(a))
 	}
 	return entries
+}
+
+// departTimeWindow parses "HH:MM" strings and returns the segment [2] value
+// []any{startHour, endHour}, or nil when neither bound is set.
+// Malformed values are silently ignored (treated as unset).
+func departTimeWindow(after, before string) any {
+	start := parseHour(after)
+	end := parseHour(before)
+	if start < 0 && end < 0 {
+		return nil
+	}
+	// Use 0 for an unset lower bound and 24 for an unset upper bound so the
+	// API sees a well-formed window even when only one side is specified.
+	if start < 0 {
+		start = 0
+	}
+	if end < 0 {
+		end = 24
+	}
+	return []any{start, end}
+}
+
+// parseHour parses a strict "HH:MM" string (exactly 5 characters) and returns
+// the hour as an integer [0, 23]. Returns -1 on any parse error or out-of-range value.
+func parseHour(hhmm string) int {
+	// Must be exactly "HH:MM" — 5 characters, colon at index 2.
+	if len(hhmm) != 5 || hhmm[2] != ':' {
+		return -1
+	}
+	h0, h1 := hhmm[0], hhmm[1]
+	if h0 < '0' || h0 > '9' || h1 < '0' || h1 > '9' {
+		return -1
+	}
+	m0, m1 := hhmm[3], hhmm[4]
+	if m0 < '0' || m0 > '9' || m1 < '0' || m1 > '9' {
+		return -1
+	}
+	hour := int(h0-'0')*10 + int(h1-'0')
+	if hour > 23 {
+		return -1
+	}
+	return hour
+}
+
+// emissionsFilter returns 1 when the less-emissions filter is active, nil otherwise.
+func emissionsFilter(less bool) any {
+	if less {
+		return 1
+	}
+	return nil
 }
