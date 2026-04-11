@@ -68,6 +68,12 @@ type HotelSearchOptions struct {
 	// Accepted values: "hotel", "apartment", "hostel", "resort", "bnb", "villa".
 	// Empty string means no filter.
 	PropertyType string
+
+	// Brand filters results to hotels whose name contains the brand string
+	// (case-insensitive). Applied as a client-side post-filter since Google
+	// Hotels does not expose a server-side brand/chain parameter.
+	// Examples: "hilton", "marriott", "ibis", "hyatt".
+	Brand string
 }
 
 // SearchHotels searches for hotels in the given location.
@@ -379,6 +385,9 @@ func filterHotels(hotels []models.HotelResult, opts HotelSearchOptions) []models
 			}
 		}
 		if len(opts.Amenities) > 0 && !hasAllAmenities(h.Amenities, opts.Amenities) {
+			continue
+		}
+		if opts.Brand != "" && !strings.Contains(strings.ToLower(h.Name), strings.ToLower(opts.Brand)) {
 			continue
 		}
 		filtered = append(filtered, h)

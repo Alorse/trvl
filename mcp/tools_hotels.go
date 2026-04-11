@@ -110,6 +110,7 @@ func searchHotelsTool() ToolDef {
 				"enrich_amenities":  {Type: "boolean", Description: "Fetch detail pages for top results to get full amenity lists (slower, default: false)"},
 				"free_cancellation": {Type: "boolean", Description: "Only show hotels with free cancellation (default: false)"},
 				"property_type":     {Type: "string", Description: "Filter by property type: hotel, apartment, hostel, resort, bnb, or villa (default: no filter)"},
+				"brand":             {Type: "string", Description: "Filter by hotel brand/chain name (case-insensitive substring match, e.g. hilton, marriott, ibis)"},
 			},
 			Required: []string{"location", "check_in", "check_out"},
 		},
@@ -204,6 +205,7 @@ func handleSearchHotels(ctx context.Context, args map[string]any, elicit ElicitF
 		EnrichAmenities:  argBool(args, "enrich_amenities", false),
 		FreeCancellation: argBool(args, "free_cancellation", false),
 		PropertyType:     argString(args, "property_type"),
+		Brand:            argString(args, "brand"),
 	}
 
 	// Apply user preferences when MCP caller hasn't set these explicitly.
