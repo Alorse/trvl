@@ -263,6 +263,7 @@ Optional:
 - `amenities`: comma-separated required amenities (e.g. "pool,wifi") — client-side
 - `min_price` / `max_price`: price range per night — server-side `?min_price` / `?max_price` + client-side guard
 - `enrich_amenities`: true/false — fetch detail pages for top results (slower)
+- `eco_certified`: true/false (default false) — only show eco-certified hotels with sustainability certifications — server-side `?ecof=1`
 
 ### hotel_prices — Compare prices across booking sites
 ```json
@@ -321,7 +322,7 @@ with the user before calling this tool.
 ```json
 {"airport": "HEL"}
 ```
-Returns: lounge name, terminal, accepted access cards (Priority Pass, Diners Club, LoungeKey, etc.), amenities, opening hours. If the user has `lounge_cards` set in preferences, results are annotated with `accessible_with` — the subset of their own cards that grant free entry to each lounge.
+Returns: lounge name, terminal, type, accepted access cards (Priority Pass, Diners Club, LoungeKey, etc.), amenities, opening hours. Type indicates access network: "card" (Priority Pass/LoungeKey), "airline" (frequent flyer status), "bank" (credit card programme), "amex" (Centurion). If the user has `lounge_cards` or frequent flyer status set in preferences, results are annotated with `accessible_with` — the subset of their own cards or status that grant free entry to each lounge.
 
 ### MCP Prompts (for complex workflows)
 - `plan-trip` — Full trip planning: flights + hotels + budget analysis

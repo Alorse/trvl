@@ -28,11 +28,12 @@ done
 - search_flights(origin, destination, departure_date, [return_date, cabin_class, max_stops, sort_by, alliances, depart_after, depart_before, less_emissions, carry_on_bags, checked_bags, require_checked_bag, max_price, max_duration, exclude_basic, airlines])
   - checked_bags: HIDDEN GOOGLE FEATURE — server-side filter not exposed in Google's own UI
 - search_dates(origin, destination, start_date, end_date, [trip_duration, is_round_trip])
-- search_hotels(location, check_in, check_out, [guests, stars, sort, currency, free_cancellation, property_type, brand, min_rating, max_distance, amenities, min_price, max_price, enrich_amenities])
+- search_hotels(location, check_in, check_out, [guests, stars, sort, currency, free_cancellation, property_type, brand, min_rating, max_distance, amenities, min_price, max_price, enrich_amenities, eco_certified])
   - free_cancellation: server-side Google Hotels ?fc=1 param
   - property_type: hotel|apartment|hostel|resort|bnb|villa — server-side ?ptype=N
   - brand: chain name substring — client-side
   - min_rating/max_distance/min_price/max_price: server-side + client-side guard
+  - eco_certified: boolean (default false) — only show eco-certified hotels with sustainability certifications — server-side &ecof=1
 - hotel_prices(hotel_id, check_in, check_out, [currency])
 - hotel_reviews(hotel_id, [limit, sort])
 - hotel_rooms(hotel_name, check_in, check_out, [currency])
@@ -65,7 +66,7 @@ done
 - mark_trip_booked(trip_id, leg_index)
 - get_baggage_rules(airline, [type])
 - search_lounges(airport)
-  - Returns lounges with accepted access cards, amenities, and opening hours. Annotates results with the user's own lounge cards (from preferences) so you can show which lounges they can enter for free.
+  - Returns lounges with name, terminal, type, accepted access cards, amenities, and opening hours. Type indicates access network: "card" (Priority Pass/LoungeKey), "airline" (frequent flyer status), "bank" (credit card programme), "amex" (Centurion). Annotates results with the user's own lounge cards and frequent flyer status (from preferences) so you can show which lounges they can enter for free.
 
 ## MCP Prompts
 
