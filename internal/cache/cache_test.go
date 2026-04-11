@@ -116,8 +116,12 @@ func TestEviction_MaxEntries(t *testing.T) {
 	c := NewWithMax(3)
 	defer c.Close()
 
+	// Use explicit sleep between inserts to ensure distinct insertedAt
+	// timestamps on Windows (time.Now() has ~15ms granularity).
 	c.Set("a", []byte("1"), 5*time.Minute)
+	time.Sleep(20 * time.Millisecond)
 	c.Set("b", []byte("2"), 5*time.Minute)
+	time.Sleep(20 * time.Millisecond)
 	c.Set("c", []byte("3"), 5*time.Minute)
 
 	if c.Len() != 3 {
@@ -131,7 +135,7 @@ func TestEviction_MaxEntries(t *testing.T) {
 		t.Errorf("Len() after eviction = %d, want 3", c.Len())
 	}
 
-	// "a" should have been evicted.
+	// "a" should have been evicted (it has the earliest insertedAt).
 	if _, ok := c.Get("a"); ok {
 		t.Error("expected 'a' to be evicted")
 	}
