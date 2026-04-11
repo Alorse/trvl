@@ -15,6 +15,7 @@ var marketedProviderNames = []string{
 	"tallink",
 	"vikingline",
 	"eckeroline",
+	"finnlines",
 	"stenaline",
 	"dfds",
 }

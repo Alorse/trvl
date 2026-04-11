@@ -67,7 +67,7 @@ From?|To?|When?|Flex?|Travelers?|Budget? Check calendar (Google/Apple/manual) fo
 | `nearby_places` | POIs near hotel | lat,lon,[category,radius_m] |
 | `travel_guide` | Wikivoyage guide | location |
 | `local_events` | Events during trip | location,start_date,end_date |
-| `search_ground` | Bus/train/ferry (16 providers) | from,to,date,[currency,type,provider] |
+| `search_ground` | Bus/train/ferry (17 providers) | from,to,date,[currency,type,provider] |
 | `search_airport_transfers` | Airport→hotel or city transfers + taxi estimates | airport_code,destination,date,[provider] |
 | `search_restaurants` | Restaurants near location | location,[query,limit] |
 | `plan_trip` | Flights + hotel in one parallel search | origin,destination,depart_date,[return_date,budget] |
