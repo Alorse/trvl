@@ -330,7 +330,7 @@ See [Quick Setup step 3](#3-optional-teach-your-ai-about-trvl) above for AGENTS.
 
 ## CLI Usage
 
-trvl also works as a standalone CLI tool with 33 commands:
+trvl also works as a standalone CLI tool with 34 commands:
 
 All search commands accept `--currency <CODE>` (e.g. `--currency EUR`) to convert displayed prices. trvl detects the actual API currency and converts at the display layer — no hardcoded currencies.
 
