@@ -92,7 +92,7 @@ func TestSearchFlixBus(t *testing.T) {
 	// Use a date 30 days from now to avoid past-date issues
 	date := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
 
-	routes, err := SearchFlixBus(ctx, fromCities[0].ID, toCities[0].ID, date, "EUR")
+	routes, err := SearchFlixBus(ctx, fromCities[0].ID, toCities[0].ID, date, SearchOptions{Currency: "EUR"})
 	if err != nil {
 		t.Fatalf("SearchFlixBus: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestSearchRegioJet(t *testing.T) {
 	// Prague (10202003) to Vienna (10202052) — core RegioJet route
 	date := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
 
-	routes, err := SearchRegioJet(ctx, 10202003, 10202052, date, "EUR")
+	routes, err := SearchRegioJet(ctx, 10202003, 10202052, date, SearchOptions{Currency: "EUR"})
 	if err != nil {
 		t.Fatalf("SearchRegioJet: %v", err)
 	}

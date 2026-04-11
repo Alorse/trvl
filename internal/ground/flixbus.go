@@ -150,7 +150,8 @@ func FlixBusAutoComplete(ctx context.Context, query string) ([]FlixBusCity, erro
 // SearchFlixBus searches FlixBus for routes between two cities on a date.
 // fromCity and toCity are FlixBus UUID city IDs.
 // date is YYYY-MM-DD format.
-func SearchFlixBus(ctx context.Context, fromCity, toCity, date, currency string) ([]models.GroundRoute, error) {
+func SearchFlixBus(ctx context.Context, fromCity, toCity, date string, opts SearchOptions) ([]models.GroundRoute, error) {
+	currency := opts.Currency
 	if currency == "" {
 		currency = "EUR"
 	}
@@ -169,6 +170,10 @@ func SearchFlixBus(ctx context.Context, fromCity, toCity, date, currency string)
 		"products":       {`{"adult":1}`},
 		"currency":       {strings.ToUpper(currency)},
 		"search_by":      {"cities"},
+		"sort":           {"price"},
+	}
+	if opts.MaxPrice > 0 {
+		params.Set("price_max", fmt.Sprintf("%.0f", opts.MaxPrice))
 	}
 
 	u := flixbusBaseURL + flixbusSearch + "?" + params.Encode()

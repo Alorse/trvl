@@ -124,7 +124,7 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			routes, err := searchFlixBusByName(ctx, from, to, date, opts.Currency)
+			routes, err := searchFlixBusByName(ctx, from, to, date, opts)
 			results <- providerResult{routes: routes, err: err, name: "flixbus"}
 		}()
 	}
@@ -134,7 +134,7 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			routes, err := searchRegioJetByName(ctx, from, to, date, opts.Currency)
+			routes, err := searchRegioJetByName(ctx, from, to, date, opts)
 			results <- providerResult{routes: routes, err: err, name: "regiojet"}
 		}()
 	}
@@ -480,7 +480,7 @@ func filterUnavailableGroundRoutes(routes []models.GroundRoute) []models.GroundR
 }
 
 // searchFlixBusByName resolves city names and searches FlixBus.
-func searchFlixBusByName(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
+func searchFlixBusByName(ctx context.Context, from, to, date string, opts SearchOptions) ([]models.GroundRoute, error) {
 	fromCities, err := FlixBusAutoComplete(ctx, from)
 	if err != nil {
 		return nil, fmt.Errorf("resolve from city: %w", err)
@@ -497,7 +497,7 @@ func searchFlixBusByName(ctx context.Context, from, to, date, currency string) (
 		return nil, fmt.Errorf("no FlixBus city found for %q", to)
 	}
 
-	routes, err := SearchFlixBus(ctx, fromCities[0].ID, toCities[0].ID, date, currency)
+	routes, err := SearchFlixBus(ctx, fromCities[0].ID, toCities[0].ID, date, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +516,7 @@ func searchFlixBusByName(ctx context.Context, from, to, date, currency string) (
 }
 
 // searchRegioJetByName resolves city names and searches RegioJet.
-func searchRegioJetByName(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
+func searchRegioJetByName(ctx context.Context, from, to, date string, opts SearchOptions) ([]models.GroundRoute, error) {
 	fromCities, err := RegioJetAutoComplete(ctx, from)
 	if err != nil {
 		return nil, fmt.Errorf("resolve from city: %w", err)
@@ -533,7 +533,7 @@ func searchRegioJetByName(ctx context.Context, from, to, date, currency string) 
 		return nil, fmt.Errorf("no RegioJet city found for %q", to)
 	}
 
-	return SearchRegioJet(ctx, fromCities[0].ID, toCities[0].ID, date, currency)
+	return SearchRegioJet(ctx, fromCities[0].ID, toCities[0].ID, date, opts)
 }
 
 // searchTransitousByName geocodes city names to coordinates and searches Transitous.

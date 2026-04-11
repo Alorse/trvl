@@ -201,7 +201,8 @@ func cloneRegioJetCountries(src []regiojetCountry) []regiojetCountry {
 
 // SearchRegioJet searches RegioJet for routes between two city IDs on a date.
 // date is YYYY-MM-DD format.
-func SearchRegioJet(ctx context.Context, fromCityID, toCityID int, date, currency string) ([]models.GroundRoute, error) {
+func SearchRegioJet(ctx context.Context, fromCityID, toCityID int, date string, opts SearchOptions) ([]models.GroundRoute, error) {
+	currency := opts.Currency
 	if currency == "" {
 		currency = "EUR"
 	}
@@ -214,6 +215,10 @@ func SearchRegioJet(ctx context.Context, fromCityID, toCityID int, date, currenc
 		"departureDate":    {date},
 		"tariffs":          {"REGULAR"},
 		"currency":         {strings.ToUpper(currency)},
+		"sort":             {"PRICE"},
+	}
+	if opts.MaxPrice > 0 {
+		params.Set("priceMax", fmt.Sprintf("%.0f", opts.MaxPrice))
 	}
 
 	u := regiojetBaseURL + regiojetSearch + "?" + params.Encode()
