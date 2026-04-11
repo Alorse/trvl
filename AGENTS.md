@@ -228,6 +228,17 @@ Optional parameters:
 - `cabin_class`: "economy" | "premium_economy" | "business" | "first"
 - `max_stops`: "any" | "nonstop" | "one_stop" | "two_plus"
 - `sort_by`: "cheapest" | "duration" | "departure" | "arrival"
+- `alliances`: comma-separated alliance names: "STAR_ALLIANCE", "ONEWORLD", "SKYTEAM" — server-side filter
+- `depart_after`: earliest departure time "HH:MM" (e.g. "06:00") — server-side
+- `depart_before`: latest departure time "HH:MM" (e.g. "22:00") — server-side
+- `less_emissions`: true/false — only show flights with below-average CO2 — server-side
+- `carry_on_bags`: integer — require N carry-on bags included in price — server-side price recalculation
+- `checked_bags`: integer — **hidden Google feature** — require N checked bags in price. Google's UI only exposes carry-on; trvl also wires the checked-bag slot in the same filter array — server-side
+- `require_checked_bag`: true/false — drop any flight without ≥1 free checked bag — client-side post-filter
+- `max_price`: integer — maximum price in whole currency units — server-side
+- `max_duration`: integer — maximum total duration in minutes — server-side
+- `exclude_basic`: true/false — exclude basic economy fares — server-side
+- `airlines`: comma-separated IATA codes to restrict results (e.g. "AY,LH")
 
 ### search_dates — Find the cheapest day to fly
 ```json
@@ -239,7 +250,19 @@ Optional: `trip_duration` (days), `is_round_trip` (true/false)
 ```json
 {"location": "Tokyo", "check_in": "2026-06-15", "check_out": "2026-06-18"}
 ```
-Optional: `guests` (number), `stars` (1-5 minimum), `sort` ("price" | "rating"), `currency` ("EUR" | "USD" etc.)
+Optional:
+- `guests`: number of guests (default: 2)
+- `stars`: minimum star rating 1-5 — server-side `?class=N`
+- `sort`: "price" | "rating" | "distance" | "stars"
+- `currency`: "EUR" | "USD" etc.
+- `free_cancellation`: true/false — only hotels with free cancellation — server-side `?fc=1`
+- `property_type`: "hotel" | "apartment" | "hostel" | "resort" | "bnb" | "villa" — server-side `?ptype=N`
+- `brand`: hotel chain name substring (e.g. "hilton", "marriott", "ibis") — client-side
+- `min_rating`: minimum guest rating e.g. 4.0 — server-side `?rating=N` + client-side guard
+- `max_distance`: maximum km from city center — server-side `?lrad=N`
+- `amenities`: comma-separated required amenities (e.g. "pool,wifi") — client-side
+- `min_price` / `max_price`: price range per night — server-side `?min_price` / `?max_price` + client-side guard
+- `enrich_amenities`: true/false — fetch detail pages for top results (slower)
 
 ### hotel_prices — Compare prices across booking sites
 ```json
