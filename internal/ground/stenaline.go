@@ -5,7 +5,8 @@ package ground
 // No public API exists for Stena Line ferry search or pricing (investigated
 // 2026-04-06). Reference schedules and prices from stenaline.com (2026).
 //
-// Will be replaced by Distribusion API integration.
+// Stena Line is a confirmed FerryGateway Switch member (ferrygateway.org).
+// Will be replaced by FerryGateway Switch or Distribusion API integration.
 
 import (
 	"context"

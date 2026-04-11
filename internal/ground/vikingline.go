@@ -2,11 +2,30 @@ package ground
 
 // Viking Line ferry provider.
 //
-// Architecture: Viking Line's website is behind Imperva WAF with no public API.
+// Architecture: Viking Line's website (www.vikingline.fi/se/com) is behind
+// Imperva WAF with no public REST API. Their booking site
+// (booking.vikingline.com) exposes an agent-only API (/agent-api/v1/) that
+// requires authentication (VL-CST CSRF token + agent login) and is not
+// suitable for automated integration.
+//
 // Reference schedules sourced from vikingline.com/fi published timetables (2026).
 // All routes operate daily. Prices are minimum foot-passenger fares.
 //
-// Will be replaced by Distribusion API integration.
+// Integration path (investigated 2026-04-11):
+//   - Distribusion: covers bus/train/ferry but Viking Line is NOT confirmed as a
+//     Distribusion carrier. Distribusion may cover these routes via other
+//     operators. Requires a live API key to verify (GET /marketing_carriers).
+//   - FerryGateway Switch (ferrygateway.org): Viking Line IS a confirmed member.
+//     Standard API v1.3.0 covers search, booking, meals, vehicles, transfers.
+//     Contact: [email protected] to register as an agent.
+//   - Lyko (lyko.tech): multi-operator ferry API (200+ lines), Viking Line
+//     coverage unconfirmed but likely given Baltic coverage.
+//   - Direct Ferries / go-ferry.com / Omio: all distribute Viking Line but via
+//     affiliate/redirect models, not direct API access.
+//
+// Recommended next step: register at ferrygateway.org for FerryGateway Switch
+// access. This gives direct API access to Viking Line (plus Tallink/Silja,
+// Eckerö Line, Stena Line, DFDS, and others already in this codebase).
 
 import (
 	"context"
@@ -151,7 +170,8 @@ func vikinglineFormatDateTime(date, timeStr string, dayOffset int) string {
 }
 
 // SearchVikingLine searches for Viking Line ferry sailings using the published
-// reference timetables. Will be replaced by Distribusion API integration.
+// reference timetables. Will be replaced by FerryGateway Switch API integration
+// (see package doc for details).
 func SearchVikingLine(ctx context.Context, from, to, date, currency string) ([]models.GroundRoute, error) {
 	fromPort, ok := LookupVikingLinePort(from)
 	if !ok {
