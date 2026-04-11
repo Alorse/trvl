@@ -256,6 +256,9 @@ func countFlights(t *testing.T, body []byte) int {
 }
 
 // debugPayload logs the JSON payload for manual inspection.
+// Keep for manual debugging; underscore-assign to satisfy staticcheck.
+var _ = debugPayload
+
 func debugPayload(t *testing.T, filters any) {
 	t.Helper()
 	data, _ := json.MarshalIndent(filters, "", "  ")
