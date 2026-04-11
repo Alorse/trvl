@@ -85,7 +85,7 @@ func GetAttractions(ctx context.Context, lat, lon float64, radiusMeters int) ([]
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return nil, fmt.Errorf("read opentripmap response: %w", err)
 	}

@@ -66,7 +66,7 @@ func FetchCurrency(ctx context.Context, currencyCode string) (models.CurrencyInf
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return models.CurrencyInfo{}, fmt.Errorf("read currency response: %w", err)
 	}

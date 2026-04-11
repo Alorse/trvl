@@ -307,7 +307,7 @@ func SearchEurostar(ctx context.Context, from, to, startDate, endDate, currency 
 
 	if resp.StatusCode == http.StatusForbidden {
 		firstBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		resp.Body.Close()
+		_ = firstBody // consumed for logging; body closed by defer
 
 		// Attempt retry with browser cookies.
 		cookieHeader := cookies.BrowserCookies("eurostar.com")

@@ -112,7 +112,7 @@ func GetWalkablePOIs(ctx context.Context, lat, lon float64, walkMinutes int, cat
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return nil, fmt.Errorf("read geoapify response: %w", err)
 	}
