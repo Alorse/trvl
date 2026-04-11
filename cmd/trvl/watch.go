@@ -160,10 +160,13 @@ func watchListCmd() *cobra.Command {
 				return models.FormatJSON(os.Stdout, watches)
 			}
 
-			headers := []string{"ID", "Type", "Route", "Depart", "Return", "Goal", "Last", "Lowest"}
+			headers := []string{"ID", "Type", "Route", "Dates", "Goal", "Last", "Lowest", "Trend", "Checked"}
 			rows := make([][]string, 0, len(watches))
 			for _, w := range watches {
 				route := w.Origin + " -> " + w.Destination
+
+				dates := formatWatchDates(w)
+
 				goal := ""
 				if w.BelowPrice > 0 {
 					goal = fmt.Sprintf("%.0f %s", w.BelowPrice, w.Currency)
@@ -176,15 +179,67 @@ func watchListCmd() *cobra.Command {
 				if w.LowestPrice > 0 {
 					lowest = fmt.Sprintf("%.0f %s", w.LowestPrice, w.Currency)
 				}
+
+				// Sparkline + trend arrow from price history.
+				history := store.History(w.ID)
+				trend := watch.Sparkline(history, 10)
+				arrow := watch.TrendArrow(history)
+				if arrow != "" {
+					trend = trend + " " + arrow
+				}
+
+				checked := formatLastCheck(w.LastCheck)
+
 				rows = append(rows, []string{
-					w.ID, w.Type, route, w.DepartDate, w.ReturnDate,
-					goal, last, lowest,
+					w.ID, w.Type, route, dates,
+					goal, last, lowest, trend, checked,
 				})
 			}
 
 			models.FormatTable(os.Stdout, headers, rows)
 			return nil
 		},
+	}
+}
+
+// formatWatchDates returns a compact date summary depending on watch mode.
+func formatWatchDates(w watch.Watch) string {
+	switch {
+	case w.IsRouteWatch():
+		if w.CheapestDate != "" {
+			return "any (best: " + w.CheapestDate + ")"
+		}
+		return "any (next 60d)"
+	case w.IsDateRange():
+		s := w.DepartFrom + " .. " + w.DepartTo
+		if w.CheapestDate != "" {
+			s += " (best: " + w.CheapestDate + ")"
+		}
+		return s
+	default:
+		s := w.DepartDate
+		if w.ReturnDate != "" {
+			s += " / " + w.ReturnDate
+		}
+		return s
+	}
+}
+
+// formatLastCheck returns a human-readable relative time for the last check.
+func formatLastCheck(t time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 	}
 }
 

@@ -527,6 +527,98 @@ func TestCheckAllZeroPrice(t *testing.T) {
 	}
 }
 
+func TestSparklineEmpty(t *testing.T) {
+	if got := Sparkline(nil, 10); got != "" {
+		t.Errorf("nil history: got %q, want empty", got)
+	}
+	if got := Sparkline([]PricePoint{{Price: 100}}, 10); got != "" {
+		t.Errorf("single point: got %q, want empty", got)
+	}
+}
+
+func TestSparklineBasic(t *testing.T) {
+	history := []PricePoint{
+		{Price: 100},
+		{Price: 200},
+		{Price: 300},
+		{Price: 200},
+		{Price: 100},
+	}
+	got := Sparkline(history, 10)
+	if len([]rune(got)) != 5 {
+		t.Errorf("expected 5 chars, got %d: %q", len([]rune(got)), got)
+	}
+	runes := []rune(got)
+	// First and last should be lowest bar, middle should be highest.
+	if runes[0] != '▁' {
+		t.Errorf("first char = %c, want ▁", runes[0])
+	}
+	if runes[2] != '█' {
+		t.Errorf("middle char = %c, want █", runes[2])
+	}
+	if runes[4] != '▁' {
+		t.Errorf("last char = %c, want ▁", runes[4])
+	}
+}
+
+func TestSparklineTruncates(t *testing.T) {
+	// 20 points, maxPoints=5 — should only render the last 5.
+	history := make([]PricePoint, 20)
+	for i := range history {
+		history[i] = PricePoint{Price: float64(100 + i)}
+	}
+	got := Sparkline(history, 5)
+	if len([]rune(got)) != 5 {
+		t.Errorf("expected 5 chars, got %d: %q", len([]rune(got)), got)
+	}
+}
+
+func TestSparklineFlatLine(t *testing.T) {
+	history := []PricePoint{
+		{Price: 200},
+		{Price: 200},
+		{Price: 200},
+	}
+	got := Sparkline(history, 10)
+	runes := []rune(got)
+	// All bars should be the same (middle bar).
+	for i, r := range runes {
+		if r != runes[0] {
+			t.Errorf("flat line: char[%d] = %c, want %c", i, r, runes[0])
+		}
+	}
+}
+
+func TestTrendArrowDown(t *testing.T) {
+	history := []PricePoint{{Price: 300}, {Price: 200}}
+	if got := TrendArrow(history); got != "↓" {
+		t.Errorf("price drop: got %q, want ↓", got)
+	}
+}
+
+func TestTrendArrowUp(t *testing.T) {
+	history := []PricePoint{{Price: 200}, {Price: 300}}
+	if got := TrendArrow(history); got != "↑" {
+		t.Errorf("price increase: got %q, want ↑", got)
+	}
+}
+
+func TestTrendArrowFlat(t *testing.T) {
+	history := []PricePoint{{Price: 200}, {Price: 200}}
+	if got := TrendArrow(history); got != "→" {
+		t.Errorf("flat: got %q, want →", got)
+	}
+}
+
+func TestTrendArrowEmpty(t *testing.T) {
+	if got := TrendArrow(nil); got != "" {
+		t.Errorf("nil: got %q, want empty", got)
+	}
+	if got := TrendArrow([]PricePoint{{Price: 100}}); got != "" {
+		t.Errorf("single: got %q, want empty", got)
+	}
+}
+
 func TestHistoryPersistence(t *testing.T) {
 	dir := t.TempDir()
 

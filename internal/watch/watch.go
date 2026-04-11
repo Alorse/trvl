@@ -101,6 +101,68 @@ type PricePoint struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+// Sparkline renders a compact Unicode sparkline from price history.
+// Uses the last N points (up to maxPoints) scaled to 8 block-element levels.
+// Returns "" if fewer than 2 data points exist.
+func Sparkline(history []PricePoint, maxPoints int) string {
+	if len(history) < 2 {
+		return ""
+	}
+
+	// Take the tail.
+	start := 0
+	if len(history) > maxPoints {
+		start = len(history) - maxPoints
+	}
+	pts := history[start:]
+
+	// Find min/max for scaling.
+	lo, hi := pts[0].Price, pts[0].Price
+	for _, p := range pts[1:] {
+		if p.Price < lo {
+			lo = p.Price
+		}
+		if p.Price > hi {
+			hi = p.Price
+		}
+	}
+
+	bars := []rune("▁▂▃▄▅▆▇█")
+	spread := hi - lo
+	var b []rune
+	for _, p := range pts {
+		idx := 0
+		if spread > 0 {
+			idx = int((p.Price - lo) / spread * float64(len(bars)-1))
+			if idx >= len(bars) {
+				idx = len(bars) - 1
+			}
+		} else {
+			idx = len(bars) / 2 // flat line
+		}
+		b = append(b, bars[idx])
+	}
+	return string(b)
+}
+
+// TrendArrow returns a directional indicator comparing the last two prices.
+// Returns "" if there are fewer than 2 data points.
+func TrendArrow(history []PricePoint) string {
+	if len(history) < 2 {
+		return ""
+	}
+	prev := history[len(history)-2].Price
+	curr := history[len(history)-1].Price
+	switch {
+	case curr < prev:
+		return "↓"
+	case curr > prev:
+		return "↑"
+	default:
+		return "→"
+	}
+}
+
 // Store manages persistence of watches and price history to disk.
 // All methods are safe for concurrent use.
 type Store struct {
