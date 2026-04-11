@@ -53,11 +53,15 @@ func BrowserReadPage(ctx context.Context, url string, waitSeconds int) (string, 
 	return "", fmt.Errorf("could not read page from any browser")
 }
 
+// sanitizeURL removes characters that could enable AppleScript injection.
+func sanitizeURL(url string) string {
+	s := strings.ReplaceAll(url, `"`, "")
+	return strings.ReplaceAll(s, `\`, "")
+}
+
 // browserReadPageWith opens a URL in a specific browser and reads the rendered text.
 func browserReadPageWith(ctx context.Context, browser, url string, waitSeconds int) (string, error) {
-	// Sanitize URL to prevent AppleScript injection via embedded quotes.
-	safeURL := strings.ReplaceAll(url, `"`, "")
-	safeURL = strings.ReplaceAll(safeURL, `\`, "")
+	safeURL := sanitizeURL(url)
 
 	// Open the URL in the browser.
 	openScript := fmt.Sprintf(`tell application "%s"
@@ -75,7 +79,7 @@ end tell`, browser, safeURL)
 		make new document
 	end if
 	set URL of front document to "%s"
-end tell`, url)
+end tell`, safeURL)
 	}
 
 	cmd := exec.CommandContext(ctx, "osascript", "-e", openScript)

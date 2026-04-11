@@ -2,6 +2,7 @@ package cookies
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -47,6 +48,55 @@ func TestBrowserReadPageCachedHit(t *testing.T) {
 	}
 	if got != testText {
 		t.Errorf("got %q, want %q", got, testText)
+	}
+}
+
+func TestBrowserReadPage_NonDarwin(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("test only runs on non-darwin")
+	}
+	orig := SkipBrowserRead
+	SkipBrowserRead = false
+	defer func() { SkipBrowserRead = orig }()
+
+	_, err := BrowserReadPage(context.Background(), "https://example.com", 1)
+	if err == nil {
+		t.Fatal("expected error on non-macOS platform")
+	}
+}
+
+func TestBrowserReadPage_DefaultWaitSeconds(t *testing.T) {
+	// With SkipBrowserRead=true, the function returns before reaching waitSeconds logic.
+	// This test verifies the SkipBrowserRead short-circuit.
+	orig := SkipBrowserRead
+	SkipBrowserRead = true
+	defer func() { SkipBrowserRead = orig }()
+
+	_, err := BrowserReadPage(context.Background(), "https://example.com", 0)
+	if err == nil {
+		t.Fatal("expected error when SkipBrowserRead=true")
+	}
+}
+
+func TestURLSanitization(t *testing.T) {
+	// Verify that browserReadPageWith sanitizes quotes and backslashes.
+	// We can't call it directly without osascript, but we can verify the
+	// sanitization logic by testing the strings package behavior.
+	tests := []struct {
+		input string
+		clean string
+	}{
+		{`https://example.com"`, `https://example.com`},
+		{`https://example.com\`, `https://example.com`},
+		{`https://example.com" ; do shell script "whoami`, `https://example.com ; do shell script whoami`},
+		{`https://normal.com/path?q=1`, `https://normal.com/path?q=1`},
+	}
+
+	for _, tt := range tests {
+		got := sanitizeURL(tt.input)
+		if got != tt.clean {
+			t.Errorf("sanitizeURL(%q) = %q, want %q", tt.input, got, tt.clean)
+		}
 	}
 }
 
