@@ -33,6 +33,9 @@ Sleep 10s
 # ── CLOSING ──
 
 Sleep 800ms
-Type "# No API keys. No scraping. Just: brew install MikkoParkkola/tap/trvl"
+Type "# 34 MCP tools · 33 CLI commands · 18 providers · No API keys"
+Enter
+Sleep 400ms
+Type "# brew install MikkoParkkola/tap/trvl"
 Enter
 Sleep 3s
