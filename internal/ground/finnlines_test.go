@@ -225,6 +225,167 @@ func TestBuildFinnlinesBookingURL(t *testing.T) {
 	}
 }
 
+func TestIsFinnlinesOvernightRoute(t *testing.T) {
+	tests := []struct {
+		from, to string
+		want     bool
+	}{
+		{"FIHEL", "DETRV", true},
+		{"DETRV", "FIHEL", true},
+		{"FIHEL", "PLSWI", true},
+		{"PLSWI", "FIHEL", true},
+		{"SEMMA", "DETRV", true},
+		{"DETRV", "SEMMA", true},
+		{"FINLI", "SEKPS", false}, // short crossing
+		{"FIHEL", "SEKPS", false},
+	}
+	for _, tt := range tests {
+		got := isFinnlinesOvernightRoute(tt.from, tt.to)
+		if got != tt.want {
+			t.Errorf("isFinnlinesOvernightRoute(%q, %q) = %v, want %v", tt.from, tt.to, got, tt.want)
+		}
+	}
+}
+
+func TestCheapestFinnlinesCabin(t *testing.T) {
+	products := []finnlinesProduct{
+		{Code: "DS", Type: "ACCOMMODATION", Name: "Recliner Seat", Available: true, ChargePerUnit: 2806},
+		{Code: "AB4", Type: "ACCOMMODATION", Name: "Inside cabin, 4 beds", Available: true, ChargePerUnit: 19639},
+		{Code: "AB2", Type: "ACCOMMODATION", Name: "Inside cabin, 2 beds", Available: true, ChargePerUnit: 14500},
+		{Code: "VH1", Type: "VEHICLE", Name: "Car", Available: true, ChargePerUnit: 10000},
+		{Code: "LX", Type: "ACCOMMODATION", Name: "Luxury Suite", Available: false, ChargePerUnit: 500}, // unavailable
+	}
+
+	cabin, ok := cheapestFinnlinesCabin(products)
+	if !ok {
+		t.Fatal("expected to find a cabin")
+	}
+	if cabin.Code != "DS" {
+		t.Errorf("cheapest cabin code = %q, want DS", cabin.Code)
+	}
+	if cabin.ChargePerUnit != 2806 {
+		t.Errorf("cheapest cabin price = %.0f, want 2806", cabin.ChargePerUnit)
+	}
+}
+
+func TestCheapestFinnlinesCabin_NoneAvailable(t *testing.T) {
+	products := []finnlinesProduct{
+		{Code: "VH1", Type: "VEHICLE", Name: "Car", Available: true, ChargePerUnit: 10000},
+		{Code: "LX", Type: "ACCOMMODATION", Name: "Luxury Suite", Available: false, ChargePerUnit: 500},
+	}
+
+	_, ok := cheapestFinnlinesCabin(products)
+	if ok {
+		t.Error("expected no cabin found when none available")
+	}
+}
+
+func TestCheapestFinnlinesCabin_Empty(t *testing.T) {
+	_, ok := cheapestFinnlinesCabin(nil)
+	if ok {
+		t.Error("expected no cabin found for nil input")
+	}
+}
+
+func TestCheapestFinnlinesCabin_SingleItem(t *testing.T) {
+	products := []finnlinesProduct{
+		{Code: "AB2", Type: "ACCOMMODATION", Name: "Inside cabin", Available: true, ChargePerUnit: 14500},
+	}
+	cabin, ok := cheapestFinnlinesCabin(products)
+	if !ok {
+		t.Fatal("expected to find a cabin")
+	}
+	if cabin.Code != "AB2" {
+		t.Errorf("cabin code = %q, want AB2", cabin.Code)
+	}
+}
+
+func TestFormatCabinPrice(t *testing.T) {
+	tests := []struct {
+		cents float64
+		want  string
+	}{
+		{2806, "cabin from €28.06"},
+		{19639, "cabin from €196.39"},
+		{0, "cabin from €0.00"},
+		{100, "cabin from €1.00"},
+	}
+	for _, tt := range tests {
+		got := formatCabinPrice(tt.cents)
+		if got != tt.want {
+			t.Errorf("formatCabinPrice(%.0f) = %q, want %q", tt.cents, got, tt.want)
+		}
+	}
+}
+
+func TestFinnlinesProductResponse_Parse(t *testing.T) {
+	raw := `{
+	  "data": {
+	    "listProductsAvailability": [
+	      {"code":"DS","type":"ACCOMMODATION","name":"Recliner Seat","desc":"A recliner seat","maxPeople":1,"available":true,"chargePerUnit":2806},
+	      {"code":"AB4","type":"ACCOMMODATION","name":"Inside cabin, 4 beds","desc":"","maxPeople":4,"available":true,"chargePerUnit":19639},
+	      {"code":"VH1","type":"VEHICLE","name":"Car up to 2m","desc":"","maxPeople":0,"available":true,"chargePerUnit":15000}
+	    ]
+	  }
+	}`
+
+	var resp finnlinesProductResponse
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	products := resp.Data.ListProductsAvailability
+	if len(products) != 3 {
+		t.Fatalf("expected 3 products, got %d", len(products))
+	}
+
+	ds := products[0]
+	if ds.Code != "DS" || ds.Type != "ACCOMMODATION" || !ds.Available || ds.ChargePerUnit != 2806 {
+		t.Errorf("DS product mismatch: %+v", ds)
+	}
+	if ds.MaxPeople != 1 {
+		t.Errorf("DS maxPeople = %d, want 1", ds.MaxPeople)
+	}
+}
+
+func TestFinnlinesProductResponse_ApiError(t *testing.T) {
+	raw := `{
+	  "data": {
+	    "listProductsAvailability": []
+	  },
+	  "errors": [{"message":"Invalid departure port"}]
+	}`
+
+	var resp finnlinesProductResponse
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(resp.Errors) == 0 {
+		t.Fatal("expected errors")
+	}
+	if resp.Errors[0].Message != "Invalid departure port" {
+		t.Errorf("error message = %q", resp.Errors[0].Message)
+	}
+}
+
+func TestFinnlinesOvernightRoutes_Complete(t *testing.T) {
+	// Verify all overnight routes are bidirectional.
+	pairs := [][2]string{
+		{"FIHEL", "DETRV"},
+		{"FIHEL", "PLSWI"},
+		{"SEMMA", "DETRV"},
+	}
+	for _, p := range pairs {
+		if !finnlinesOvernightRoutes[p[0]+"-"+p[1]] {
+			t.Errorf("missing overnight route %s→%s", p[0], p[1])
+		}
+		if !finnlinesOvernightRoutes[p[1]+"-"+p[0]] {
+			t.Errorf("missing overnight route %s→%s (reverse)", p[1], p[0])
+		}
+	}
+}
+
 func TestSearchFinnlines_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

@@ -75,6 +75,204 @@ var finnlinesPorts = map[string]finnlinesPort{
 	"langnas": {Code: "FILAN", Name: "Långnäs Ferry Terminal", City: "Långnäs"},
 }
 
+// finnlinesOvernightRoutes identifies route pairs where crossing exceeds 12 hours
+// and a cabin is required for booking. Keyed by "DEPARTURE-ARRIVAL".
+var finnlinesOvernightRoutes = map[string]bool{
+	"FIHEL-DETRV": true, // Helsinki → Travemünde (~29h)
+	"DETRV-FIHEL": true, // Travemünde → Helsinki (~30h)
+	"FIHEL-PLSWI": true, // Helsinki → Świnoujście (~19h)
+	"PLSWI-FIHEL": true, // Świnoujście → Helsinki (~19h)
+	"SEMMA-DETRV": true, // Malmö → Travemünde (~9-15h, overnight sailings)
+	"DETRV-SEMMA": true, // Travemünde → Malmö (~9-15h, overnight sailings)
+}
+
+// isFinnlinesOvernightRoute returns true if the route typically requires cabin accommodation.
+func isFinnlinesOvernightRoute(fromCode, toCode string) bool {
+	return finnlinesOvernightRoutes[fromCode+"-"+toCode]
+}
+
+// finnlinesProduct represents a single product from the ListProductsAvailability query.
+type finnlinesProduct struct {
+	Code          string  `json:"code"`
+	Type          string  `json:"type"`
+	Name          string  `json:"name"`
+	Desc          string  `json:"desc"`
+	MaxPeople     int     `json:"maxPeople"`
+	Available     bool    `json:"available"`
+	ChargePerUnit float64 `json:"chargePerUnit"` // cents
+}
+
+// finnlinesProductResponse wraps the GraphQL response for product availability.
+type finnlinesProductResponse struct {
+	Data struct {
+		ListProductsAvailability []finnlinesProduct `json:"listProductsAvailability"`
+	} `json:"data"`
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
+}
+
+// fetchFinnlinesProducts queries available products (cabins, seats) for a sailing.
+func fetchFinnlinesProducts(ctx context.Context, fromCode, toCode, date, depTime string) ([]finnlinesProduct, error) {
+	query := `query ListProductsAvailability($query:ProductsQuery!){listProductsAvailability(query:$query){...on Product{code type name desc maxPeople available chargePerUnit}...on ApiError{errorCode errorMessage}}}`
+
+	variables := map[string]any{
+		"query": map[string]any{
+			"currency":      "EUR",
+			"language":      "EN",
+			"departurePort": fromCode,
+			"arrivalPort":   toCode,
+			"departureDate": date,
+			"departureTime": depTime,
+		},
+	}
+
+	payload := map[string]any{
+		"query":     query,
+		"variables": variables,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("finnlines products: marshal: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, finnlinesGraphQL, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", finnlinesAPIKey)
+
+	resp, err := finnlinesClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("finnlines products: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	if err != nil {
+		return nil, fmt.Errorf("finnlines products: read: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("finnlines products: HTTP %d: %s", resp.StatusCode, respBody)
+	}
+
+	var gqlResp finnlinesProductResponse
+	if err := json.Unmarshal(respBody, &gqlResp); err != nil {
+		return nil, fmt.Errorf("finnlines products: decode: %w", err)
+	}
+
+	if len(gqlResp.Errors) > 0 {
+		return nil, fmt.Errorf("finnlines products: %s", gqlResp.Errors[0].Message)
+	}
+
+	return gqlResp.Data.ListProductsAvailability, nil
+}
+
+// cheapestFinnlinesCabin finds the cheapest available ACCOMMODATION product.
+// Returns the product and true, or zero-value and false if none available.
+func cheapestFinnlinesCabin(products []finnlinesProduct) (finnlinesProduct, bool) {
+	var best finnlinesProduct
+	found := false
+	for _, p := range products {
+		if p.Type != "ACCOMMODATION" || !p.Available {
+			continue
+		}
+		if !found || p.ChargePerUnit < best.ChargePerUnit {
+			best = p
+			found = true
+		}
+	}
+	return best, found
+}
+
+// fetchFinnlinesTimetablesWithCabin retries a timetable query with a cabin included.
+func fetchFinnlinesTimetablesWithCabin(ctx context.Context, fromCode, toCode, date, cabinCode string) ([]finnlinesTimetableEntry, error) {
+	query := `query ListTimeTableAvailability($query:TimetableQuery!){listTimeTableAvailability(query:$query){...on Timetable{sailingCode departureDate departureTime arrivalDate arrivalTime departurePort arrivalPort isAvailable shipName crossingTime chargeTotal}}}`
+
+	variables := map[string]any{
+		"query": map[string]any{
+			"currency": "EUR",
+			"language": "EN",
+			"tariff": []map[string]any{
+				{"legCode": 1, "type": "SPECIAL"},
+			},
+			"sailings": []map[string]any{
+				{
+					"legCode":       1,
+					"departurePort": fromCode,
+					"arrivalPort":   toCode,
+					"startDate":     date,
+					"numberOfDays":  1,
+				},
+			},
+			"passengers": []map[string]any{
+				{"legCode": 1, "id": 1, "type": "ADULT"},
+			},
+			"accommodations": []map[string]any{
+				{
+					"legCode": 1,
+					"type":    "ACCOMMODATION",
+					"code":    cabinCode,
+					"passengers": []map[string]any{
+						{"id": 1, "type": "ADULT"},
+					},
+				},
+			},
+		},
+	}
+
+	payload := map[string]any{
+		"query":     query,
+		"variables": variables,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("finnlines: marshal cabin request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, finnlinesGraphQL, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", finnlinesAPIKey)
+
+	resp, err := finnlinesClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("finnlines: cabin request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	if err != nil {
+		return nil, fmt.Errorf("finnlines: read cabin response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("finnlines: cabin HTTP %d: %s", resp.StatusCode, respBody)
+	}
+
+	var gqlResp finnlinesGraphQLResponse
+	if err := json.Unmarshal(respBody, &gqlResp); err != nil {
+		return nil, fmt.Errorf("finnlines: decode cabin response: %w", err)
+	}
+
+	if len(gqlResp.Errors) > 0 {
+		return nil, fmt.Errorf("finnlines: cabin GraphQL error: %s", gqlResp.Errors[0].Message)
+	}
+
+	return gqlResp.Data.ListTimeTableAvailability, nil
+}
+
+// formatCabinPrice formats a cent amount as "cabin from EUR X.XX".
+func formatCabinPrice(cents float64) string {
+	return fmt.Sprintf("cabin from €%.2f", cents/100.0)
+}
+
 // LookupFinnlinesPort resolves a city name or alias to a Finnlines port.
 func LookupFinnlinesPort(city string) (finnlinesPort, bool) {
 	p, ok := finnlinesPorts[strings.ToLower(strings.TrimSpace(city))]
@@ -234,13 +432,85 @@ func SearchFinnlines(ctx context.Context, from, to, date, currency string) ([]mo
 		return nil, fmt.Errorf("finnlines: %w", err)
 	}
 
+	overnight := isFinnlinesOvernightRoute(fromPort.Code, toPort.Code)
+
+	// For overnight routes with unavailable entries, try cabin pricing enrichment.
+	type cabinInfo struct {
+		cabinCode  string
+		cabinPrice float64 // cents
+		retried    *finnlinesTimetableEntry
+	}
+	cabinByIdx := map[int]cabinInfo{}
+
+	if overnight {
+		for i, e := range entries {
+			if e.DepartureDate != date {
+				continue
+			}
+			if e.IsAvailable || e.ChargeTotal != nil {
+				continue
+			}
+
+			// Rate limit before cabin product query.
+			if err := finnlinesLimiter.Wait(ctx); err != nil {
+				slog.Warn("finnlines: cabin rate limit", "err", err)
+				break
+			}
+
+			products, err := fetchFinnlinesProducts(ctx, fromPort.Code, toPort.Code, e.DepartureDate, e.DepartureTime)
+			if err != nil {
+				slog.Warn("finnlines: cabin products query failed", "sailing", e.SailingCode, "err", err)
+				continue
+			}
+
+			cabin, ok := cheapestFinnlinesCabin(products)
+			if !ok {
+				slog.Debug("finnlines: no cabins available", "sailing", e.SailingCode)
+				continue
+			}
+
+			info := cabinInfo{
+				cabinCode:  cabin.Code,
+				cabinPrice: cabin.ChargePerUnit,
+			}
+
+			// Retry timetable with cabin to get total price.
+			if err := finnlinesLimiter.Wait(ctx); err != nil {
+				slog.Warn("finnlines: cabin retry rate limit", "err", err)
+				cabinByIdx[i] = info
+				continue
+			}
+
+			retried, err := fetchFinnlinesTimetablesWithCabin(ctx, fromPort.Code, toPort.Code, date, cabin.Code)
+			if err != nil {
+				slog.Warn("finnlines: cabin retry failed", "sailing", e.SailingCode, "err", err)
+				cabinByIdx[i] = info
+				continue
+			}
+
+			// Find the matching sailing in the retried results.
+			for j := range retried {
+				if retried[j].SailingCode == e.SailingCode {
+					info.retried = &retried[j]
+					break
+				}
+			}
+			cabinByIdx[i] = info
+		}
+	}
+
 	bookingURL := buildFinnlinesBookingURL(fromPort.Code, toPort.Code, date)
 
 	var routes []models.GroundRoute
-	for _, e := range entries {
+	for i, e := range entries {
 		// Skip if not on the requested date.
 		if e.DepartureDate != date {
 			continue
+		}
+
+		// Use retried entry if cabin retry made it available with a price.
+		if info, ok := cabinByIdx[i]; ok && info.retried != nil && info.retried.IsAvailable && info.retried.ChargeTotal != nil {
+			e = *info.retried
 		}
 
 		depTime := e.DepartureDate + "T" + e.DepartureTime + ":00"
@@ -261,7 +531,18 @@ func SearchFinnlines(ctx context.Context, from, to, date, currency string) ([]mo
 
 		var amenities []string
 		if !e.IsAvailable {
+			if info, ok := cabinByIdx[i]; ok && info.cabinPrice > 0 {
+				// Still unavailable even with cabin, but show cabin price info.
+				amenities = append(amenities, formatCabinPrice(info.cabinPrice))
+			}
 			amenities = append(amenities, "Sold out")
+		} else if info, ok := cabinByIdx[i]; ok && info.retried != nil {
+			// Available with cabin — note the cabin in amenities.
+			amenities = append(amenities, fmt.Sprintf("incl. %s cabin", info.cabinCode))
+		}
+
+		if overnight && !e.IsAvailable {
+			amenities = append(amenities, "Overnight route")
 		}
 
 		routes = append(routes, models.GroundRoute{
