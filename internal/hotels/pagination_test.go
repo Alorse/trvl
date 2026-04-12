@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
+	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
 // --- constants ---
@@ -474,17 +475,35 @@ func fakeHotelPage(name string) []byte {
 	return fakeHotelPageMulti(name)
 }
 
+// nameOffset returns a small deterministic lat/lon offset for a hotel name so
+// that the same name always gets the same coordinates across pages. This is
+// important for MergeHotelResults geo-disambiguation: hotels with the same name
+// must have close-enough coordinates to be merged, even when they appear on
+// different paginated pages.
+func nameOffset(name string) float64 {
+	var sum int
+	for _, c := range name {
+		sum += int(c)
+	}
+	// Scale to a sub-meter range (< 0.000001 degrees ≈ 0.1m) so same-named
+	// hotels are always within the 200m merge threshold.
+	return float64(sum%100) * 0.000001
+}
+
 // fakeHotelPageMulti builds a minimal HTML page with N hotels.
 // The page is padded to exceed the 1000-byte minimum response check.
 func fakeHotelPageMulti(names ...string) []byte {
 	var entries []any
-	for i, name := range names {
+	for _, name := range names {
+		// Use name-derived coordinates so the same hotel name always lands at
+		// the same location regardless of its position within a page.
+		offset := nameOffset(name)
 		hotel := make([]any, 12)
 		hotel[0] = nil
 		hotel[1] = name
-		hotel[2] = []any{[]any{60.168 + float64(i)*0.01, 24.941}}
+		hotel[2] = []any{[]any{60.168 + offset, 24.941 + offset}}
 		hotel[3] = []any{"4-star hotel", 4.0}
-		hotel[9] = fmt.Sprintf("/g/hotel_%d", i)
+		hotel[9] = fmt.Sprintf("/g/hotel_%s", strings.ReplaceAll(strings.ToLower(name), " ", "_"))
 
 		entry := []any{
 			nil,
@@ -569,11 +588,12 @@ type hotelWithPrice struct {
 // Padded to exceed the 1000-byte minimum response check.
 func fakeHotelPageWithPrices(hotels ...hotelWithPrice) []byte {
 	var entries []any
-	for i, hp := range hotels {
+	for _, hp := range hotels {
+		offset := nameOffset(hp.name)
 		hotel := make([]any, 12)
 		hotel[0] = nil
 		hotel[1] = hp.name
-		hotel[2] = []any{[]any{60.168 + float64(i)*0.01, 24.941}}
+		hotel[2] = []any{[]any{60.168 + offset, 24.941 + offset}}
 		hotel[3] = []any{"4-star hotel", 4.0}
 		// Price block: [null, [params..., "USD"], [null, [formatted, null, exact, null, rounded]]]
 		hotel[6] = []any{
@@ -581,7 +601,7 @@ func fakeHotelPageWithPrices(hotels ...hotelWithPrice) []byte {
 			[]any{nil, nil, nil, "USD"},
 			[]any{nil, []any{fmt.Sprintf("$%.0f", hp.price), nil, hp.price, nil, hp.price}},
 		}
-		hotel[9] = fmt.Sprintf("/g/hotel_%d", i)
+		hotel[9] = fmt.Sprintf("/g/hotel_%s", strings.ReplaceAll(strings.ToLower(hp.name), " ", "_"))
 
 		entry := []any{
 			nil,
@@ -597,6 +617,146 @@ func fakeHotelPageWithPrices(hotels ...hotelWithPrice) []byte {
 
 	padding := strings.Repeat("<!-- padding -->", 100)
 	return []byte(`<html>` + padding + `AF_initDataCallback({key: 'ds:0', data:` + string(dataJSON) + `});</html>`)
+}
+
+// --- MergeHotelResults wiring tests ---
+
+// TestSearchHotelsWithClient_SourcesTaggedGoogleHotels verifies that hotels
+// returned by SearchHotelsWithClient have their Sources populated with the
+// "google_hotels" provider tag. This confirms that tagHotelSource + MergeHotelResults
+// are wired correctly into the search pipeline.
+func TestSearchHotelsWithClient_SourcesTaggedGoogleHotels(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write(fakeHotelPageWithPrices(
+			hotelWithPrice{"Grand Hotel", 150},
+			hotelWithPrice{"Sea View", 200},
+		))
+	}))
+	defer ts.Close()
+
+	client := newTestClient(ts.URL)
+	client.SetNoCache(true)
+
+	result, err := SearchHotelsWithClient(context.Background(), client, "Helsinki", defaultOpts())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Count == 0 {
+		t.Fatal("expected at least one hotel")
+	}
+
+	for _, h := range result.Hotels {
+		if len(h.Sources) == 0 {
+			t.Errorf("hotel %q has no Sources — tagHotelSource not wired", h.Name)
+			continue
+		}
+		found := false
+		for _, src := range h.Sources {
+			if src.Provider == "google_hotels" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("hotel %q Sources does not contain google_hotels provider: %v", h.Name, h.Sources)
+		}
+	}
+}
+
+// TestSearchHotelsWithClient_MergePreservesLowestPrice verifies that when the
+// same hotel appears in multiple pages/sort orders, the Sources list accumulates
+// and the lowest price is kept as the primary. This validates the MergeHotelResults
+// dedup behaviour end-to-end through the real search pipeline.
+func TestSearchHotelsWithClient_MergePreservesLowestPrice(t *testing.T) {
+	var reqCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page := reqCount.Add(1)
+		w.WriteHeader(200)
+		// "Overlap Hotel" appears on both page 1 and page 2 with different prices.
+		switch page {
+		case 1:
+			w.Write(fakeHotelPageWithPrices(
+				hotelWithPrice{"Overlap Hotel", 300},
+				hotelWithPrice{"Unique A", 100},
+			))
+		case 2:
+			w.Write(fakeHotelPageWithPrices(
+				hotelWithPrice{"Overlap Hotel", 250}, // cheaper
+			))
+		default:
+			w.Write(fakeHotelPageMulti()) // empty — stop pagination
+		}
+	}))
+	defer ts.Close()
+
+	client := newTestClient(ts.URL)
+	client.SetNoCache(true)
+
+	opts := defaultOpts()
+	opts.MaxPages = 2 // limit to 2 pages per sort, disable sort diversity
+
+	result, err := SearchHotelsWithClient(context.Background(), client, "Helsinki", opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Find Overlap Hotel in results.
+	var overlap *struct {
+		price   float64
+		sources int
+	}
+	for _, h := range result.Hotels {
+		if strings.EqualFold(h.Name, "Overlap Hotel") {
+			overlap = &struct {
+				price   float64
+				sources int
+			}{h.Price, len(h.Sources)}
+			break
+		}
+	}
+	if overlap == nil {
+		t.Fatal("Overlap Hotel not found in results")
+	}
+	// Lowest price (250) should be primary.
+	if overlap.price != 250 {
+		t.Errorf("expected lowest price 250, got %.0f", overlap.price)
+	}
+	// Both source appearances should be preserved.
+	if overlap.sources < 2 {
+		t.Errorf("expected at least 2 sources for merged hotel, got %d", overlap.sources)
+	}
+}
+
+// TestTagHotelSource verifies that the helper stamps each hotel with the
+// correct provider when Sources is empty, and leaves existing Sources unchanged.
+func TestTagHotelSource(t *testing.T) {
+	input := []models.HotelResult{
+		{Name: "Hotel A", Price: 100, Currency: "EUR"},
+		{Name: "Hotel B", Price: 200, Currency: "USD", Sources: []models.PriceSource{{Provider: "existing", Price: 200, Currency: "USD"}}},
+	}
+
+	tagged := tagHotelSource(input, "google_hotels")
+
+	if len(tagged[0].Sources) != 1 {
+		t.Fatalf("expected 1 source, got %d", len(tagged[0].Sources))
+	}
+	if tagged[0].Sources[0].Provider != "google_hotels" {
+		t.Errorf("expected provider google_hotels, got %q", tagged[0].Sources[0].Provider)
+	}
+	if tagged[0].Sources[0].Price != 100 {
+		t.Errorf("expected price 100, got %.0f", tagged[0].Sources[0].Price)
+	}
+
+	// Hotel B already had Sources — must be unchanged.
+	if len(tagged[1].Sources) != 1 || tagged[1].Sources[0].Provider != "existing" {
+		t.Errorf("hotel with existing Sources should not be modified, got %v", tagged[1].Sources)
+	}
+
+	// Original slice must not be mutated.
+	if input[0].Sources != nil {
+		t.Error("tagHotelSource must not mutate input slice")
+	}
 }
 
 // --- Verify booking URLs added to paginated results ---

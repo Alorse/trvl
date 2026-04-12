@@ -167,9 +167,9 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		sortOrders = []string{""}
 	}
 
-	var hotels []models.HotelResult
 	var totalAvailable int
-	seen := make(map[string]bool)
+	// Accumulate raw results per-page; MergeHotelResults deduplicates at the end.
+	var rawBatches [][]models.HotelResult
 
 	for sortIdx, googleSort := range sortOrders {
 		// Brief cooldown between sort orders to avoid Google 429 rate limits.
@@ -197,13 +197,8 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 			totalAvailable = firstPage.TotalAvailable
 		}
 
-		for _, h := range firstPage.Hotels {
-			key := strings.ToLower(h.Name)
-			if !seen[key] {
-				seen[key] = true
-				hotels = append(hotels, h)
-			}
-		}
+		tagged := tagHotelSource(firstPage.Hotels, "google_hotels")
+		rawBatches = append(rawBatches, tagged)
 
 		// Paginate within this sort order.
 		for page := 1; page < pageLimit; page++ {
@@ -212,23 +207,19 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 				// Non-fatal: keep what we have from previous pages.
 				break
 			}
-
-			newCount := 0
-			for _, h := range pageHotels {
-				key := strings.ToLower(h.Name)
-				if !seen[key] {
-					seen[key] = true
-					hotels = append(hotels, h)
-					newCount++
-				}
-			}
-
-			// Stop paginating this sort if no new hotels (end of results).
-			if newCount == 0 {
+			if len(pageHotels) == 0 {
+				// End of results for this sort order.
 				break
 			}
+			rawBatches = append(rawBatches, tagHotelSource(pageHotels, "google_hotels"))
 		}
 	}
+
+	// Deduplicate across all pages and sort orders using name-normalisation +
+	// geo-proximity. MergeHotelResults preserves all provider price sources and
+	// keeps the lowest price as the primary. This replaces the previous naive
+	// strings.ToLower(name) seen-map approach.
+	hotels := models.MergeHotelResults(rawBatches...)
 
 	// Resolve city center for distance filter/sort if needed.
 	if opts.MaxDistanceKm > 0 || strings.EqualFold(opts.Sort, "distance") {
@@ -706,6 +697,25 @@ func propertyTypeCode(t string) string {
 
 // mergeAmenities combines two amenity lists, deduplicating by lowercase name.
 // The first list's items take priority in ordering.
+// tagHotelSource stamps each hotel with a PriceSource for the given provider
+// so that MergeHotelResults can track per-provider prices. Hotels that already
+// carry Sources (e.g. from a previous enrichment pass) are left unchanged.
+func tagHotelSource(hotels []models.HotelResult, provider string) []models.HotelResult {
+	tagged := make([]models.HotelResult, len(hotels))
+	copy(tagged, hotels)
+	for i := range tagged {
+		if len(tagged[i].Sources) == 0 {
+			tagged[i].Sources = []models.PriceSource{{
+				Provider:   provider,
+				Price:      tagged[i].Price,
+				Currency:   tagged[i].Currency,
+				BookingURL: tagged[i].BookingURL,
+			}}
+		}
+	}
+	return tagged
+}
+
 func mergeAmenities(existing, additional []string) []string {
 	seen := make(map[string]bool, len(existing)+len(additional))
 	var merged []string
