@@ -46,6 +46,9 @@ var readmeToolMarkers = []string{
 	"get_weather",
 	"get_baggage_rules",
 	"find_trip_window",
+	"search_lounges",
+	"check_visa",
+	"calculate_points_value",
 }
 
 func bundledSkillMarkdownCount(t *testing.T) int {
@@ -146,6 +149,10 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 			path: filepath.Join("..", "..", "AGENTS.md"),
 			required: []string{
 				fmt.Sprintf("trvl is installed with %d MCP tools and %d bundled Claude skill", toolCount, skillCount),
+				"| `display_currency` | Price display across all 36 tools |",
+				"### search_lounges — Find airport lounges at a given airport",
+				"### check_visa — Check visa requirements for a passport→destination pair",
+				"### calculate_points_value — Compare points vs cash for a redemption",
 			},
 			forbidden: []string{
 				"trvl is installed with 32 MCP tools and 5 skills",
@@ -154,6 +161,7 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 				"trvl is installed with 31 MCP tools and 4 skills",
 				"installed with 22 MCP tools and 5 skills",
 				"You now have 22 MCP tools available.",
+				"| `display_currency` | Price display across all 35 tools |",
 			},
 		},
 		{

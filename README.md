@@ -183,6 +183,9 @@ That's it. Your AI assistant now has 36 travel tools available. Just ask natural
 | **detect_accommodation_hacks** | Find hotel split savings (e.g. 2-city stay cheaper than 1 hotel) | Prague, Jun 15-22 |
 | **search_natural** | Natural language search using keyword heuristics — dispatches to the right tool automatically | "cheapest weekend in July from Helsinki" |
 | **find_trip_window** | Find optimal travel windows by intersecting price calendars with your busy intervals (pass from your calendar tool) | "best week for Prague, May-Aug" |
+| **search_lounges** | Find airport lounges, access rules, and card/status eligibility | HEL lounges with Priority Pass or Oneworld status |
+| **check_visa** | Check visa and entry requirements for a passport→destination country pair | FI passport → TH |
+| **calculate_points_value** | Compare cash price vs points required for a redemption | EUR 450 vs 20k Finnair Plus points |
 | **list_trips** | List saved trips from ~/.trvl/trips.json | — |
 | **get_trip** | Get details of a saved trip | Trip ID |
 | **create_trip** | Create a new trip record | "Helsinki court + Prague + Amsterdam" |
@@ -555,6 +558,15 @@ Home airport and currency are auto-detected from your IP on first search. The AI
 
 Full profile reference: [AGENTS.md](AGENTS.md#step-6-build-the-traveller-profile)
 
+### Points & Miles
+
+Compare a redemption against paying cash, or list supported loyalty programs:
+
+```bash
+trvl points-value --cash 450 --points 20000 --program finnair-plus
+trvl points-value --list
+```
+
 ## How It Works
 
 Google's travel frontend uses an internal gRPC-over-HTTP protocol called **batchexecute**. `trvl` speaks this protocol natively:
@@ -633,7 +645,7 @@ trvl is part of a suite of MCP tools:
 | Tool | Description |
 |------|-------------|
 | [mcp-gateway](https://github.com/MikkoParkkola/mcp-gateway) | Universal MCP gateway — compact 12-15 tool surface replaces 100+ registrations |
-| **[trvl](https://github.com/MikkoParkkola/trvl)** | **AI travel agent — 35 MCP tools for flights, hotels, ground transport** |
+| **[trvl](https://github.com/MikkoParkkola/trvl)** | **AI travel agent — 36 MCP tools for flights, hotels, ground transport** |
 | [nab](https://github.com/MikkoParkkola/nab) | Web content extraction — fetch any URL with cookies + anti-bot bypass |
 | [axterminator](https://github.com/MikkoParkkola/axterminator) | macOS GUI automation — 35 MCP tools via Accessibility API |
 

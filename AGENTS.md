@@ -158,7 +158,7 @@ Save with `update_preferences`.
 | Field | Behavior |
 |-------|----------|
 | `home_airports` | Default origin for flight/trip/weekend/discover searches |
-| `display_currency` | Price display across all 35 tools |
+| `display_currency` | Price display across all 36 tools |
 | `no_dormitories` | `FilterHotels()` drops hostels, capsules, guesthouse rooms by chain name + regex |
 | `ensuite_only` | `FilterHotels()` drops shared-bathroom properties |
 | `min_hotel_stars` | Passed to Google Hotels API as search filter |
@@ -323,6 +323,18 @@ with the user before calling this tool.
 {"airport": "HEL"}
 ```
 Returns: lounge name, terminal, type, accepted access cards (Priority Pass, Diners Club, LoungeKey, etc.), amenities, opening hours. Type indicates access network: "card" (Priority Pass/LoungeKey), "airline" (frequent flyer status), "bank" (credit card programme), "amex" (Centurion). If the user has `lounge_cards` or frequent flyer status set in preferences, results are annotated with `accessible_with` — the subset of their own cards or status that grant free entry to each lounge.
+
+### check_visa — Check visa requirements for a passport→destination pair
+```json
+{"passport": "FI", "destination": "TH"}
+```
+Returns: visa status (`visa-free`, `visa-required`, `visa-on-arrival`, `e-visa`, `freedom-of-movement`), max stay duration, and notes. Uses ISO 3166-1 alpha-2 country codes.
+
+### calculate_points_value — Compare points vs cash for a redemption
+```json
+{"cash_price": 450, "points_required": 20000, "program": "finnair-plus"}
+```
+Returns: effective cents-per-point, floor/ceiling valuation for the program, verdict (`use points`, `pay cash`, or `borderline`), and explanation.
 
 ### MCP Prompts (for complex workflows)
 - `plan-trip` — Full trip planning: flights + hotels + budget analysis

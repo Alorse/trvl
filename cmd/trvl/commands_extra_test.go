@@ -286,3 +286,10 @@ func TestEventsCmd_NonNil(t *testing.T) {
 		t.Fatal("eventsCmd() returned nil")
 	}
 }
+
+func TestPointsValueCmd_NonNil(t *testing.T) {
+	cmd := pointsValueCmd()
+	if cmd == nil {
+		t.Fatal("pointsValueCmd() returned nil")
+	}
+}

@@ -50,7 +50,7 @@ func calculatePointsValueTool() ToolDef {
 				},
 				"program": {
 					Type:        "string",
-					Description: "Loyalty program slug. Examples: finnair-plus, ana-mileage-club, world-of-hyatt, amex-mr, chase-ur. Use list_points_programs to see all options.",
+					Description: "Loyalty program slug. Examples: finnair-plus, ana-mileage-club, world-of-hyatt, amex-mr, chase-ur.",
 				},
 			},
 			Required: []string{"cash_price", "points_required", "program"},

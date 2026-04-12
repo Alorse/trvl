@@ -18,7 +18,7 @@ func TestRootCmd_HasExpectedSubcommands(t *testing.T) {
 		"flights", "dates", "hotels", "prices", "reviews",
 		"explore", "grid", "destination", "trip-cost", "weekend",
 		"suggest", "multi-city", "guide", "nearby", "events",
-		"restaurants", "ground", "watch", "mcp", "version",
+		"restaurants", "ground", "watch", "mcp", "version", "points-value",
 		"rooms",
 	}
 	for _, name := range expected {
