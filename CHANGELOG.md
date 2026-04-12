@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.15] - 2026-04-12
+
+### Added
+- `trvl search QUERY` CLI command — natural-language travel search with CLI
+  parity for the `search_natural` MCP tool. Parses intent (flight/hotel/route/
+  deals), IATA codes, "from X to Y" patterns, ISO dates, and "next weekend"
+  relative dates. Dispatches to the appropriate concrete command. Includes
+  `--dry-run` and `--json` flags.
+- `trvl calendar [trip_id|--last] [--output FILE]` CLI command — exports
+  saved trips (or the most recent search) as RFC 5545 iCalendar (.ics) files
+  for import into Apple Calendar, Google Calendar, Outlook, etc. Each leg
+  becomes a VEVENT; hotels are emitted as multi-day all-day events; confirmed
+  legs get STATUS:CONFIRMED.
+- `internal/nlsearch` package — shared natural-language query parser used
+  by both the CLI `search` command and (in a future cleanup) the MCP
+  `search_natural` tool.
+- `internal/calendar` package — pure iCalendar writer (no I/O), reusable
+  by both the CLI and any future surface that needs .ics export.
+
+### Changed
+- Stale CHANGELOG header `0.6.0` → corrected to `0.3.15` (the versioning was
+  briefly inconsistent during the 0.5/0.6 sprint; tags have always been the
+  source of truth and ship as v0.3.x).
+- README, demo.tape, plugin.json, and the subcommand-count test updated for
+  the new total of 38 CLI commands (was 36; +2 net after adding search,
+  calendar, and removing an undisciplined `currency` command experiment).
+
+### Removed
+- An experimental `trvl currency` CLI command that was added earlier the same
+  day. Removed before shipping after a CPO/CTO review concluded it had no
+  user-job justification, no Kano signal, and demonstrated feature-creep
+  drift. The underlying `destinations.ConvertCurrency` and `ConvertToEUR`
+  helpers remain — they are used by every other search command for display-
+  currency conversion.
+
 ## [0.6.0] - 2026-04-05
 
 ### Added
