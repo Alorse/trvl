@@ -16,7 +16,7 @@ cmd/trvl                          CLI entry point (cobra)
   |     +-- internal/jsonutil
   |     +-- internal/models
   |
-  +-- internal/ground             Bus + train + ferry search (17 providers in parallel)
+  +-- internal/ground             Bus + train + ferry search (18 providers in parallel)
   |     +-- flixbus.go            FlixBus REST API (global.api.flixbus.com)
   |     +-- regiojet.go           RegioJet REST API (brn-ybus-pubapi.sa.cz)
   |     +-- eurostar.go           Eurostar GraphQL (site-api.eurostar.com)
@@ -269,7 +269,7 @@ When you search "Prague to Vienna", trvl queries all relevant ground providers s
 
 ```
 Sequential: FlixBus(2s) + RegioJet(1s) + DB(3s) + ÖBB(4s) + NS(1s) + VR(1s) + SNCF(2s) + Trainline(2s) + Renfe(4s) + Eurostar(1s) + Transitous(1s) + ferries(1s) = 23s
-Parallel:   max(all 17 providers)                                                                                                                                   = 4s
+Parallel:   max(all 18 providers)                                                                                                                                   = 4s
 ```
 
 Parallel search gives you the best price across all providers in the time it takes to query the slowest one. The implementation is straightforward Go concurrency: one goroutine per provider, results collected via a channel, merged and sorted after all complete.

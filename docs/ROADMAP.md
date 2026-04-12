@@ -1,6 +1,6 @@
 # trvl Roadmap — Power Traveler Features
 
-## Current: 17 providers, 14 with real prices
+## Current: 18 providers, 15 with real prices
 
 ## DONE: Multi-modal routing (MVP)
 `trvl route HEL DBV --arrive-by 2026-04-10`
