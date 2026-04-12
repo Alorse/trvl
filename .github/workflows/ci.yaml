@@ -87,6 +87,16 @@ jobs:
           chart: true
           amend: true
 
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
   release:
     needs: test
     runs-on: ubuntu-latest
