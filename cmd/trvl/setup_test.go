@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -149,6 +150,10 @@ func TestSaveKeysTo_WritesFile(t *testing.T) {
 }
 
 func TestSaveKeysTo_Permissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not supported on Windows")
+	}
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "keys.json")
 
