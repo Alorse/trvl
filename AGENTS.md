@@ -246,7 +246,7 @@ Optional parameters:
 ```
 Optional: `trip_duration` (days), `is_round_trip` (true/false)
 
-### search_hotels — Find hotels in any city
+### search_hotels — Find hotels in any city (Google Hotels + Trivago + Airbnb)
 ```json
 {"location": "Tokyo", "check_in": "2026-06-15", "check_out": "2026-06-18"}
 ```
