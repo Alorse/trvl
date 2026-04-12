@@ -637,6 +637,18 @@ trvl is part of a suite of MCP tools:
 | [nab](https://github.com/MikkoParkkola/nab) | Web content extraction — fetch any URL with cookies + anti-bot bypass |
 | [axterminator](https://github.com/MikkoParkkola/axterminator) | macOS GUI automation — 35 MCP tools via Accessibility API |
 
+## Troubleshooting
+
+**MCP server not showing tools?** Restart your AI client after running `trvl mcp install`. Verify the binary is on your `$PATH` with `which trvl`.
+
+**Flight search returns empty results?** Some routes have no data in Google Flights. Try a major airport pair (e.g. `trvl flights HEL LHR 2026-07-01`) to confirm it works. Use `--format json` to see the raw response.
+
+**"context deadline exceeded" on ground transport?** Ferry and rail providers sometimes throttle. Retry after 30 seconds, or use `--timeout 3m` for slow providers.
+
+**Hotel search shows 0 results?** Check your dates — Google Hotels requires check-in in the future and at least 1 night. Try: `trvl hotels "London" --checkin 2026-07-01 --checkout 2026-07-03`.
+
+**MCP server crashes on startup?** Run `trvl mcp` directly in your terminal to see the error. Common cause: port conflict when using `--http`. Try a different port with `--port 8081`.
+
 ## License
 
 [PolyForm Noncommercial 1.0.0](LICENSE) — free for personal and noncommercial use. Commercial use requires a separate license.
