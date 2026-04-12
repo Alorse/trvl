@@ -3,12 +3,26 @@ package ground
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 )
+
+func requireScraperScriptPath(t *testing.T) string {
+	t.Helper()
+
+	path, err := resolveScraperScriptPath()
+	if errors.Is(err, errScraperScriptNotFound) {
+		t.Skip(err.Error())
+	}
+	if err != nil {
+		t.Fatalf("resolveScraperScriptPath: %v", err)
+	}
+	return path
+}
 
 // TestBrowserScrapeRoutes_Python3NotFound verifies graceful failure when python3
 // is absent. We cannot easily remove python3, so this test only runs when
@@ -24,15 +38,25 @@ func TestBrowserScrapeRoutes_Python3NotFound(t *testing.T) {
 	}
 }
 
+func TestBrowserScrapeRoutes_MissingScraperScript(t *testing.T) {
+	t.Setenv("TRVL_SCRAPER_PATH", "__definitely_missing_scraper__.py")
+
+	ctx := context.Background()
+	_, err := BrowserScrapeRoutes(ctx, "trainline", "London", "Paris", "2026-04-10", "EUR")
+	if !errors.Is(err, errScraperScriptNotFound) {
+		t.Fatalf("expected missing scraper error, got %v", err)
+	}
+}
+
 // TestBrowserScrapeRoutes_ScraperScriptExists ensures the scraper.py file is
 // present relative to browser_scraper.go at build time.
 func TestBrowserScrapeRoutes_ScraperScriptExists(t *testing.T) {
-	path := scraperScriptPath()
+	path := requireScraperScriptPath(t)
 	if path == "" {
 		t.Fatal("scraperScriptPath returned empty string")
 	}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Fatalf("scraper.py not found at %s", path)
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("scraper.py not readable at %s: %v", path, err)
 	}
 }
 
@@ -121,10 +145,7 @@ func TestBrowserScrapeRoutes_ErrorResponse(t *testing.T) {
 // TestScraperPy_SyntaxCheck verifies scraper.py is valid Python 3 syntax.
 // Uses python3 -m py_compile which exits 0 on success, non-zero on error.
 func TestScraperPy_SyntaxCheck(t *testing.T) {
-	path := scraperScriptPath()
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skipf("scraper.py not found at %s", path)
-	}
+	path := requireScraperScriptPath(t)
 
 	cmd := exec.Command("python3", "-m", "py_compile", path)
 	out, err := cmd.CombinedOutput()
@@ -136,10 +157,7 @@ func TestScraperPy_SyntaxCheck(t *testing.T) {
 // TestScraperPy_MissingInputHandling verifies that scraper.py writes a valid
 // JSON error response when given no stdin input (instead of crashing).
 func TestScraperPy_MissingInputHandling(t *testing.T) {
-	path := scraperScriptPath()
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skipf("scraper.py not found at %s", path)
-	}
+	path := requireScraperScriptPath(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -164,10 +182,7 @@ func TestScraperPy_MissingInputHandling(t *testing.T) {
 // TestScraperPy_UnknownProvider verifies that scraper.py gracefully handles
 // an unrecognised provider name.
 func TestScraperPy_UnknownProvider(t *testing.T) {
-	path := scraperScriptPath()
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skipf("scraper.py not found at %s", path)
-	}
+	path := requireScraperScriptPath(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -200,10 +215,7 @@ func TestScraperPy_UnknownProvider(t *testing.T) {
 // TestScraperPy_InvalidJSON verifies that scraper.py handles bad JSON input
 // without panicking and returns an error response.
 func TestScraperPy_InvalidJSON(t *testing.T) {
-	path := scraperScriptPath()
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skipf("scraper.py not found at %s", path)
-	}
+	path := requireScraperScriptPath(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

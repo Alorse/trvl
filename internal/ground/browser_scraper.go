@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,6 +19,8 @@ import (
 
 // browserScraperTimeout is the maximum time allowed for a single browser scrape.
 const browserScraperTimeout = 45 * time.Second
+
+var errScraperScriptNotFound = errors.New("browser scraper: scraper.py not found")
 
 // scraperRoute is the JSON shape emitted by scraper.py per route.
 type scraperRoute struct {
@@ -38,11 +41,21 @@ type scraperOutput struct {
 	Error  string         `json:"error,omitempty"`
 }
 
-// scraperScriptPath returns the absolute path to scraper.py, resolved relative
-// to this source file so it works regardless of the working directory.
-func scraperScriptPath() string {
+// resolveScraperScriptPath returns the absolute path to scraper.py, resolved
+// relative to this source file so it works regardless of the working directory.
+func resolveScraperScriptPath() (string, error) {
 	if override := strings.TrimSpace(os.Getenv("TRVL_SCRAPER_PATH")); override != "" {
-		return override
+		info, err := os.Stat(override)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return "", fmt.Errorf("%w (TRVL_SCRAPER_PATH=%q)", errScraperScriptNotFound, override)
+			}
+			return "", fmt.Errorf("browser scraper: stat %q: %w", override, err)
+		}
+		if info.IsDir() {
+			return "", fmt.Errorf("browser scraper: %q is a directory", override)
+		}
+		return override, nil
 	}
 
 	var candidates []string
@@ -59,12 +72,16 @@ func scraperScriptPath() string {
 
 	for _, candidate := range candidates {
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return candidate
+			return candidate, nil
 		}
 	}
 
-	// Fallback: assume cwd contains the script.
-	return "scraper.py"
+	return "", errScraperScriptNotFound
+}
+
+func scraperScriptPath() string {
+	path, _ := resolveScraperScriptPath()
+	return path
 }
 
 // BrowserScrapeRoutes launches the Playwright scraper to fetch live train
@@ -88,7 +105,10 @@ func BrowserScrapeRoutes(ctx context.Context, provider, from, to, date, currency
 	timeoutCtx, cancel := context.WithTimeout(ctx, browserScraperTimeout)
 	defer cancel()
 
-	scriptPath := scraperScriptPath()
+	scriptPath, err := resolveScraperScriptPath()
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.CommandContext(timeoutCtx, "python3", scriptPath)
 	cmd.Stdin = bytes.NewReader(inputJSON)
 

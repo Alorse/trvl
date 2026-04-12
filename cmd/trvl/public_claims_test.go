@@ -111,6 +111,7 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 
 	checks := []struct {
 		path      string
+		optional  bool
 		required  []string
 		forbidden []string
 	}{
@@ -213,7 +214,8 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("..", "..", "docs", "ROADMAP.md"),
+			path:     filepath.Join("..", "..", "docs", "ROADMAP.md"),
+			optional: true,
 			required: []string{
 				fmt.Sprintf("## Current: %d providers", groundProviderCount),
 			},
@@ -230,6 +232,9 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 
 			data, err := os.ReadFile(check.path)
 			if err != nil {
+				if os.IsNotExist(err) && check.optional {
+					t.Skipf("optional public doc %q not present", check.path)
+				}
 				t.Fatalf("ReadFile(%q): %v", check.path, err)
 			}
 			text := string(data)

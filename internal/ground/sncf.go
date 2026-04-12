@@ -134,7 +134,11 @@ var sncfBFFPaths = []struct {
 // and extract the x-bff-key header that the SPA injects into all BFF requests.
 // Returns empty string if Playwright is unavailable or the key is not found.
 func captureSNCFKey(ctx context.Context) string {
-	scriptPath := scraperScriptPath()
+	scriptPath, err := resolveScraperScriptPath()
+	if err != nil {
+		slog.Debug("captureSNCFKey: scraper unavailable", "err", err)
+		return ""
+	}
 	input := `{"provider":"sncf_key"}`
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, 35*time.Second)
