@@ -59,13 +59,78 @@ func TestMergeHotelResults_GeoDisambiguation(t *testing.T) {
 }
 
 func TestMergeHotelResults_GeoProximityMerges(t *testing.T) {
-	// Same hotel, slightly different coordinates (within 200m).
+	// Same hotel, slightly different coordinates (within 500m).
 	a := []HotelResult{{Name: "Hilton Barcelona", Price: 150, Currency: "EUR", Lat: 41.3851, Lon: 2.1734, Sources: []PriceSource{{Provider: "google_hotels", Price: 150, Currency: "EUR"}}}}
 	b := []HotelResult{{Name: "hilton barcelona", Price: 140, Currency: "EUR", Lat: 41.3852, Lon: 2.1735, Sources: []PriceSource{{Provider: "trivago", Price: 140, Currency: "EUR"}}}}
 
 	result := MergeHotelResults(a, b)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 merged hotel (same location), got %d", len(result))
+	}
+}
+
+func TestMergeHotelResults_AddressMatchOverridesGeoDrift(t *testing.T) {
+	a := []HotelResult{{
+		Name:     "Grand Hotel",
+		Price:    150,
+		Currency: "EUR",
+		Lat:      60.1699,
+		Lon:      24.9384,
+		Address:  "Example Street 1",
+		Sources:  []PriceSource{{Provider: "google_hotels", Price: 150, Currency: "EUR"}},
+	}}
+	b := []HotelResult{{
+		Name:     "grand hotel",
+		Price:    120,
+		Currency: "EUR",
+		Lat:      60.1760,
+		Lon:      24.9384,
+		Address:  "Example Street 1",
+		Sources:  []PriceSource{{Provider: "booking", Price: 120, Currency: "EUR"}},
+	}}
+
+	result := MergeHotelResults(a, b)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 merged hotel, got %d", len(result))
+	}
+	if result[0].Price != 120 {
+		t.Fatalf("expected merged price 120, got %.0f", result[0].Price)
+	}
+}
+
+func TestMergeHotelResults_PreservesHotelIDFromLaterSource(t *testing.T) {
+	a := []HotelResult{{
+		Name:       "Grand Hotel",
+		Price:      120,
+		Currency:   "EUR",
+		BookingURL: "https://www.booking.com/hotel/fi/grand.html",
+		Sources:    []PriceSource{{Provider: "booking", Price: 120, Currency: "EUR"}},
+	}}
+	b := []HotelResult{{
+		Name:       "Grand Hotel",
+		HotelID:    "/g/123",
+		Price:      130,
+		Currency:   "EUR",
+		BookingURL: "https://www.google.com/travel/hotels/example",
+		Sources:    []PriceSource{{Provider: "google_hotels", Price: 130, Currency: "EUR"}},
+	}}
+
+	result := MergeHotelResults(a, b)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 merged hotel, got %d", len(result))
+	}
+	if result[0].HotelID != "/g/123" {
+		t.Fatalf("hotel_id = %q, want /g/123", result[0].HotelID)
+	}
+}
+
+func TestMergeHotelResults_DifferentAddressesDoNotMergeWithoutCoordinates(t *testing.T) {
+	a := []HotelResult{{Name: "Hilton", Price: 150, Currency: "EUR", Address: "Barcelona", Sources: []PriceSource{{Provider: "google_hotels", Price: 150, Currency: "EUR"}}}}
+	b := []HotelResult{{Name: "Hilton", Price: 200, Currency: "EUR", Address: "Paris", Sources: []PriceSource{{Provider: "booking", Price: 200, Currency: "EUR"}}}}
+
+	result := MergeHotelResults(a, b)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 hotels, got %d", len(result))
 	}
 }
 
@@ -120,6 +185,20 @@ func TestNormalizeName(t *testing.T) {
 		got := normalizeName(tt.input)
 		if got != tt.want {
 			t.Errorf("normalizeName(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeAddress(t *testing.T) {
+	tests := []struct{ input, want string }{
+		{" Example Street 1 ", "example street 1"},
+		{"Rue-de-Paris, 5", "rue de paris 5"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		got := normalizeAddress(tt.input)
+		if got != tt.want {
+			t.Errorf("normalizeAddress(%q) = %q, want %q", tt.input, got, tt.want)
 		}
 	}
 }

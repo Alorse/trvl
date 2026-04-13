@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"math"
 	"strings"
 )
@@ -11,10 +12,10 @@ import (
 // preserved in Sources.
 //
 // Matching uses case-insensitive name normalization. When names match but
-// could be ambiguous (e.g. "Hilton" in different cities), geo-proximity
-// within maxDistanceMeters is used as a tiebreaker.
+// could be ambiguous (e.g. "Hilton" in different cities), normalized address
+// equality or geo-proximity within maxDistanceMeters is used as a tiebreaker.
 func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
-	const maxDistanceMeters = 200.0
+	const maxDistanceMeters = 500.0
 
 	type key struct {
 		name string
@@ -28,21 +29,17 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 			k := key{name: normalizeName(h.Name)}
 
 			if existing, ok := merged[k]; ok {
-				// Check geo-proximity if both have coordinates.
-				if existing.Lat != 0 && h.Lat != 0 {
-					dist := haversineMeters(existing.Lat, existing.Lon, h.Lat, h.Lon)
-					if dist > maxDistanceMeters {
-						// Same name but different location — treat as separate.
-						// Use a disambiguated key.
-						dk := key{name: normalizeName(h.Name) + "|" + h.Address}
-						if _, exists := merged[dk]; !exists {
-							clone := h
-							clone.Sources = buildSources(clone)
-							merged[dk] = &clone
-							order = append(order, dk)
-						}
-						continue
+				if !sameHotelCandidate(*existing, h, maxDistanceMeters) {
+					// Same normalized name but different property — use a
+					// disambiguated key so source prices don't collapse.
+					dk := key{name: hotelDisambiguationKey(h)}
+					if _, exists := merged[dk]; !exists {
+						clone := h
+						clone.Sources = buildSources(clone)
+						merged[dk] = &clone
+						order = append(order, dk)
 					}
+					continue
 				}
 
 				// Merge: add this provider's price as a source.
@@ -65,12 +62,18 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 				if existing.Stars == 0 && h.Stars > 0 {
 					existing.Stars = h.Stars
 				}
+				if existing.HotelID == "" && h.HotelID != "" {
+					existing.HotelID = h.HotelID
+				}
 				if existing.Address == "" && h.Address != "" {
 					existing.Address = h.Address
 				}
 				if existing.Lat == 0 && h.Lat != 0 {
 					existing.Lat = h.Lat
 					existing.Lon = h.Lon
+				}
+				if existing.BookingURL == "" && h.BookingURL != "" {
+					existing.BookingURL = h.BookingURL
 				}
 			} else {
 				clone := h
@@ -86,6 +89,35 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 		result = append(result, *merged[k])
 	}
 	return result
+}
+
+func sameHotelCandidate(existing, incoming HotelResult, maxDistanceMeters float64) bool {
+	existingAddress := normalizeAddress(existing.Address)
+	incomingAddress := normalizeAddress(incoming.Address)
+	if existingAddress != "" && incomingAddress != "" {
+		if existingAddress == incomingAddress {
+			return true
+		}
+		if existing.Lat != 0 && incoming.Lat != 0 {
+			return haversineMeters(existing.Lat, existing.Lon, incoming.Lat, incoming.Lon) <= maxDistanceMeters
+		}
+		return false
+	}
+	if existing.Lat != 0 && incoming.Lat != 0 {
+		return haversineMeters(existing.Lat, existing.Lon, incoming.Lat, incoming.Lon) <= maxDistanceMeters
+	}
+	return true
+}
+
+func hotelDisambiguationKey(h HotelResult) string {
+	base := normalizeName(h.Name)
+	if address := normalizeAddress(h.Address); address != "" {
+		return base + "|" + address
+	}
+	if h.Lat != 0 || h.Lon != 0 {
+		return fmt.Sprintf("%s|%.5f,%.5f", base, h.Lat, h.Lon)
+	}
+	return base + "|unknown"
 }
 
 // buildSources creates a Sources slice from a HotelResult's own price.
@@ -117,6 +149,16 @@ func normalizeName(name string) string {
 		name = strings.ReplaceAll(name, "  ", " ")
 	}
 	return name
+}
+
+func normalizeAddress(address string) string {
+	address = strings.ToLower(strings.TrimSpace(address))
+	replacer := strings.NewReplacer(",", " ", ".", " ", ";", " ", ":", " ", "-", " ", "/", " ")
+	address = replacer.Replace(address)
+	for strings.Contains(address, "  ") {
+		address = strings.ReplaceAll(address, "  ", " ")
+	}
+	return address
 }
 
 // haversineMeters returns the distance in meters between two lat/lon points.
