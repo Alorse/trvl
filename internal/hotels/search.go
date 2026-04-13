@@ -216,8 +216,9 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		}
 	}
 
-	// Run parallel searches against Trivago and Airbnb.
-	// Both are non-fatal: failures log a warning and contribute zero results.
+	// Run parallel searches against Trivago, Airbnb, and optional Booking.com.
+	// All auxiliary providers are non-fatal: failures log a warning and
+	// contribute zero results.
 	auxOpts := HotelSearchOptions{
 		CheckIn:  opts.CheckIn,
 		CheckOut: opts.CheckOut,
@@ -226,6 +227,7 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 	}
 	var trivagoResults []models.HotelResult
 	var airbnbResults []models.HotelResult
+	var bookingResults []models.HotelResult
 	var auxWg sync.WaitGroup
 
 	auxWg.Add(1)
@@ -251,14 +253,29 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		airbnbResults = res
 	}()
 
+	if bookingEnabled && HasBookingKey() && bookingSearchEligibleOptions(opts) {
+		auxWg.Add(1)
+		go func() {
+			defer auxWg.Done()
+			res, err := searchBookingHotelsFunc(ctx, location, opts)
+			if err != nil {
+				slog.Warn("booking search failed", "error", err)
+				return
+			}
+			bookingResults = res
+		}()
+	}
+
 	auxWg.Wait()
 
-	// Deduplicate across all pages, sort orders, Trivago, and Airbnb using
+	// Deduplicate across all pages, sort orders, Trivago, Airbnb, and Booking
+	// using
 	// name-normalisation + geo-proximity. MergeHotelResults preserves all
 	// provider price sources and keeps the lowest price as the primary. This
 	// replaces the previous naive strings.ToLower(name) seen-map approach.
 	allBatches := append(rawBatches, trivagoResults)
 	allBatches = append(allBatches, airbnbResults)
+	allBatches = append(allBatches, bookingResults)
 	hotels := models.MergeHotelResults(allBatches...)
 
 	// Resolve city center for distance filter/sort if needed.
@@ -291,9 +308,12 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		}
 	}
 
-	// Add booking URLs to each hotel.
+	// Ensure every hotel has an openable booking URL without overwriting
+	// provider-specific URLs that were already attached during source merges.
 	for i := range hotels {
-		hotels[i].BookingURL = buildHotelBookingURL(location, opts.CheckIn, opts.CheckOut)
+		if hotels[i].BookingURL == "" {
+			hotels[i].BookingURL = buildHotelBookingURL(location, opts.CheckIn, opts.CheckOut)
+		}
 	}
 
 	return &models.HotelSearchResult{

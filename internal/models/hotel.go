@@ -4,7 +4,7 @@ package models
 // When multiple providers return the same hotel, all sources are preserved
 // and the lowest price becomes the primary HotelResult.Price.
 type PriceSource struct {
-	Provider   string  `json:"provider"`              // "google_hotels", "trivago", "ferryhopper", "airbnb"
+	Provider   string  `json:"provider"` // "google_hotels", "trivago", "airbnb", "booking"
 	Price      float64 `json:"price"`
 	Currency   string  `json:"currency"`
 	BookingURL string  `json:"booking_url,omitempty"`
@@ -17,7 +17,7 @@ type HotelResult struct {
 	Rating       float64       `json:"rating"`
 	ReviewCount  int           `json:"review_count"`
 	Stars        int           `json:"stars"`
-	Price        float64       `json:"price"`            // Lowest price across all sources
+	Price        float64       `json:"price"` // Lowest price across all sources
 	Currency     string        `json:"currency"`
 	Address      string        `json:"address"`
 	Lat          float64       `json:"lat"`

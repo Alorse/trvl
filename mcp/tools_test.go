@@ -367,6 +367,27 @@ func TestHotelSummary_WithHotels(t *testing.T) {
 	}
 }
 
+func TestHotelSummary_WithBookingMatches(t *testing.T) {
+	result := &models.HotelSearchResult{
+		Success: true,
+		Count:   1,
+		Hotels: []models.HotelResult{{
+			Name:     "Grand Hotel",
+			Price:    120,
+			Currency: "EUR",
+			Sources: []models.PriceSource{
+				{Provider: "google_hotels", Price: 150, Currency: "EUR"},
+				{Provider: "booking", Price: 120, Currency: "EUR"},
+			},
+		}},
+	}
+
+	summary := hotelSummary(result, "Helsinki")
+	if !strings.Contains(summary, "Booking.com") {
+		t.Fatalf("summary = %q, want Booking.com provider note", summary)
+	}
+}
+
 // --- flightSuggestions ---
 
 func TestFlightSuggestions_NoResults(t *testing.T) {

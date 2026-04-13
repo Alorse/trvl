@@ -162,7 +162,19 @@ func formatHotelsTable(ctx context.Context, targetCurrency string, result *model
 		}
 	}
 
-	headers := []string{"Name", "Stars", "Rating", "Reviews", "Price", "Amenities"}
+	showSources := false
+	for _, h := range result.Hotels {
+		if sources := hotelSourceLabels(h); sources != "" && sources != "Google" {
+			showSources = true
+			break
+		}
+	}
+
+	headers := []string{"Name", "Stars", "Rating", "Reviews", "Price"}
+	if showSources {
+		headers = append(headers, "Sources")
+	}
+	headers = append(headers, "Amenities")
 	rows := make([][]string, 0, len(result.Hotels))
 	var prices priceScale
 
@@ -190,7 +202,12 @@ func formatHotelsTable(ctx context.Context, targetCurrency string, result *model
 		if len(amenStr) > 40 {
 			amenStr = amenStr[:37] + "..."
 		}
-		rows = append(rows, []string{h.Name, starsStr, colorizeRating(h.Rating, ratingStr), reviewsStr, priceStr, amenStr})
+		row := []string{h.Name, starsStr, colorizeRating(h.Rating, ratingStr), reviewsStr, priceStr}
+		if showSources {
+			row = append(row, hotelSourceLabels(h))
+		}
+		row = append(row, amenStr)
+		rows = append(rows, row)
 	}
 
 	models.FormatTable(os.Stdout, headers, rows)
@@ -219,6 +236,41 @@ func formatHotelsTable(ctx context.Context, targetCurrency string, result *model
 		}
 	}
 	return nil
+}
+
+func hotelSourceLabels(h models.HotelResult) string {
+	if len(h.Sources) == 0 {
+		return ""
+	}
+	seen := make(map[string]struct{}, len(h.Sources))
+	labels := make([]string, 0, len(h.Sources))
+	for _, src := range h.Sources {
+		label := hotelSourceLabel(src.Provider)
+		if label == "" {
+			continue
+		}
+		if _, ok := seen[label]; ok {
+			continue
+		}
+		seen[label] = struct{}{}
+		labels = append(labels, label)
+	}
+	return strings.Join(labels, ", ")
+}
+
+func hotelSourceLabel(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "google_hotels":
+		return "Google"
+	case "trivago":
+		return "Trivago"
+	case "airbnb":
+		return "Airbnb"
+	case "booking":
+		return "Booking"
+	default:
+		return strings.TrimSpace(provider)
+	}
 }
 
 // maybeShowAccomHackTip checks whether the stay is >= 4 nights and, if so,

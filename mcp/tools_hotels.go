@@ -34,11 +34,24 @@ func hotelSearchOutputSchema() interface{} {
 						"address":      map[string]interface{}{"type": "string"},
 						"lat":          map[string]interface{}{"type": "number"},
 						"lon":          map[string]interface{}{"type": "number"},
+						"booking_url":  map[string]interface{}{"type": "string"},
 						"amenities": map[string]interface{}{
 							"type":  "array",
 							"items": map[string]interface{}{"type": "string"},
 						},
 						"eco_certified": map[string]interface{}{"type": "boolean"},
+						"sources": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"provider":    map[string]interface{}{"type": "string"},
+									"price":       map[string]interface{}{"type": "number"},
+									"currency":    map[string]interface{}{"type": "string"},
+									"booking_url": map[string]interface{}{"type": "string"},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -93,20 +106,20 @@ func searchHotelsTool() ToolDef {
 	return ToolDef{
 		Name:        "search_hotels",
 		Title:       "Search Hotels",
-		Description: "Search hotels via Google Hotels and Trivago (parallel). Returns real-time pricing, ratings, star levels, and amenities for a given location and dates. Results are merged and deduplicated across providers so the cheapest price wins. IMPORTANT: call get_preferences before your first search in a conversation. If the profile is empty, interview the user first — get_preferences returns instructions. Preferences are applied server-side (star/rating filters, hostel exclusion, neighborhood prioritization) but also check the notes field for soft preferences like 'boutique only' or 'no chains' and apply those yourself.",
+		Description: "Search hotels via Google Hotels, Trivago, Airbnb, and optionally Booking.com when BOOKING_API_KEY is configured. Returns real-time pricing, ratings, star levels, and amenities for a given location and dates. Results are merged and deduplicated across providers so the cheapest price wins. IMPORTANT: call get_preferences before your first search in a conversation. If the profile is empty, interview the user first — get_preferences returns instructions. Preferences are applied server-side (star/rating filters, hostel exclusion, neighborhood prioritization) but also check the notes field for soft preferences like 'boutique only' or 'no chains' and apply those yourself.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"location":         {Type: "string", Description: "Location name or address (e.g., Helsinki, Tokyo, Manhattan New York)"},
-				"check_in":         {Type: "string", Description: "Check-in date in YYYY-MM-DD format"},
-				"check_out":        {Type: "string", Description: "Check-out date in YYYY-MM-DD format"},
-				"guests":           {Type: "integer", Description: "Number of guests (default: 2)"},
-				"stars":            {Type: "integer", Description: "Minimum star rating 1-5 (default: no filter)"},
-				"sort":             {Type: "string", Description: "Sort order: price, rating, distance, or stars (default: price)"},
-				"min_price":        {Type: "number", Description: "Minimum price per night (default: no filter)"},
-				"max_price":        {Type: "number", Description: "Maximum price per night (default: no filter)"},
-				"min_rating":       {Type: "number", Description: "Minimum guest rating, e.g. 4.0 (default: no filter)"},
-				"max_distance":     {Type: "number", Description: "Maximum distance from city center in km (default: no filter)"},
+				"location":          {Type: "string", Description: "Location name or address (e.g., Helsinki, Tokyo, Manhattan New York)"},
+				"check_in":          {Type: "string", Description: "Check-in date in YYYY-MM-DD format"},
+				"check_out":         {Type: "string", Description: "Check-out date in YYYY-MM-DD format"},
+				"guests":            {Type: "integer", Description: "Number of guests (default: 2)"},
+				"stars":             {Type: "integer", Description: "Minimum star rating 1-5 (default: no filter)"},
+				"sort":              {Type: "string", Description: "Sort order: price, rating, distance, or stars (default: price)"},
+				"min_price":         {Type: "number", Description: "Minimum price per night (default: no filter)"},
+				"max_price":         {Type: "number", Description: "Maximum price per night (default: no filter)"},
+				"min_rating":        {Type: "number", Description: "Minimum guest rating, e.g. 4.0 (default: no filter)"},
+				"max_distance":      {Type: "number", Description: "Maximum distance from city center in km (default: no filter)"},
 				"amenities":         {Type: "string", Description: "Filter by amenities (comma-separated, e.g. pool,wifi,breakfast)"},
 				"enrich_amenities":  {Type: "boolean", Description: "Fetch detail pages for top results to get full amenity lists (slower, default: false)"},
 				"free_cancellation": {Type: "boolean", Description: "Only show hotels with free cancellation (default: false)"},
@@ -345,8 +358,24 @@ func hotelSummary(result *models.HotelSearchResult, location string) string {
 	if bestRated != nil && (cheapest == nil || bestRated.Name != cheapest.Name) {
 		summary += fmt.Sprintf(" Highest rated: %s (%.1f/5).", bestRated.Name, bestRated.Rating)
 	}
+	if bookingCount := countHotelsWithProvider(result.Hotels, "booking"); bookingCount > 0 {
+		summary += fmt.Sprintf(" Includes %d Booking.com match%s.", bookingCount, pluralSuffix(bookingCount))
+	}
 
 	return summary
+}
+
+func countHotelsWithProvider(hotels []models.HotelResult, provider string) int {
+	count := 0
+	for _, hotel := range hotels {
+		for _, source := range hotel.Sources {
+			if source.Provider == provider {
+				count++
+				break
+			}
+		}
+	}
+	return count
 }
 
 // --- Hotel reviews ---
