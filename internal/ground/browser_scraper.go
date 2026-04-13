@@ -79,11 +79,6 @@ func resolveScraperScriptPath() (string, error) {
 	return "", errScraperScriptNotFound
 }
 
-func scraperScriptPath() string {
-	path, _ := resolveScraperScriptPath()
-	return path
-}
-
 // BrowserScrapeRoutes launches the Playwright scraper to fetch live train
 // prices from provider websites via a real headless browser.
 //
