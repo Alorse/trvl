@@ -90,6 +90,18 @@ SNCF Connect's API serves their booking frontend. SNCF actively publishes open d
 - **Criminal liability** -- The CFAA requires access "without authorization" to a protected computer. Public APIs that require no authentication do not meet this threshold under current 9th Circuit interpretation.
 - **GDPR/privacy issues** -- trvl does not collect, store, or process personal data. Search queries (origin, destination, date) are not personal data. Results (prices, schedules) are publicly available commercial information.
 
+## TLS compatibility and anti-bot systems
+
+trvl uses the [utls](https://github.com/refraction-networking/utls) library (BSD-3, developed by the University of Colorado for censorship circumvention research) to maintain TLS compatibility with modern web servers. Many CDNs and web servers validate the TLS ClientHello fingerprint and reject connections that don't match a known browser profile. Without TLS fingerprinting, standard Go HTTP clients receive HTTP 403 responses from approximately 40% of modern web servers.
+
+Whether TLS fingerprinting constitutes circumvention of a Technological Protection Measure (TPM) is unsettled law. DMCA Section 1201 (US) and EU Directive 2001/29/EC Article 6 protect "effective technological measures that control access to a work." The application of these provisions to TLS fingerprint validation by commercial web services has not been definitively adjudicated. Users in jurisdictions with strict TPM laws should consider this when configuring optional providers that require Chrome TLS fingerprinting.
+
+## Privacy and data handling
+
+trvl does not collect, store, or process personal data about individuals. Search queries (origin, destination, date) are not personal data. Results (prices, schedules) are publicly available commercial information.
+
+Provider configurations stored at `~/.trvl/providers/` contain endpoint URLs, request templates, and consent records (timestamp and domain). Session cookies obtained during preflight requests are used for the current session only and are not persisted to disk. Consent records contain a timestamp and domain name — users should be aware this constitutes metadata about their provider usage.
+
 ## User responsibility
 
 Users of trvl should:
@@ -99,6 +111,81 @@ Users of trvl should:
 3. **Do not redistribute raw data** -- Displaying search results to yourself or an AI assistant is personal use; bulk redistribution may raise different legal questions
 4. **Check local laws** -- While US case law (hiQ v. LinkedIn) is favorable, other jurisdictions may have different rules about automated access to websites
 5. **Comply with any C&D requests** -- If a provider specifically asks you to stop, it is wise to comply regardless of legal standing
+
+## Built-in vs. optional providers
+
+trvl includes two tiers of data providers, clearly separated by how they are maintained and where legal responsibility lies.
+
+### Built-in providers (maintained by trvl)
+
+These providers are part of trvl's source code and are active by default. trvl's maintainers are responsible for keeping them working and for any legal implications of their use.
+
+| Provider | Method | Notes |
+|----------|--------|-------|
+| Google Flights | batchexecute protocol (same approach as [fli](https://github.com/punitarani/fli)) | No API key required |
+| Google Hotels | HTML parsing of Google Travel pages | No API key required |
+| Kiwi.com | REST API | Fallback for specific flight queries |
+| FlixBus | Public REST API at `global.api.flixbus.com` | No API key required |
+| RegioJet | Public REST API | No API key required |
+| Eurostar | Public GraphQL API | No API key required |
+| Deutsche Bahn | Vendo API (widely used by OSS projects) | No API key required |
+| SNCF | Public API + SNCF Open Data | No API key required |
+| Transitous | Open-source MOTIS 2 transit router | Designed for programmatic access |
+| DigiTransit | Finnish Transport Agency open API | CC-BY licensed |
+| Ferry operators | Various APIs (DFDS, Viking Line, Tallink, Stena, Eckerö, FerryHopper) | No API key required |
+| (Booking.com was moved to optional providers in v0.4.0) | — | — |
+| Distribusion | Partner API | Requires `DISTRIBUSION_API_KEY` |
+| Open-Meteo | Weather API | Free, CC-BY 4.0 |
+| Wikivoyage | MediaWiki API | CC-BY-SA 3.0 |
+| OpenStreetMap | Overpass API | ODbL licensed |
+| Ticketmaster, Foursquare, etc. | Official APIs with keys | Optional, free tier available |
+| Deal feeds | RSS (Secret Flying, Fly4Free, Holiday Pirates, The Points Guy) | Public RSS syndication |
+
+### Optional providers (user-configured, AI-assisted)
+
+trvl includes a generic provider runtime that users can configure to add additional data sources. **These providers are not active by default.** They must be explicitly set up by the user with their AI assistant, and each requires individual consent.
+
+**Why this system exists:** Some popular travel services (Airbnb, Booking.com's frontend, Hostelworld, VRBO, etc.) do not offer free public APIs. Their websites use internal APIs that could technically be accessed programmatically, but their Terms of Service may restrict automated access. Rather than including service-specific scraping code in trvl (which would make trvl's maintainers responsible for potential ToS violations), trvl provides a generic HTTP client and lets users decide which services to configure.
+
+**How it works:**
+
+1. The user asks their AI assistant to add a provider (e.g., "add Airbnb")
+2. The AI generates a provider configuration using its knowledge of the service's API (from publicly available open-source projects and documentation)
+3. trvl asks the user **directly** (bypassing the AI) to confirm they accept responsibility for compliance with the target service's Terms of Service
+4. The configuration is saved locally to `~/.trvl/providers/`
+5. Future searches include results from configured providers
+
+**Reliability:** Because provider configurations are AI-generated, they may not work perfectly on the first attempt. API endpoints, authentication tokens, and response formats change when services update their websites. If a configuration stops working, the AI assistant can regenerate it. Typical first-attempt success rate depends on the AI model and how recently the target service changed its API.
+
+**What to do if setup fails:**
+
+1. Ask the AI to try a different approach or regenerate the configuration
+2. Check the reference open-source project (listed in the provider catalog) for updated API details
+3. Use `trvl providers status` to see error details
+4. Some services may actively block automated access — in that case, the provider may not be configurable
+
+**What trvl provides for optional providers:**
+
+- A general-purpose HTTP client (like curl or Postman) with configurable JSON field mapping
+- Template files targeting `example.com` that document common API patterns
+- A provider catalog listing available services and pointers to open-source reference projects
+- Rate limiting, session management, and modern TLS compatibility
+
+**What trvl does NOT provide:**
+
+- No service-specific scraping code for any optional provider
+- No pre-configured provider settings (all generated by the AI at the user's request)
+- No guarantee that any optional provider will work or continue working
+
+### User responsibility for optional providers
+
+When a user configures an optional provider, the user is solely responsible for:
+
+1. **Terms of Service compliance** -- The user should review the target service's ToS before enabling the provider. Some services explicitly restrict automated access.
+2. **Consent** -- The user explicitly approves every provider via a direct confirmation prompt (not through the AI).
+3. **Rate limiting** -- All configurations include rate limits. Users should not increase them.
+4. **Data handling** -- Users are responsible for how they use data from configured providers.
+5. **Local laws** -- Users should verify that automated API access is lawful in their jurisdiction.
 
 ## Disclaimer
 

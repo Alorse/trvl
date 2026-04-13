@@ -22,8 +22,8 @@ func TestPromptsList(t *testing.T) {
 		t.Fatalf("unmarshal result: %v", err)
 	}
 
-	if len(result.Prompts) != 6 {
-		t.Fatalf("expected 6 prompts, got %d", len(result.Prompts))
+	if len(result.Prompts) != 7 {
+		t.Fatalf("expected 7 prompts, got %d", len(result.Prompts))
 	}
 
 	expected := map[string]bool{
@@ -33,6 +33,7 @@ func TestPromptsList(t *testing.T) {
 		"compare-hotels":     false,
 		"packing-list":       false,
 		"setup_profile":      false,
+		"setup_providers":    false,
 	}
 	for _, p := range result.Prompts {
 		if _, ok := expected[p.Name]; !ok {

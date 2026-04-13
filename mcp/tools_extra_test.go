@@ -265,6 +265,11 @@ func TestToolRegistration_AllTools(t *testing.T) {
 		"search_lounges",
 		"check_visa",
 		"calculate_points_value",
+		"configure_provider",
+		"list_providers",
+		"remove_provider",
+		"suggest_providers",
+		"test_provider",
 	}
 
 	if len(s.tools) != len(expectedTools) {

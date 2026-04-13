@@ -56,7 +56,7 @@ trvl flights HEL LHR 2026-07-01 --format json | head -5
 # Expected: JSON with flight results
 ```
 
-Tell the user: "trvl is installed with 36 MCP tools and 1 bundled Claude skill. I can search flights, hotels, destinations, plan trips, find weekend getaways, find optimal travel windows, optimize multi-city routes, find nearby restaurants, check local events, search ground transport, detect travel hacks, check weather forecasts, look up airline baggage rules, and find airport lounges. Just ask me anything about travel."
+Tell the user: "trvl is installed with 41 MCP tools and 2 bundled Claude skills. I can search flights, hotels, destinations, plan trips, find weekend getaways, find optimal travel windows, optimize multi-city routes, find nearby restaurants, check local events, search ground transport, detect travel hacks, check weather forecasts, look up airline baggage rules, and find airport lounges. Just ask me anything about travel."
 
 ### Step 5: (Optional) Set up free API keys for enhanced data
 
@@ -217,7 +217,7 @@ CLI alternative: `trvl prefs init`
 
 ## How To Use (after setup)
 
-You now have 36 MCP tools available. Use them when the user asks about travel:
+You now have 41 MCP tools available. Use them when the user asks about travel:
 
 ### search_flights — Find flights between airports
 ```json

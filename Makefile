@@ -5,7 +5,7 @@ GO_RUN = GOTOOLCHAIN=$(GOTOOLCHAIN) $(GO)
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -ldflags "-s -w -X main.Version=$(VERSION) -X github.com/MikkoParkkola/trvl/mcp.serverVersion=$(VERSION)"
 
-.PHONY: build test test-proof test-coverage test-live-integrations test-live-probes lint clean cross
+.PHONY: build test test-proof test-coverage test-live-integrations test-live-probes lint clean cross install safe-clean force-clean
 
 build:
 	@mkdir -p bin
@@ -42,6 +42,19 @@ lint:
 	fi
 
 clean:
+	rm -f bin/trvl
+	rm -f coverage.out
+	rm -rf dist/
+
+install:
+	$(GO_RUN) build $(LDFLAGS) -o ~/.local/bin/trvl ./cmd/trvl
+
+safe-clean: install
+	rm -f bin/trvl
+	rm -f coverage.out
+	rm -rf dist/
+
+force-clean:
 	rm -f bin/trvl
 	rm -f coverage.out
 	rm -rf dist/

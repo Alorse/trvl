@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/hotels"
+	"github.com/MikkoParkkola/trvl/internal/providers"
 	"github.com/MikkoParkkola/trvl/internal/watch"
 )
 
@@ -62,6 +64,10 @@ type Server struct {
 	// Resource subscriptions: map from URI to true.
 	subsMu sync.Mutex
 	subs   map[string]bool
+
+	// External provider support.
+	providerRegistry *providers.Registry
+	providerRuntime  *providers.Runtime
 }
 
 // ToolHandler processes a tool call and returns content blocks, optional
@@ -84,6 +90,16 @@ func NewServer() *Server {
 	if ws, err := watch.DefaultStore(); err == nil {
 		_ = ws.Load()
 		s.watchStore = ws
+	}
+
+	// Initialize provider registry (best-effort; nil registry is handled gracefully).
+	if reg, err := providers.NewRegistry(); err == nil {
+		s.providerRegistry = reg
+		s.providerRuntime = providers.NewRuntime(reg)
+		// Wire external providers into the hotel search pipeline.
+		hotels.SetExternalProviderRuntime(s.providerRuntime)
+	} else {
+		log.Printf("warning: provider registry: %v", err)
 	}
 
 	registerTools(s)
@@ -143,12 +159,65 @@ func (s *Server) SendLog(level, message string) {
 
 // makeElicitFunc returns the transport-level elicitation hook.
 //
-// Returns nil. Elicitation not wired at transport level. Claude Code 2.1.76+
-// supports elicitation client-side, but search-refinement tools get better UX
-// from natural LLM follow-up questions. Revisit when implementing a book_trip
-// tool that needs confirm-dialog UX.
+// Returns a real ElicitFunc when the client declares the elicitation capability
+// and the server has both a notification writer (for sending requests) and an
+// elicit reader (for receiving responses). Returns nil otherwise, which means
+// tool handlers must fall back to CLI instructions.
 func (s *Server) makeElicitFunc() ElicitFunc {
-	return nil
+	if s.clientCapabilities.Elicitation == nil {
+		return nil
+	}
+	s.notifyMu.Lock()
+	hasWriter := s.notifyWriter != nil
+	s.notifyMu.Unlock()
+	if !hasWriter {
+		return nil
+	}
+	if s.elicitReader == nil {
+		return nil
+	}
+
+	return func(message string, schema map[string]interface{}) (map[string]interface{}, error) {
+		id := fmt.Sprintf("elicit-%d", time.Now().UnixNano())
+
+		req := ElicitationRequest{
+			JSONRPC: "2.0",
+			ID:      id,
+			Method:  "elicitation/create",
+			Params: ElicitationReqParams{
+				Message:         message,
+				RequestedSchema: schema,
+			},
+		}
+
+		s.notifyMu.Lock()
+		data, err := json.Marshal(req)
+		if err != nil {
+			s.notifyMu.Unlock()
+			return nil, fmt.Errorf("elicitation: marshal request: %w", err)
+		}
+		_, err = fmt.Fprintf(s.notifyWriter, "%s\n", data)
+		s.notifyMu.Unlock()
+		if err != nil {
+			return nil, fmt.Errorf("elicitation: send request: %w", err)
+		}
+
+		if !s.elicitReader.Scan() {
+			return nil, fmt.Errorf("elicitation: no response from client")
+		}
+
+		var resp ElicitationResponse
+		if err := json.Unmarshal(s.elicitReader.Bytes(), &resp); err != nil {
+			return nil, fmt.Errorf("elicitation: parse response: %w", err)
+		}
+		if resp.Error != nil {
+			return nil, fmt.Errorf("elicitation: client error: %s", resp.Error.Message)
+		}
+		if resp.Result.Action != "accept" {
+			return nil, nil
+		}
+		return resp.Result.Content, nil
+	}
 }
 
 // makeSamplingFunc returns the transport-level sampling hook.

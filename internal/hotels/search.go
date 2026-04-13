@@ -13,12 +13,22 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"github.com/MikkoParkkola/trvl/internal/providers"
 )
 
 var (
 	defaultClient     *batchexec.Client
 	defaultClientOnce sync.Once
 )
+
+// externalProviderRuntime is set by the MCP server when providers are configured.
+// It is nil when no external providers are available.
+var externalProviderRuntime *providers.Runtime
+
+// SetExternalProviderRuntime configures the external provider runtime for hotel searches.
+func SetExternalProviderRuntime(rt *providers.Runtime) {
+	externalProviderRuntime = rt
+}
 
 // DefaultClient returns a shared batchexec.Client for the hotels package.
 // The client is created once and reused across all requests, enabling
@@ -216,9 +226,9 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		}
 	}
 
-	// Run parallel searches against Trivago, Airbnb, and optional Booking.com.
-	// All auxiliary providers are non-fatal: failures log a warning and
-	// contribute zero results.
+	// Run parallel searches against Trivago, optional Booking.com, and
+	// user-configured external providers. All auxiliary providers are non-fatal:
+	// failures log a warning and contribute zero results.
 	auxOpts := HotelSearchOptions{
 		CheckIn:  opts.CheckIn,
 		CheckOut: opts.CheckOut,
@@ -226,8 +236,7 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		Currency: opts.Currency,
 	}
 	var trivagoResults []models.HotelResult
-	var airbnbResults []models.HotelResult
-	var bookingResults []models.HotelResult
+	var externalResults []models.HotelResult
 	var auxWg sync.WaitGroup
 
 	auxWg.Add(1)
@@ -241,41 +250,36 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		trivagoResults = res
 	}()
 
-	// Airbnb (scraping-based, may fail or be rate-limited — non-fatal)
-	auxWg.Add(1)
-	go func() {
-		defer auxWg.Done()
-		res, err := SearchAirbnb(ctx, location, auxOpts)
-		if err != nil {
-			slog.Warn("airbnb search failed", "error", err)
-			return
-		}
-		airbnbResults = res
-	}()
-
-	if bookingEnabled && HasBookingKey() && bookingSearchEligibleOptions(opts) {
+	// External providers (user-configured via configure_provider MCP tool).
+	// This includes any provider the user has set up: Booking.com, Airbnb,
+	// Hostelworld, VRBO, etc. — all configured through the provider system.
+	if externalProviderRuntime != nil {
 		auxWg.Add(1)
 		go func() {
 			defer auxWg.Done()
-			res, err := searchBookingHotelsFunc(ctx, location, opts)
+			lat, lon, err := ResolveLocation(ctx, location)
 			if err != nil {
-				slog.Warn("booking search failed", "error", err)
+				slog.Warn("external providers: geocode failed", "error", err)
 				return
 			}
-			bookingResults = res
+			res, err := externalProviderRuntime.SearchHotels(ctx, location, lat, lon,
+				auxOpts.CheckIn, auxOpts.CheckOut, auxOpts.Currency, auxOpts.Guests)
+			if err != nil {
+				slog.Warn("external providers search failed", "error", err)
+				return
+			}
+			externalResults = res
 		}()
 	}
 
 	auxWg.Wait()
 
-	// Deduplicate across all pages, sort orders, Trivago, Airbnb, and Booking
-	// using
-	// name-normalisation + geo-proximity. MergeHotelResults preserves all
-	// provider price sources and keeps the lowest price as the primary. This
-	// replaces the previous naive strings.ToLower(name) seen-map approach.
+	// Deduplicate across all pages, sort orders, Trivago, and external
+	// providers using name-normalisation + geo-proximity. MergeHotelResults
+	// preserves all provider price sources and keeps the lowest price as the
+	// primary.
 	allBatches := append(rawBatches, trivagoResults)
-	allBatches = append(allBatches, airbnbResults)
-	allBatches = append(allBatches, bookingResults)
+	allBatches = append(allBatches, externalResults)
 	hotels := models.MergeHotelResults(allBatches...)
 
 	// Resolve city center for distance filter/sort if needed.

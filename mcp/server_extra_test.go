@@ -62,8 +62,8 @@ func TestHTTPHandler_POST_ToolsList(t *testing.T) {
 	var result ToolsListResult
 	json.Unmarshal(resultJSON, &result)
 
-	if len(result.Tools) != 36 {
-		t.Errorf("expected 36 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 41 {
+		t.Errorf("expected 41 tools, got %d", len(result.Tools))
 	}
 }
 
@@ -530,11 +530,11 @@ func TestNewServer(t *testing.T) {
 	if s == nil {
 		t.Fatal("NewServer returned nil")
 	}
-	if len(s.tools) != 36 {
-		t.Errorf("expected 36 tools, got %d", len(s.tools))
+	if len(s.tools) != 41 {
+		t.Errorf("expected 41 tools, got %d", len(s.tools))
 	}
-	if len(s.handlers) != 36 {
-		t.Errorf("expected 36 handlers, got %d", len(s.handlers))
+	if len(s.handlers) != 41 {
+		t.Errorf("expected 41 handlers, got %d", len(s.handlers))
 	}
 }
 
@@ -639,7 +639,10 @@ func TestInitializeCapabilities(t *testing.T) {
 func TestToolAnnotations(t *testing.T) {
 	// Tools that write to disk — ReadOnlyHint is intentionally false.
 	writeTools := map[string]bool{
-		"update_preferences": true,
+		"update_preferences":  true,
+		"configure_provider":  true,
+		"remove_provider":     true,
+		"test_provider":       true,
 	}
 
 	s := NewServer()

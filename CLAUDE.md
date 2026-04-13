@@ -23,6 +23,7 @@ internal/          Domain packages (one per data source)
   weather/         Open-Meteo forecasts
   models/          Shared types (FlightResult, HotelResult, etc.)
   preferences/     User prefs (~/.trvl/preferences.json)
+  providers/       External provider runtime (generic HTTP→JSON→HotelResult)
   cache/           HTTP response caching
   ...
 mcp/               MCP server (tools, resources, prompts)

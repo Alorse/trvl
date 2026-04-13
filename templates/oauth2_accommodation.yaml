@@ -1,0 +1,89 @@
+# Generic Template: OAuth2 Accommodation Search API
+#
+# Some accommodation platforms expose REST APIs authenticated via OAuth2
+# token exchange. This template documents the pattern:
+#
+#   1. POST to an /auth endpoint with API key → receive access_token
+#   2. POST to a search endpoint with Bearer token → receive hotel results
+#   3. POST to a details endpoint for enrichment (optional)
+#
+# The API key is read from an environment variable — the user provides
+# their own key, obtained through the service's partner/developer program.
+#
+# Variables available in templates:
+#   ${checkin}         - Check-in date (YYYY-MM-DD)
+#   ${checkout}        - Check-out date (YYYY-MM-DD)
+#   ${currency}        - Currency code (EUR, USD, etc.)
+#   ${guests}          - Number of guests
+#   ${lat}             - Center latitude
+#   ${lon}             - Center longitude
+#   ${env.VAR_NAME}    - Environment variable (for API keys)
+#   ${auth_token}      - Token extracted by preflight auth
+
+id: "example_oauth2_accommodation"
+name: "Example OAuth2 Accommodation Service"
+category: "hotels"
+
+# Step 1: OAuth2 token exchange.
+# POST form data with API key, extract access_token from JSON response.
+auth:
+  type: "preflight"
+  preflight_url: "https://api.example.com/auth"
+  preflight_method: "POST"
+  preflight_body: "api_key=${env.EXAMPLE_API_KEY}"
+  preflight_headers:
+    Accept: "application/json"
+    Content-Type: "application/x-www-form-urlencoded"
+  extractions:
+    auth_token:
+      pattern: '"access_token":"([^"]+)"'
+      variable: "auth_token"
+
+# Step 2: Search endpoint with Bearer token.
+endpoint: "https://api.example.com/v3/accommodations/search"
+method: "POST"
+
+headers:
+  Accept: "application/json"
+  Content-Type: "application/json"
+  Authorization: "Bearer ${auth_token}"
+
+body_template: |
+  {
+    "checkin": "${checkin}",
+    "checkout": "${checkout}",
+    "booker": {
+      "country": "US",
+      "platform": "DESKTOP"
+    },
+    "guests": {
+      "number_of_adults": ${guests},
+      "number_of_rooms": 1
+    },
+    "currency": "${currency}",
+    "rows": 100,
+    "coordinates": {
+      "latitude": ${lat},
+      "longitude": ${lon},
+      "radius": 25.0
+    }
+  }
+
+# Map response fields to trvl hotel model.
+response_mapping:
+  results_path: "data"
+  fields:
+    hotel_id: "id"
+    price: "price.book"
+    currency: "currency"
+    booking_url: "url"
+
+rate_limit:
+  requests_per_second: 2.0
+  burst: 1
+
+tls:
+  fingerprint: "standard"
+
+cookies:
+  source: "none"

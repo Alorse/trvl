@@ -1,0 +1,103 @@
+# GraphQL Persisted-Query Accommodation Search Template
+#
+# Purpose:
+#   Generic template for services that expose accommodation search via
+#   GraphQL persisted queries.  The pattern is common: the client fetches
+#   the homepage to extract an API key and an operation hash, then POSTs
+#   a JSON body containing a persisted-query extensions block.
+#
+# How to use:
+#   1. Copy this file to a provider-specific config.
+#   2. Replace every "example.com" reference with the target host.
+#   3. Fill in the operation_name and operation_hash obtained from
+#      the service's public homepage JavaScript bundle.
+#   4. Adjust response_mapping paths to match the service's schema.
+#
+# Template variables (substituted at query time):
+#   ${checkin}   -- Check-in date  (YYYY-MM-DD)
+#   ${checkout}  -- Check-out date (YYYY-MM-DD)
+#   ${currency}  -- ISO 4217 currency code (e.g. USD, EUR)
+#   ${guests}    -- Number of guests (integer)
+#   ${ne_lat}    -- Bounding-box north-east latitude
+#   ${ne_lon}    -- Bounding-box north-east longitude
+#   ${sw_lat}    -- Bounding-box south-west latitude
+#   ${sw_lon}    -- Bounding-box south-west longitude
+#   ${lat}       -- Centre-point latitude
+#   ${lon}       -- Centre-point longitude
+
+kind: graphql_accommodation
+version: 1
+
+auth:
+  type: preflight
+  description: >
+    Fetch the service homepage and extract the API key and the
+    persisted-query operation hash from the inline JavaScript or
+    meta tags.
+  preflight_url: https://www.example.com/
+  extract:
+    - name: api_key
+      from: html
+      pattern: '"apiKey":"([^"]+)"'
+    - name: operation_hash
+      from: html
+      pattern: '"operationHash":"([a-f0-9]+)"'
+
+endpoint:
+  method: POST
+  url: https://www.example.com/api/v3/Search/${operation_hash}
+  query_params:
+    operationName: SearchQuery
+    locale: en-US
+    currency: ${currency}
+
+headers:
+  Content-Type: application/json
+  Accept: application/json
+  X-API-Key: ${api_key}
+
+body:
+  operationName: SearchQuery
+  extensions:
+    persistedQuery:
+      version: 1
+      sha256Hash: ${operation_hash}
+  variables:
+    request:
+      checkin: ${checkin}
+      checkout: ${checkout}
+      neLat: ${ne_lat}
+      neLon: ${ne_lon}
+      swLat: ${sw_lat}
+      swLon: ${sw_lon}
+      latitude: ${lat}
+      longitude: ${lon}
+      numberOfGuests: ${guests}
+      cursor: null
+
+response_mapping:
+  results_path: data.search.results
+  fields:
+    id: listing.id
+    name: listing.name
+    rating: listing.avgRating
+    review_count: listing.reviewCount
+    price: pricing.total.amount
+    price_currency: pricing.total.currency
+    latitude: listing.coordinate.latitude
+    longitude: listing.coordinate.longitude
+    thumbnail: listing.photos[0].url
+    property_type: listing.propertyType
+
+rate_limit:
+  requests_per_second: 0.5
+  burst: 1
+
+tls:
+  fingerprint: chrome
+
+cookies:
+  source: preflight
+  description: >
+    Reuse cookies set by the preflight homepage request so that
+    subsequent API calls carry the expected session context.

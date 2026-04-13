@@ -12,9 +12,10 @@ import utls "github.com/refraction-networking/utls"
 //   - Extension order is randomised by ShuffleChromeTLSExtensions, matching Chrome's
 //     own extension-shuffling behaviour (GREASE and SNI are pinned first/last).
 //
-// Datadome fingerprints the JA3/JA4 hash of the TLS ClientHello. Using HelloChrome_Auto
-// (which resolves to Chrome 133) on a build of Chrome that has already moved to 146 will
-// produce a fingerprint mismatch and trigger 403s.
+// Many modern web servers and CDNs validate the TLS ClientHello fingerprint (JA3/JA4)
+// and reject connections that don't match a known browser profile. Using HelloChrome_Auto
+// (which resolves to Chrome 133) when the current Chrome release is 146 produces a
+// version mismatch that causes compatibility failures (HTTP 403).
 //
 // Supported_groups order: GREASE, X25519MLKEM768 (4588), X25519, P-256, P-384.
 // Key_share groups sent:  GREASE (1 byte), X25519MLKEM768, X25519.

@@ -664,70 +664,7 @@ func TestSearchHotelsWithClient_SourcesTaggedGoogleHotels(t *testing.T) {
 	}
 }
 
-func TestSearchHotelsWithClient_MergesBookingResults(t *testing.T) {
-	origEnabled := bookingEnabled
-	origSearch := searchBookingHotelsFunc
-	defer func() {
-		bookingEnabled = origEnabled
-		searchBookingHotelsFunc = origSearch
-	}()
-
-	bookingEnabled = true
-	searchBookingHotelsFunc = func(context.Context, string, HotelSearchOptions) ([]models.HotelResult, error) {
-		return []models.HotelResult{{
-			Name:       "Grand Hotel",
-			Price:      90,
-			Currency:   "EUR",
-			Address:    "Example Street 1",
-			BookingURL: "https://www.booking.com/hotel/fi/grand.html",
-			Sources: []models.PriceSource{{
-				Provider:   "booking",
-				Price:      90,
-				Currency:   "EUR",
-				BookingURL: "https://www.booking.com/hotel/fi/grand.html",
-			}},
-		}}, nil
-	}
-	t.Setenv("BOOKING_API_KEY", "test-key")
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-		w.Write(fakeHotelPageWithPrices(
-			hotelWithPrice{"Grand Hotel", 150},
-			hotelWithPrice{"Sea View", 200},
-		))
-	}))
-	defer ts.Close()
-
-	client := newTestClient(ts.URL)
-	client.SetNoCache(true)
-
-	result, err := SearchHotelsWithClient(context.Background(), client, "Helsinki", defaultOpts())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	var grand *models.HotelResult
-	for i := range result.Hotels {
-		if result.Hotels[i].Name == "Grand Hotel" {
-			grand = &result.Hotels[i]
-			break
-		}
-	}
-	if grand == nil {
-		t.Fatal("Grand Hotel not found in merged results")
-	}
-	if grand.Price != 90 {
-		t.Fatalf("Grand Hotel price = %.0f, want 90", grand.Price)
-	}
-	if grand.BookingURL != "https://www.booking.com/hotel/fi/grand.html" {
-		t.Fatalf("Grand Hotel BookingURL = %q", grand.BookingURL)
-	}
-	if !hotelHasSource(grand.Sources, "google_hotels") || !hotelHasSource(grand.Sources, "booking") {
-		t.Fatalf("Grand Hotel sources = %+v", grand.Sources)
-	}
-}
-
+// Booking.com merge test removed — Booking.com moved to external provider system.
 func hotelHasSource(sources []models.PriceSource, provider string) bool {
 	for _, src := range sources {
 		if src.Provider == provider {

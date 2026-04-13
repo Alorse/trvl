@@ -12,6 +12,5 @@ import (
 // themselves (or use their own mock transport).
 func TestMain(m *testing.M) {
 	trivagoEnabled = false
-	bookingEnabled = false
 	os.Exit(m.Run())
 }

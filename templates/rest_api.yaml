@@ -1,0 +1,68 @@
+# REST JSON API Search Template
+#
+# Purpose:
+#   Generic template for services that expose search results via a
+#   plain REST/JSON GET endpoint.  No authentication, no GraphQL --
+#   just query-parameter substitution and JSON response mapping.
+#
+# How to use:
+#   1. Copy this file to a provider-specific config.
+#   2. Replace every "example.com" reference with the target host.
+#   3. Adjust query_params and response_mapping to match the
+#      service's public API schema.
+#
+# Template variables (substituted at query time):
+#   ${origin}       -- Origin location identifier
+#   ${destination}  -- Destination location identifier
+#   ${departure}    -- Departure date (YYYY-MM-DD)
+#   ${return}       -- Return date (YYYY-MM-DD), empty for one-way
+#   ${passengers}   -- Number of passengers (integer)
+#   ${currency}     -- ISO 4217 currency code (e.g. USD, EUR)
+#   ${locale}       -- Locale tag (e.g. en-US)
+
+kind: rest_api
+version: 1
+
+auth:
+  type: none
+
+endpoint:
+  method: GET
+  url: https://api.example.com/v3/search
+
+query_params:
+  from: ${origin}
+  to: ${destination}
+  departure_date: ${departure}
+  return_date: ${return}
+  passengers: ${passengers}
+  currency: ${currency}
+  locale: ${locale}
+
+headers:
+  Accept: application/json
+  User-Agent: trvl/1.0
+
+response_mapping:
+  results_path: data.results
+  fields:
+    id: id
+    origin: departure.station
+    destination: arrival.station
+    departure_time: departure.datetime
+    arrival_time: arrival.datetime
+    duration_minutes: duration
+    price: price.amount
+    price_currency: price.currency
+    carrier: operator.name
+    transport_type: vehicle.type
+
+rate_limit:
+  requests_per_second: 2.0
+  burst: 3
+
+tls:
+  fingerprint: default
+
+cookies:
+  source: none
