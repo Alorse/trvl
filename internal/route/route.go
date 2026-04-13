@@ -299,6 +299,13 @@ func searchFlightLeg(ctx context.Context, from, to Hub, date string, opts Option
 			depTime = f.Legs[0].DepartureTime
 			arrTime = f.Legs[len(f.Legs)-1].ArrivalTime
 		}
+		provider := airline
+		if f.Provider != "" && !strings.EqualFold(f.Provider, "google_flights") {
+			provider = f.Provider
+		}
+		if provider == "" {
+			provider = airline
+		}
 		price := f.Price
 		currency := f.Currency
 		if opts.Currency != "" && currency != "" && currency != opts.Currency && price > 0 {
@@ -308,7 +315,7 @@ func searchFlightLeg(ctx context.Context, from, to Hub, date string, opts Option
 		}
 		legs = append(legs, models.RouteLeg{
 			Mode:      "flight",
-			Provider:  airline,
+			Provider:  provider,
 			From:      from.City,
 			To:        to.City,
 			FromCode:  origin,

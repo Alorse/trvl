@@ -17,15 +17,15 @@ import (
 
 func flightsCmd() *cobra.Command {
 	var (
-		returnDate    string
-		cabin         string
-		maxStops      string
-		sortBy        string
-		airlines      []string
-		adults        int
-		format        string
+		returnDate     string
+		cabin          string
+		maxStops       string
+		sortBy         string
+		airlines       []string
+		adults         int
+		format         string
 		targetCurrency string
-		compareCabins bool
+		compareCabins  bool
 	)
 
 	cmd := &cobra.Command{
@@ -101,6 +101,9 @@ Examples:
 				airline := ""
 				if len(f.Legs) > 0 {
 					airline = f.Legs[0].Airline
+				}
+				if airline == "" {
+					airline = flightProviderLabel(f)
 				}
 				saveLastSearch(&LastSearch{
 					Command:        "flights",
@@ -182,7 +185,25 @@ func printFlightsTable(ctx context.Context, origin, destination, targetCurrency 
 		}
 	}
 
-	headers := []string{"Price", "Duration", "Stops", "Route", "Airline", "Flight", "Departs", "Arrives"}
+	showProvider := false
+	showNotes := false
+	for _, f := range result.Flights {
+		if f.Provider != "" && !strings.EqualFold(f.Provider, "google_flights") {
+			showProvider = true
+		}
+		if flightWarnings(f) != "" {
+			showNotes = true
+		}
+	}
+
+	headers := []string{"Price", "Duration", "Stops", "Route"}
+	if showProvider {
+		headers = append(headers, "Provider")
+	}
+	headers = append(headers, "Airline", "Flight", "Departs", "Arrives")
+	if showNotes {
+		headers = append(headers, "Notes")
+	}
 	var rows [][]string
 	var prices priceScale
 
@@ -204,16 +225,20 @@ func printFlightsTable(ctx context.Context, origin, destination, targetCurrency 
 			arrives = f.Legs[len(f.Legs)-1].ArrivalTime
 		}
 
-		rows = append(rows, []string{
+		row := []string{
 			prices.Apply(f.Price, formatPrice(f.Price, f.Currency)),
 			formatDuration(f.Duration),
 			colorizeStops(f.Stops),
 			route,
-			airline,
-			flightNum,
-			departs,
-			arrives,
-		})
+		}
+		if showProvider {
+			row = append(row, flightProviderLabel(f))
+		}
+		row = append(row, airline, flightNum, departs, arrives)
+		if showNotes {
+			row = append(row, flightWarnings(f))
+		}
+		rows = append(rows, row)
 	}
 
 	models.FormatTable(os.Stdout, headers, rows)
@@ -230,11 +255,48 @@ func printFlightsTable(ctx context.Context, origin, destination, targetCurrency 
 		if len(cheapest.Legs) > 0 {
 			airline = cheapest.Legs[0].Airline
 		}
+		descriptorParts := []string{}
+		if provider := flightProviderLabel(cheapest); provider != "" && (!strings.EqualFold(cheapest.Provider, "google_flights") || airline == "") {
+			descriptorParts = append(descriptorParts, provider)
+		}
+		if airline != "" {
+			descriptorParts = append(descriptorParts, airline)
+		}
+		if cheapest.SelfConnect {
+			descriptorParts = append(descriptorParts, "self-connect")
+		}
+		descriptor := strings.Join(descriptorParts, ", ")
+		if descriptor == "" {
+			descriptor = "-"
+		}
 		models.Summary(os.Stdout, fmt.Sprintf("Cheapest: %s %.0f (%s, %s)",
-			cheapest.Currency, cheapest.Price, airline, formatStops(cheapest.Stops)))
+			cheapest.Currency, cheapest.Price, descriptor, formatStops(cheapest.Stops)))
 		models.BookingHint(os.Stdout)
 	}
 	return nil
+}
+
+func flightProviderLabel(f models.FlightResult) string {
+	switch strings.ToLower(strings.TrimSpace(f.Provider)) {
+	case "":
+		return ""
+	case "google_flights":
+		return "Google"
+	case "kiwi":
+		return "Kiwi"
+	default:
+		return f.Provider
+	}
+}
+
+func flightWarnings(f models.FlightResult) string {
+	if len(f.Warnings) > 0 {
+		return strings.Join(f.Warnings, "; ")
+	}
+	if f.SelfConnect {
+		return "Self-connect: protect your own connection"
+	}
+	return ""
 }
 
 // flightRoute builds a route string like "HEL -> FRA -> NRT".

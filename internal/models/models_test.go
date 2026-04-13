@@ -285,10 +285,13 @@ func TestLocation_JSON(t *testing.T) {
 
 func TestFlightResult_JSON(t *testing.T) {
 	fr := FlightResult{
-		Price:    523.00,
-		Currency: "EUR",
-		Duration: 780,
-		Stops:    0,
+		Price:       523.00,
+		Currency:    "EUR",
+		Duration:    780,
+		Stops:       0,
+		Provider:    "kiwi",
+		SelfConnect: true,
+		Warnings:    []string{"Self-connect risk"},
 		Legs: []FlightLeg{
 			{
 				DepartureAirport: AirportInfo{Code: "HEL", Name: "Helsinki-Vantaa"},
@@ -320,6 +323,15 @@ func TestFlightResult_JSON(t *testing.T) {
 	}
 	if parsed.Legs[0].AirlineCode != "AY" {
 		t.Errorf("AirlineCode = %q, want AY", parsed.Legs[0].AirlineCode)
+	}
+	if parsed.Provider != "kiwi" {
+		t.Errorf("Provider = %q, want kiwi", parsed.Provider)
+	}
+	if !parsed.SelfConnect {
+		t.Error("expected SelfConnect=true")
+	}
+	if len(parsed.Warnings) != 1 || parsed.Warnings[0] != "Self-connect risk" {
+		t.Errorf("Warnings = %v, want [Self-connect risk]", parsed.Warnings)
 	}
 }
 
@@ -580,7 +592,7 @@ func TestFormatTable_MoreCellsThanHeaders(t *testing.T) {
 
 func TestFormatJSON_SpecialCharacters(t *testing.T) {
 	v := map[string]string{
-		"html":    "<script>alert('xss')</script>",
+		"html":      "<script>alert('xss')</script>",
 		"ampersand": "a&b",
 		"unicode":   "Helsinki - \u00e4\u00f6",
 	}

@@ -3,7 +3,6 @@ package flights
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -51,20 +50,12 @@ func SearchMultiAirport(ctx context.Context, origins, destinations []string, dat
 
 	wg.Wait()
 
-	// Sort by price.
-	sort.Slice(allFlights, func(i, j int) bool {
-		return allFlights[i].Price < allFlights[j].Price
-	})
-
-	tripType := "one_way"
-	if opts.ReturnDate != "" {
-		tripType = "round_trip"
-	}
+	sortFlightResults(allFlights, opts.SortBy)
 
 	return &models.FlightSearchResult{
 		Success:  len(allFlights) > 0,
 		Count:    len(allFlights),
-		TripType: tripType,
+		TripType: tripTypeForSearch(opts),
 		Flights:  allFlights,
 	}, nil
 }

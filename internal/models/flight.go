@@ -17,11 +17,11 @@ type FlightLeg struct {
 	ArrivalAirport   AirportInfo `json:"arrival_airport"`
 	DepartureTime    string      `json:"departure_time"`
 	ArrivalTime      string      `json:"arrival_time"`
-	Duration         int         `json:"duration"`        // minutes
+	Duration         int         `json:"duration"` // minutes
 	Airline          string      `json:"airline"`
 	AirlineCode      string      `json:"airline_code"`
 	FlightNumber     string      `json:"flight_number"`
-	Aircraft         string      `json:"aircraft,omitempty"`       // e.g. "Airbus A350"
+	Aircraft         string      `json:"aircraft,omitempty"`        // e.g. "Airbus A350"
 	LayoverMinutes   int         `json:"layover_minutes,omitempty"` // time between arrival of previous leg and this departure (0 for first leg)
 }
 
@@ -31,6 +31,9 @@ type FlightResult struct {
 	Currency            string      `json:"currency"`
 	Duration            int         `json:"duration"` // total minutes
 	Stops               int         `json:"stops"`
+	Provider            string      `json:"provider,omitempty"`
+	SelfConnect         bool        `json:"self_connect,omitempty"`
+	Warnings            []string    `json:"warnings,omitempty"`
 	Legs                []FlightLeg `json:"legs"`
 	BookingURL          string      `json:"booking_url,omitempty"`
 	CarryOnIncluded     *bool       `json:"carry_on_included,omitempty"`     // true if carry-on bag is included in price

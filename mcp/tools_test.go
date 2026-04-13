@@ -313,6 +313,21 @@ func TestFlightSummary_NonstopOption(t *testing.T) {
 	}
 }
 
+func TestFlightSummary_SelfConnectWarning(t *testing.T) {
+	result := &models.FlightSearchResult{
+		Success: true,
+		Count:   1,
+		Flights: []models.FlightResult{
+			{Price: 121, Currency: "EUR", Provider: "kiwi", SelfConnect: true, Warnings: []string{"Self-connect warning"}},
+		},
+	}
+
+	summary := flightSummary(result, "HEL", "DBV")
+	if !strings.Contains(summary, "self-connect") {
+		t.Fatalf("summary = %q, want self-connect warning", summary)
+	}
+}
+
 // --- hotelSummary ---
 
 func TestHotelSummary_NoResults(t *testing.T) {

@@ -2,7 +2,9 @@ package flights
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -27,7 +29,7 @@ func DefaultClient() *batchexec.Client {
 
 // SearchOptions configures a flight search.
 type SearchOptions struct {
-	ReturnDate string           // Return date for round-trip (YYYY-MM-DD); empty = one-way
+	ReturnDate string            // Return date for round-trip (YYYY-MM-DD); empty = one-way
 	CabinClass models.CabinClass // Cabin class (default: Economy)
 	MaxStops   models.MaxStops   // Maximum stops filter
 	SortBy     models.SortBy     // Result sort order
@@ -35,17 +37,17 @@ type SearchOptions struct {
 	Adults     int               // Number of adult passengers (default: 1)
 
 	// Server-side filters passed to Google Flights batchexecute.
-	MaxPrice      int    // Max price in whole currency units (0 = no limit)
-	MaxDuration   int    // Max total flight duration in minutes (0 = no limit)
-	CarryOnBags   int    // Carry-on bags filter (0 = no filter, 1+ = require N carry-on bags included)
-	CheckedBags   int    // Checked bags filter (0 = no filter, 1+ = require N checked bags included)
+	MaxPrice    int // Max price in whole currency units (0 = no limit)
+	MaxDuration int // Max total flight duration in minutes (0 = no limit)
+	CarryOnBags int // Carry-on bags filter (0 = no filter, 1+ = require N carry-on bags included)
+	CheckedBags int // Checked bags filter (0 = no filter, 1+ = require N checked bags included)
 	// Wire format at outer[1][10] is []any{carryOn, checked} — verified via live probe.
 	// Scalar int returns 400 Bad Request; array is required.
-	ExcludeBasic  bool   // Exclude basic economy fares
+	ExcludeBasic  bool     // Exclude basic economy fares
 	Alliances     []string // Alliance filter; e.g. ["STAR_ALLIANCE", "ONEWORLD", "SKYTEAM"]
-	DepartAfter   string // Earliest departure time "HH:MM" (e.g. "06:00")
-	DepartBefore  string // Latest departure time "HH:MM" (e.g. "22:00")
-	LessEmissions bool   // Only show flights with less emissions
+	DepartAfter   string   // Earliest departure time "HH:MM" (e.g. "06:00")
+	DepartBefore  string   // Latest departure time "HH:MM" (e.g. "22:00")
+	LessEmissions bool     // Only show flights with less emissions
 
 	// Client-side post-filters (applied after server response).
 	RequireCheckedBag bool // Only show flights with ≥1 free checked bag
@@ -82,7 +84,64 @@ func SearchFlightsWithClient(ctx context.Context, client *batchexec.Client, orig
 			Error: "origin, destination, and date are required",
 		}, fmt.Errorf("origin, destination, and date are required")
 	}
+	if client == nil {
+		return &models.FlightSearchResult{
+			Error: "client is required",
+		}, fmt.Errorf("client is required")
+	}
 
+	googleResult, googleErr := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts)
+	googleSucceeded := googleErr == nil
+	currency := flightSearchCurrency(googleResult)
+
+	var googleFlights []models.FlightResult
+	if googleSucceeded && googleResult != nil {
+		googleFlights = googleResult.Flights
+	}
+
+	var kiwiFlights []models.FlightResult
+	var kiwiErr error
+	kiwiSucceeded := false
+	if kiwiSearchEligible(client, opts) {
+		kiwiFlights, kiwiErr = SearchKiwiFlights(ctx, origin, destination, date, currency, opts)
+		if kiwiErr != nil {
+			slog.Warn("kiwi flight search failed", "origin", origin, "destination", destination, "date", date, "error", kiwiErr)
+		} else {
+			kiwiSucceeded = true
+		}
+	}
+
+	mergedFlights := mergeFlightResults(googleFlights, kiwiFlights, opts)
+	if googleSucceeded || kiwiSucceeded {
+		return &models.FlightSearchResult{
+			Success:  true,
+			Count:    len(mergedFlights),
+			TripType: tripTypeForSearch(opts),
+			Flights:  mergedFlights,
+		}, nil
+	}
+
+	if googleErr != nil && kiwiErr != nil {
+		err := errors.Join(googleErr, kiwiErr)
+		return &models.FlightSearchResult{
+			Error: err.Error(),
+		}, err
+	}
+	if googleErr != nil {
+		return googleResult, googleErr
+	}
+	if kiwiErr != nil {
+		return &models.FlightSearchResult{
+			Error: kiwiErr.Error(),
+		}, kiwiErr
+	}
+
+	return &models.FlightSearchResult{
+		Error: "unreachable flight search state",
+	}, fmt.Errorf("unreachable flight search state")
+}
+
+func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
 	filters := buildFilters(origin, destination, date, opts)
 
 	encoded, err := batchexec.EncodeFlightFilters(filters)
@@ -129,30 +188,14 @@ func SearchFlightsWithClient(ctx context.Context, client *batchexec.Client, orig
 	// Add booking URLs. Prices are in the API's native currency (IP-based).
 	// Currency conversion, if needed, happens in the CLI display layer.
 	for i := range flights {
+		flights[i].Provider = "google_flights"
 		flights[i].BookingURL = buildFlightBookingURL(origin, destination, date)
-	}
-
-	// Client-side post-filters.
-	if opts.RequireCheckedBag {
-		flights = filterFlightsWithCheckedBag(flights)
-	}
-	// Alliance filter: server-side at segment[5] uses AND semantics for multiple
-	// alliances (intersection). Client-side fallback provides OR semantics (union)
-	// which is what users typically want ("show Oneworld OR Star Alliance").
-	// Single alliance: server-side handles it. Multiple: client-side OR filter.
-	if len(opts.Alliances) > 1 {
-		flights = filterFlightsByAlliance(flights, opts.Alliances)
-	}
-
-	tripType := "one_way"
-	if opts.ReturnDate != "" {
-		tripType = "round_trip"
 	}
 
 	return &models.FlightSearchResult{
 		Success:  true,
 		Count:    len(flights),
-		TripType: tripType,
+		TripType: tripTypeForSearch(opts),
 		Flights:  flights,
 	}, nil
 }
@@ -201,35 +244,35 @@ func buildFilters(origin, destination, date string, opts SearchOptions) any {
 		[]any{},
 		// outer[1]: settings array
 		[]any{
-			nil,                                          // [0]
-			nil,                                          // [1]
-			tripType,                                     // [2] trip type
-			nil,                                          // [3]
-			[]any{},                                      // [4]
-			int(opts.CabinClass),                         // [5] cabin class
-			[]any{opts.Adults, 0, 0, 0},                  // [6] passengers
-			priceLimit(opts.MaxPrice),                     // [7] max price (nil or int)
-			nil,                                          // [8]
-			nil,                                          // [9]
-			bagsFilter(opts.CarryOnBags, opts.CheckedBags),   // [10] bags [carryOn, checked]
-			nil,                                          // [11]
-			nil,                                          // [12]
-			segments,                                     // [13] flight segments
-			nil,                                          // [14]
-			nil,                                          // [15]
-			nil,                                          // [16]
-			1,                                            // [17]
-			nil,                                          // [18]
-			nil,                                          // [19]
-			nil,                                          // [20]
-			nil,                                          // [21]
-			nil,                                          // [22]
-			nil,                                          // [23]
-			nil,                                          // [24]
-			nil,                                          // [25] (was alliance — moved to segment[5])
-			nil,                                          // [26]
-			nil,                                          // [27]
-			excludeBasicEconomy(opts.ExcludeBasic),        // [28] exclude basic economy
+			nil,                         // [0]
+			nil,                         // [1]
+			tripType,                    // [2] trip type
+			nil,                         // [3]
+			[]any{},                     // [4]
+			int(opts.CabinClass),        // [5] cabin class
+			[]any{opts.Adults, 0, 0, 0}, // [6] passengers
+			priceLimit(opts.MaxPrice),   // [7] max price (nil or int)
+			nil,                         // [8]
+			nil,                         // [9]
+			bagsFilter(opts.CarryOnBags, opts.CheckedBags), // [10] bags [carryOn, checked]
+			nil,                                    // [11]
+			nil,                                    // [12]
+			segments,                               // [13] flight segments
+			nil,                                    // [14]
+			nil,                                    // [15]
+			nil,                                    // [16]
+			1,                                      // [17]
+			nil,                                    // [18]
+			nil,                                    // [19]
+			nil,                                    // [20]
+			nil,                                    // [21]
+			nil,                                    // [22]
+			nil,                                    // [23]
+			nil,                                    // [24]
+			nil,                                    // [25] (was alliance — moved to segment[5])
+			nil,                                    // [26]
+			nil,                                    // [27]
+			excludeBasicEconomy(opts.ExcludeBasic), // [28] exclude basic economy
 		},
 		// outer[2]: sort by
 		sortBy,

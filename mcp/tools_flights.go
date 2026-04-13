@@ -26,10 +26,17 @@ func flightSearchOutputSchema() interface{} {
 				"items": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"price":    map[string]interface{}{"type": "number"},
-						"currency": map[string]interface{}{"type": "string"},
-						"duration": map[string]interface{}{"type": "integer"},
-						"stops":    map[string]interface{}{"type": "integer"},
+						"price":        map[string]interface{}{"type": "number"},
+						"currency":     map[string]interface{}{"type": "string"},
+						"duration":     map[string]interface{}{"type": "integer"},
+						"stops":        map[string]interface{}{"type": "integer"},
+						"provider":     map[string]interface{}{"type": "string"},
+						"booking_url":  map[string]interface{}{"type": "string"},
+						"self_connect": map[string]interface{}{"type": "boolean"},
+						"warnings": map[string]interface{}{
+							"type":  "array",
+							"items": map[string]interface{}{"type": "string"},
+						},
 						"legs": map[string]interface{}{
 							"type": "array",
 							"items": map[string]interface{}{
@@ -112,20 +119,20 @@ func searchFlightsTool() ToolDef {
 	return ToolDef{
 		Name:        "search_flights",
 		Title:       "Search Flights",
-		Description: "Search flights via Google Flights. Returns real-time pricing, durations, stops, and leg details for a given route and date. IMPORTANT: call get_preferences before your first search in a conversation to load the user's home airport and flight preferences. If the profile is empty, interview the user first — get_preferences returns instructions. Use home_airports as default origin when the user doesn't specify where from.",
+		Description: "Search flights via Google Flights, and on compatible one-way searches also include Kiwi virtual-interlining results with explicit self-connect warnings. Returns real-time pricing, durations, stops, and leg details for a given route and date. IMPORTANT: call get_preferences before your first search in a conversation to load the user's home airport and flight preferences. If the profile is empty, interview the user first — get_preferences returns instructions. Use home_airports as default origin when the user doesn't specify where from.",
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"origin":         {Type: "string", Description: "Departure airport IATA code (e.g., HEL, JFK, NRT)"},
-				"destination":    {Type: "string", Description: "Arrival airport IATA code (e.g., NRT, LAX, CDG)"},
-				"departure_date": {Type: "string", Description: "Departure date in YYYY-MM-DD format"},
-				"return_date":    {Type: "string", Description: "Return date in YYYY-MM-DD format for round-trip (omit for one-way)"},
-				"cabin_class":    {Type: "string", Description: "Cabin class: economy, premium_economy, business, or first (default: economy)"},
-				"max_stops":      {Type: "string", Description: "Maximum stops: any, nonstop, one_stop, or two_plus (default: any)"},
-				"sort_by":        {Type: "string", Description: "Sort order: cheapest, duration, departure, or arrival (default: cheapest)"},
-				"alliances":      {Type: "string", Description: "Filter by airline alliance (comma-separated): STAR_ALLIANCE, ONEWORLD, SKYTEAM (default: no filter)"},
-				"depart_after":   {Type: "string", Description: "Earliest departure time HH:MM, e.g. 06:00 (default: no filter)"},
-				"depart_before":  {Type: "string", Description: "Latest departure time HH:MM, e.g. 22:00 (default: no filter)"},
+				"origin":              {Type: "string", Description: "Departure airport IATA code (e.g., HEL, JFK, NRT)"},
+				"destination":         {Type: "string", Description: "Arrival airport IATA code (e.g., NRT, LAX, CDG)"},
+				"departure_date":      {Type: "string", Description: "Departure date in YYYY-MM-DD format"},
+				"return_date":         {Type: "string", Description: "Return date in YYYY-MM-DD format for round-trip (omit for one-way)"},
+				"cabin_class":         {Type: "string", Description: "Cabin class: economy, premium_economy, business, or first (default: economy)"},
+				"max_stops":           {Type: "string", Description: "Maximum stops: any, nonstop, one_stop, or two_plus (default: any)"},
+				"sort_by":             {Type: "string", Description: "Sort order: cheapest, duration, departure, or arrival (default: cheapest)"},
+				"alliances":           {Type: "string", Description: "Filter by airline alliance (comma-separated): STAR_ALLIANCE, ONEWORLD, SKYTEAM (default: no filter)"},
+				"depart_after":        {Type: "string", Description: "Earliest departure time HH:MM, e.g. 06:00 (default: no filter)"},
+				"depart_before":       {Type: "string", Description: "Latest departure time HH:MM, e.g. 22:00 (default: no filter)"},
 				"max_price":           {Type: "integer", Description: "Maximum price in whole currency units (0 = no limit). Server-side filter."},
 				"max_duration":        {Type: "integer", Description: "Maximum total flight duration in minutes (0 = no limit). Server-side filter."},
 				"exclude_basic":       {Type: "boolean", Description: "Exclude basic economy fares (default: false). Server-side filter."},
@@ -367,6 +374,9 @@ func flightSummary(result *models.FlightSearchResult, origin, dest string) strin
 		if len(cheapest.Legs) > 0 {
 			airline = cheapest.Legs[0].Airline
 		}
+		if airline == "" && cheapest.Provider != "" {
+			airline = flightProviderSummaryLabel(cheapest.Provider)
+		}
 		summary += fmt.Sprintf(" Cheapest: %s%.0f (%s, %s).",
 			cheapest.Currency, cheapest.Price, airline, stopStr)
 	}
@@ -386,7 +396,36 @@ func flightSummary(result *models.FlightSearchResult, origin, dest string) strin
 		summary += fmt.Sprintf(" Nonstop options from %s%.0f.", cheapestNonstop.Currency, cheapestNonstop.Price)
 	}
 
+	selfConnectCount := 0
+	for _, flight := range result.Flights {
+		if flight.SelfConnect {
+			selfConnectCount++
+		}
+	}
+	if selfConnectCount > 0 {
+		summary += fmt.Sprintf(" Includes %d Kiwi self-connect option%s with connection-risk warnings.",
+			selfConnectCount, pluralSuffix(selfConnectCount))
+	}
+
 	return summary
+}
+
+func flightProviderSummaryLabel(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "google_flights":
+		return "Google Flights"
+	case "kiwi":
+		return "Kiwi"
+	default:
+		return provider
+	}
+}
+
+func pluralSuffix(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 // --- Suggestion builders ---
@@ -613,12 +652,12 @@ func multiCityOutputSchema() interface{} {
 					"required": []string{"from", "to", "price", "currency"},
 				},
 			},
-			"total_cost":          map[string]interface{}{"type": "number"},
-			"currency":            map[string]interface{}{"type": "string"},
-			"worst_cost":          map[string]interface{}{"type": "number"},
-			"savings":             map[string]interface{}{"type": "number"},
+			"total_cost":           map[string]interface{}{"type": "number"},
+			"currency":             map[string]interface{}{"type": "string"},
+			"worst_cost":           map[string]interface{}{"type": "number"},
+			"savings":              map[string]interface{}{"type": "number"},
 			"permutations_checked": map[string]interface{}{"type": "integer"},
-			"error":               map[string]interface{}{"type": "string"},
+			"error":                map[string]interface{}{"type": "string"},
 		},
 		"required": []string{"success"},
 	}
