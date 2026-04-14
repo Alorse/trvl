@@ -460,11 +460,12 @@ func handleListProviders(_ context.Context, _ map[string]any, _ ElicitFunc, _ Sa
 	}
 
 	summary := fmt.Sprintf("%d provider(s) configured:\n%s", len(configs), strings.Join(lines, "\n"))
-	content, err := buildAnnotatedContentBlocks(summary, summaries)
+	structured := map[string]any{"providers": summaries}
+	content, err := buildAnnotatedContentBlocks(summary, structured)
 	if err != nil {
 		return nil, nil, err
 	}
-	return content, summaries, nil
+	return content, structured, nil
 }
 
 // --- remove_provider ---
