@@ -30,7 +30,7 @@ Example description snippet:
 
 | Capability | Status | Notes |
 |---|---|---|
-| Tools | Active | 32 tools across flights, hotels, routes, hacks, trips, preferences, natural search |
+| Tools | Active | 41 tools across flights, hotels, routes, hacks, trips, preferences, natural search, external-provider management |
 | Resources | Active | Airport codes, usage guides, price-watch subscriptions |
 | Prompts | Active | `plan-trip`, `find-cheapest-dates`, `compare-hotels`, `where-should-i-go` |
 | Progress Notifications | Active | Long-running searches stream `notifications/progress` |

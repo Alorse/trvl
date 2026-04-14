@@ -150,7 +150,7 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 			path: filepath.Join("..", "..", "AGENTS.md"),
 			required: []string{
 				fmt.Sprintf("trvl is installed with %d MCP tools and %d bundled Claude skill", toolCount, skillCount),
-				"| `display_currency` | Price display across all 36 tools |",
+				fmt.Sprintf("| `display_currency` | Price display across all %d tools |", toolCount),
 				"### search_lounges — Find airport lounges at a given airport",
 				"### check_visa — Check visa requirements for a passport→destination pair",
 				"### calculate_points_value — Compare points vs cash for a redemption",
