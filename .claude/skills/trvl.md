@@ -1,6 +1,6 @@
 ---
 name: trvl
-description: "AI Travel Agent — flights, hotels, buses, trains, ferries, restaurants, price tracking, destinations, hacks. Searches Google Flights/Hotels, Trivago, Airbnb, Ferryhopper, FlixBus, RegioJet, Eurostar, Deutsche Bahn, SNCF, Transitous in real-time. No API keys required."
+description: "AI Travel Agent — flights, hotels, buses, trains, ferries, night trains, restaurants, price tracking, destinations, hacks, visas, points redemptions, airport lounges. Searches Google Flights/Hotels, Trivago, Airbnb, Ferryhopper, FlixBus, RegioJet, Eurostar, Deutsche Bahn, ÖBB, NS, VR, SNCF, Trainline, Transitous, Renfe, European Sleeper, Snälltåget, Tallink, Viking Line, Eckerö Line, Finnlines, Stena Line, DFDS in real-time. No API keys required."
 triggers:
   - flight
   - flights
