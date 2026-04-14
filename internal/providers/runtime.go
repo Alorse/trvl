@@ -430,11 +430,32 @@ func toFloat64(v any) float64 {
 	case int:
 		return float64(n)
 	case string:
-		f, _ := strconv.ParseFloat(n, 64)
-		return f
+		f, err := strconv.ParseFloat(n, 64)
+		if err == nil {
+			return f
+		}
+		// Strip currency symbols and whitespace (e.g. "€ 61" -> "61").
+		cleaned := stripNonNumeric(n)
+		if cleaned != "" {
+			f, _ = strconv.ParseFloat(cleaned, 64)
+			return f
+		}
+		return 0
 	default:
 		return 0
 	}
+}
+
+// stripNonNumeric removes everything except digits, '.', and '-' from s.
+// Used to extract a numeric value from currency-formatted strings like "€ 61".
+func stripNonNumeric(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= '0' && r <= '9') || r == '.' || r == '-' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // substituteEnvVars replaces ${env.VAR_NAME} placeholders with values from
