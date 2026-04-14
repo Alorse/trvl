@@ -977,22 +977,10 @@ func skeletonHostelworld() map[string]any {
 	}
 }
 
-// skeletonRESTPublic is a reserved skeleton for no-auth public REST providers
-// (e.g. GTFS feeds, open endpoints). Wired into suggest_providers when a
-// suitable provider is added.
-//
-//lint:ignore U1000 reserved skeleton for future public-REST providers
-func skeletonRESTPublic() map[string]any {
-	return map[string]any{
-		"endpoint": "FILL: public REST API endpoint URL",
-		"method":   "GET",
-		"query_params": map[string]any{
-			"FILL_from_param": "${location}",
-			"FILL_date_param": "${checkin}",
-		},
-		"response_mapping": skeletonResponseMapping(),
-	}
-}
+// skeletonRESTPublic (reserved skeleton for no-auth public REST providers)
+// was deleted 2026-04-15 — YAGNI: no provider in availableProviders wired
+// it into ConfigSkeleton. Reintroduce from git history if a public-REST
+// provider is added. The other skeleton* helpers serve as templates.
 
 func skeletonGraphQLQueryID() map[string]any {
 	return map[string]any{

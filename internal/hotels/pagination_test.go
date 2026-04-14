@@ -665,17 +665,8 @@ func TestSearchHotelsWithClient_SourcesTaggedGoogleHotels(t *testing.T) {
 }
 
 // Booking.com merge test removed — Booking.com moved to external provider system.
-// hotelHasSource is retained as a test helper for future multi-source merge tests.
-//
-//lint:ignore U1000 retained for future merge tests
-func hotelHasSource(sources []models.PriceSource, provider string) bool {
-	for _, src := range sources {
-		if src.Provider == provider {
-			return true
-		}
-	}
-	return false
-}
+// (Previously-retained hotelHasSource helper deleted 2026-04-15; if future
+// multi-source merge tests need it, reintroduce from git history.)
 
 // TestSearchHotelsWithClient_MergePreservesLowestPrice verifies that when the
 // same hotel appears in multiple pages/sort orders, the Sources list accumulates
