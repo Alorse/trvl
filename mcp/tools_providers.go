@@ -465,7 +465,7 @@ func handleListProviders(_ context.Context, _ map[string]any, _ ElicitFunc, _ Sa
 	if err != nil {
 		return nil, nil, err
 	}
-	return content, structured, nil
+	return content, nil, nil
 }
 
 // --- remove_provider ---
