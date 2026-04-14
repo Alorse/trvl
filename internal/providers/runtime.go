@@ -297,24 +297,102 @@ func (rt *Runtime) runPreflight(ctx context.Context, pc *providerClient) error {
 
 	extracted := applyExtractions(pc.config.Auth.Extractions, resp, body, pc.authValues)
 
-	// Fallback: if preflight was blocked by a JS challenge (202/403) or no
-	// extractions matched, try reading cookies from the user's browser and
-	// retrying the preflight. The browser has already passed any JS challenge.
+	// Fallback tier cascade:
+	//   Tier 1: preflight request already ran above (extracted ok? done)
+	//   Tier 3: read cookies straight from the user's browser via kooky.
+	//   Tier 4: if Tier 3 didn't produce a working session AND the caller
+	//           opted in (AuthConfig.BrowserEscapeHatch + WithInteractive ctx),
+	//           open the preflight URL in the user's browser so they clear
+	//           any JS/CAPTCHA challenge, then re-read cookies.
+	// (Tier 2 — TLS-fingerprinted retry — is covered by the chrome HTTP
+	// client selected in getOrCreateClient; it runs implicitly on every
+	// request when cfg.TLS.Fingerprint == "chrome".)
 	if needsBrowserCookieFallback(resp.StatusCode, extracted, pc.config.Auth.Extractions) {
-		if applied := applyBrowserCookies(pc.client, pc.config.Auth.PreflightURL); applied {
-			resp2, body2, err2 := doPreflightRequest(ctx, pc.client, pc.config.Auth)
-			if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
-				// Clear previously extracted values so we don't mix stale ones.
-				for k := range pc.authValues {
-					delete(pc.authValues, k)
-				}
-				applyExtractions(pc.config.Auth.Extractions, resp2, body2, pc.authValues)
+		if tryBrowserCookieRetry(ctx, pc) {
+			pc.authExpiry = time.Now().Add(authCacheDuration)
+			return nil
+		}
+		// Tier 4: last-resort escape hatch.
+		if pc.config.Auth.BrowserEscapeHatch && isInteractive(ctx) {
+			if tryBrowserEscapeHatch(ctx, pc) {
+				pc.authExpiry = time.Now().Add(authCacheDuration)
+				return nil
 			}
 		}
 	}
 
 	pc.authExpiry = time.Now().Add(authCacheDuration)
 	return nil
+}
+
+// tryBrowserCookieRetry is Tier 3: read cookies from the user's disk-backed
+// browser stores, seed them into the client jar, and retry preflight. Returns
+// true on HTTP 2xx + successful extraction.
+func tryBrowserCookieRetry(ctx context.Context, pc *providerClient) bool {
+	if !applyBrowserCookies(pc.client, pc.config.Auth.PreflightURL) {
+		return false
+	}
+	resp2, body2, err2 := doPreflightRequest(ctx, pc.client, pc.config.Auth)
+	if err2 != nil || resp2.StatusCode < 200 || resp2.StatusCode >= 300 {
+		return false
+	}
+	for k := range pc.authValues {
+		delete(pc.authValues, k)
+	}
+	applyExtractions(pc.config.Auth.Extractions, resp2, body2, pc.authValues)
+	return true
+}
+
+// tryBrowserEscapeHatch is Tier 4: open the preflight URL in the user's
+// browser, wait for the cookie set to visibly change (meaning the WAF/JS
+// challenge was solved), then retry preflight with the fresh cookies. Only
+// fires when the caller has opted in both per-provider
+// (AuthConfig.BrowserEscapeHatch) and per-call (WithInteractive context).
+func tryBrowserEscapeHatch(ctx context.Context, pc *providerClient) bool {
+	targetURL := pc.config.Auth.PreflightURL
+	browserPref := pc.config.Cookies.Browser
+
+	slog.Info("opening URL in browser to refresh WAF cookies, waiting up to 15s...",
+		"provider", pc.config.ID,
+		"url", targetURL,
+		"browser", browserPref,
+	)
+
+	prev := browserCookiesForURL(targetURL)
+	if err := openURLInBrowser(targetURL, browserPref); err != nil {
+		slog.Warn("browser escape hatch: open failed",
+			"provider", pc.config.ID, "error", err.Error())
+		return false
+	}
+
+	fresh, changed := waitForFreshCookies(ctx, targetURL, prev, time.Second, 15*time.Second)
+	if !changed {
+		slog.Warn("browser escape hatch: no cookie change observed within deadline",
+			"provider", pc.config.ID)
+		return false
+	}
+
+	if pc.client == nil || pc.client.Jar == nil {
+		return false
+	}
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return false
+	}
+	pc.client.Jar.SetCookies(u, fresh)
+
+	resp2, body2, err2 := doPreflightRequest(ctx, pc.client, pc.config.Auth)
+	if err2 != nil || resp2.StatusCode < 200 || resp2.StatusCode >= 300 {
+		slog.Warn("browser escape hatch: preflight retry still failed",
+			"provider", pc.config.ID)
+		return false
+	}
+	for k := range pc.authValues {
+		delete(pc.authValues, k)
+	}
+	applyExtractions(pc.config.Auth.Extractions, resp2, body2, pc.authValues)
+	slog.Info("browser escape hatch: preflight recovered", "provider", pc.config.ID)
+	return true
 }
 
 // doPreflightRequest issues the preflight request described by auth using
@@ -561,6 +639,10 @@ type TestResult struct {
 	ExtractionResults map[string]string `json:"extraction_results,omitempty"`
 	BodySnippet       string            `json:"body_snippet,omitempty"`
 	SampleResult      map[string]any    `json:"sample_result,omitempty"`
+	// AuthTier records which tier of the preflight cascade ultimately
+	// succeeded: "direct" (Tier 1), "browser-cookies" (Tier 3), or
+	// "browser-escape-hatch" (Tier 4). Empty if preflight was not run.
+	AuthTier          string            `json:"auth_tier,omitempty"`
 }
 
 // TestProvider runs a single search against the given provider config and
@@ -619,13 +701,13 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		// Run extractions (attempt 1).
 		result.Step = "auth_extraction"
 		matched := applyExtractions(cfg.Auth.Extractions, resp, body, pc.authValues)
-		usedBrowserCookies := false
+		tier := "direct"
 
-		// Fallback: JS bot-detection challenge or no extraction hits. Read
-		// cookies from the user's browser and retry the preflight.
+		// Fallback cascade: Tier 3 (browser cookies) then Tier 4
+		// (escape hatch — open URL in browser and wait for fresh cookies).
 		if needsBrowserCookieFallback(resp.StatusCode, matched, cfg.Auth.Extractions) {
+			tier = ""
 			if applied := applyBrowserCookies(pc.client, cfg.Auth.PreflightURL); applied {
-				usedBrowserCookies = true
 				resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
 				if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
 					resp, body = resp2, body2
@@ -639,9 +721,34 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 						delete(pc.authValues, k)
 					}
 					matched = applyExtractions(cfg.Auth.Extractions, resp, body, pc.authValues)
+					tier = "browser-cookies"
+				}
+			}
+
+			// Tier 4: only if the provider opted in and the caller marked
+			// the context interactive. Non-interactive callers (this test
+			// harness by default) never spawn a browser.
+			if tier == "" && cfg.Auth.BrowserEscapeHatch && isInteractive(ctx) {
+				if tryBrowserEscapeHatch(ctx, pc) {
+					// tryBrowserEscapeHatch already wrote fresh values into
+					// pc.authValues; re-issue preflight once more here only
+					// to capture the body for diagnostics.
+					resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
+					if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+						resp, body = resp2, body2
+						result.HTTPStatus = resp.StatusCode
+						snippet = string(body)
+						if len(snippet) > 500 {
+							snippet = snippet[:500]
+						}
+						result.BodySnippet = snippet
+					}
+					matched = len(pc.authValues)
+					tier = "browser-escape-hatch"
 				}
 			}
 		}
+		result.AuthTier = tier
 
 		// Build the diagnostic report.
 		result.ExtractionResults = make(map[string]string)
@@ -652,8 +759,11 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 			}
 			if v, ok := pc.authValues[varName]; ok {
 				suffix := ""
-				if usedBrowserCookies {
+				switch tier {
+				case "browser-cookies":
 					suffix = " [via browser cookies]"
+				case "browser-escape-hatch":
+					suffix = " [via browser escape hatch]"
 				}
 				result.ExtractionResults[name] = "ok (extracted " + strconv.Itoa(len(v)) + " chars)" + suffix
 			} else {

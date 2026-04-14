@@ -43,6 +43,13 @@ type AuthConfig struct {
 	// PreflightHeaders are additional headers for the preflight request.
 	PreflightHeaders map[string]string  `json:"preflight_headers,omitempty"`
 	Extractions  map[string]Extraction  `json:"extractions,omitempty"`
+	// BrowserEscapeHatch enables the Tier 4 browser-delegation fallback. When
+	// set and the caller has marked the context as interactive via
+	// WithInteractive, runPreflight will open the preflight URL in the user's
+	// browser so they can clear any JS challenge, then re-read cookies via
+	// kooky. Defaults to false for backwards compatibility — providers must
+	// opt in to avoid spontaneously launching browsers for every caller.
+	BrowserEscapeHatch bool             `json:"browser_escape_hatch,omitempty"`
 }
 
 // Extraction describes a regex extraction from a preflight response.

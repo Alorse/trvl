@@ -1,11 +1,16 @@
 package providers
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestCookieDomainMatchesHost(t *testing.T) {
@@ -117,4 +122,216 @@ func TestBrowserCookiesForURL_UnknownDomain(t *testing.T) {
 	// Just ensure the call returns without panicking. Whether it returns
 	// cookies depends on the test environment.
 	_ = browserCookiesForURL(u.String())
+}
+
+// withOpener installs fn as the process-wide openerFunc for the duration of
+// the test and restores the original on cleanup. Tests that touch this must
+// NOT run in parallel with each other.
+func withOpener(t *testing.T, fn openerFunc) {
+	t.Helper()
+	prev := currentOpenURL
+	currentOpenURL = fn
+	t.Cleanup(func() { currentOpenURL = prev })
+}
+
+// withCookieSource installs fn as the process-wide cookieSourceFunc for the
+// duration of the test and restores the original on cleanup.
+func withCookieSource(t *testing.T, fn cookieSourceFunc) {
+	t.Helper()
+	prev := currentCookieSource
+	currentCookieSource = fn
+	t.Cleanup(func() { currentCookieSource = prev })
+}
+
+// TestOpenURLInBrowser_EmptyURL verifies the top-level guard — an empty URL
+// short-circuits before any OS dispatch.
+func TestOpenURLInBrowser_EmptyURL(t *testing.T) {
+	var called bool
+	withOpener(t, func(goos, pref, target string) error {
+		called = true
+		return nil
+	})
+	if err := openURLInBrowser("   ", ""); err == nil {
+		t.Fatal("expected error for empty URL")
+	}
+	if called {
+		t.Fatal("opener must not be invoked for empty URL")
+	}
+}
+
+// TestOpenURLInBrowser_BadOS verifies the fallback path returns an error for
+// unrecognised OS values. We drive this via the injectable openerFunc so we
+// don't actually shell out.
+func TestOpenURLInBrowser_BadOS(t *testing.T) {
+	withOpener(t, func(goos, pref, target string) error {
+		// Simulate what defaultOpenURL does for an unknown OS.
+		if goos == "plan9" {
+			return errors.New("openURLInBrowser: unsupported OS \"plan9\"")
+		}
+		return nil
+	})
+	// The default opener reads runtime.GOOS directly, so to test the "bad OS"
+	// path we call the underlying defaultOpenURL with an invented GOOS.
+	err := defaultOpenURL("plan9", "", "https://example.com")
+	if err == nil {
+		t.Fatal("expected error for unsupported OS")
+	}
+}
+
+// TestOpenURLInBrowser_MacPreference verifies that on darwin we pass the
+// browser preference through to the opener.
+func TestOpenURLInBrowser_MacPreference(t *testing.T) {
+	var gotGOOS, gotPref, gotURL string
+	withOpener(t, func(goos, pref, target string) error {
+		gotGOOS, gotPref, gotURL = goos, pref, target
+		return nil
+	})
+	if err := openURLInBrowser("https://example.com/challenge", "Firefox"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// gotGOOS reflects the real host, we only assert the other two passed
+	// through untouched.
+	_ = gotGOOS
+	if gotURL != "https://example.com/challenge" {
+		t.Errorf("target = %q, want example.com/challenge", gotURL)
+	}
+	// On non-darwin hosts the preference is still forwarded — the production
+	// defaultOpenURL ignores it on Linux/Windows.
+	if gotPref != "Firefox" {
+		// On darwin we fed it explicitly; on other OSs this is an empty
+		// string only if the caller passed empty — we passed "Firefox".
+		t.Errorf("pref = %q, want Firefox", gotPref)
+	}
+}
+
+// TestWaitForFreshCookies_TimesOut verifies that when the cookie source keeps
+// returning the same snapshot, the helper returns (prev, false) after maxWait.
+func TestWaitForFreshCookies_TimesOut(t *testing.T) {
+	prev := []*http.Cookie{{Name: "sid", Value: "abc"}}
+	withCookieSource(t, func(string) []*http.Cookie {
+		return []*http.Cookie{{Name: "sid", Value: "abc"}} // identical each tick
+	})
+
+	start := time.Now()
+	got, changed := waitForFreshCookies(context.Background(), "https://example.com",
+		prev, 20*time.Millisecond, 100*time.Millisecond)
+	elapsed := time.Since(start)
+
+	if changed {
+		t.Fatal("expected changed=false when snapshot never differs")
+	}
+	if len(got) != 1 || got[0].Name != "sid" || got[0].Value != "abc" {
+		t.Errorf("returned slice should equal prev snapshot, got %+v", got)
+	}
+	if elapsed < 100*time.Millisecond {
+		t.Errorf("returned too quickly: %v < 100ms", elapsed)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("took too long: %v > 500ms", elapsed)
+	}
+}
+
+// TestWaitForFreshCookies_DetectsChange verifies that a simulated cookie
+// change (swap value) causes the helper to return (fresh, true).
+func TestWaitForFreshCookies_DetectsChange(t *testing.T) {
+	prev := []*http.Cookie{{Name: "sid", Value: "old"}}
+	var calls atomic.Int32
+	withCookieSource(t, func(string) []*http.Cookie {
+		n := calls.Add(1)
+		if n < 3 {
+			return []*http.Cookie{{Name: "sid", Value: "old"}}
+		}
+		return []*http.Cookie{{Name: "sid", Value: "new"}, {Name: "csrf", Value: "xyz"}}
+	})
+
+	got, changed := waitForFreshCookies(context.Background(), "https://example.com",
+		prev, 15*time.Millisecond, 2*time.Second)
+
+	if !changed {
+		t.Fatal("expected changed=true after value swap")
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 cookies, got %d", len(got))
+	}
+	var sidVal, csrfVal string
+	for _, c := range got {
+		switch c.Name {
+		case "sid":
+			sidVal = c.Value
+		case "csrf":
+			csrfVal = c.Value
+		}
+	}
+	if sidVal != "new" || csrfVal != "xyz" {
+		t.Errorf("unexpected cookies: %+v", got)
+	}
+}
+
+// TestWaitForFreshCookies_ContextCancel verifies that cancelling ctx aborts
+// the wait cleanly and returns (prev, false) without waiting for maxWait.
+func TestWaitForFreshCookies_ContextCancel(t *testing.T) {
+	prev := []*http.Cookie{{Name: "sid", Value: "same"}}
+	withCookieSource(t, func(string) []*http.Cookie {
+		return []*http.Cookie{{Name: "sid", Value: "same"}}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var (
+		got     []*http.Cookie
+		changed bool
+		elapsed time.Duration
+	)
+	go func() {
+		defer wg.Done()
+		start := time.Now()
+		got, changed = waitForFreshCookies(ctx, "https://example.com",
+			prev, 20*time.Millisecond, 10*time.Second)
+		elapsed = time.Since(start)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	wg.Wait()
+
+	if changed {
+		t.Fatal("expected changed=false on context cancel")
+	}
+	if len(got) != 1 || got[0].Value != "same" {
+		t.Errorf("expected prev snapshot back, got %+v", got)
+	}
+	if elapsed >= 5*time.Second {
+		t.Errorf("cancel did not abort promptly: elapsed=%v", elapsed)
+	}
+}
+
+// TestCookieSnapshotKey_OrderIndependent verifies the fingerprint is the same
+// regardless of cookie ordering so waitForFreshCookies doesn't spuriously
+// report "changed" when the browser just reshuffles cookies.
+func TestCookieSnapshotKey_OrderIndependent(t *testing.T) {
+	a := []*http.Cookie{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}
+	b := []*http.Cookie{{Name: "b", Value: "2"}, {Name: "a", Value: "1"}}
+	if cookieSnapshotKey(a) != cookieSnapshotKey(b) {
+		t.Error("cookieSnapshotKey must be order-independent")
+	}
+
+	c := []*http.Cookie{{Name: "a", Value: "1"}, {Name: "b", Value: "3"}}
+	if cookieSnapshotKey(a) == cookieSnapshotKey(c) {
+		t.Error("cookieSnapshotKey must detect value changes")
+	}
+}
+
+// TestWithInteractive verifies the context marker round-trips and that an
+// unset context reports false.
+func TestWithInteractive(t *testing.T) {
+	if isInteractive(context.Background()) {
+		t.Error("plain background ctx must not be interactive")
+	}
+	if !isInteractive(WithInteractive(context.Background())) {
+		t.Error("WithInteractive ctx must report true")
+	}
+	if isInteractive(nil) {
+		t.Error("nil ctx must not be interactive")
+	}
 }
