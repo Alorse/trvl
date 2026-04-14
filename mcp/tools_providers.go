@@ -44,22 +44,22 @@ func configureProviderTool() ToolDef {
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"id":                {Type: "string", Description: "Unique identifier for this provider (e.g. \"agoda-hotels\")."},
-				"name":              {Type: "string", Description: "Human-readable provider name (e.g. \"Agoda\")."},
-				"category":          {Type: "string", Description: "Provider category: hotels, flights, ground, restaurants, or reviews."},
-				"endpoint":          {Type: "string", Description: "Full URL of the provider's search endpoint."},
-				"method":            {Type: "string", Description: "HTTP method (default: POST)."},
-				"headers":           {Type: "object", Description: "Extra HTTP headers as key-value pairs."},
-				"query_params":      {Type: "object", Description: "URL query parameters as key-value pairs."},
-				"body_template":     {Type: "string", Description: "Request body template with {{placeholder}} variables."},
-				"auth_type":         {Type: "string", Description: "Authentication type: none, header, or preflight."},
+				"id":                 {Type: "string", Description: "Unique identifier for this provider (e.g. \"agoda-hotels\")."},
+				"name":               {Type: "string", Description: "Human-readable provider name (e.g. \"Agoda\")."},
+				"category":           {Type: "string", Description: "Provider category: hotels, flights, ground, restaurants, or reviews."},
+				"endpoint":           {Type: "string", Description: "Full URL of the provider's search endpoint."},
+				"method":             {Type: "string", Description: "HTTP method (default: POST)."},
+				"headers":            {Type: "object", Description: "Extra HTTP headers as key-value pairs."},
+				"query_params":       {Type: "object", Description: "URL query parameters as key-value pairs."},
+				"body_template":      {Type: "string", Description: "Request body template with {{placeholder}} variables."},
+				"auth_type":          {Type: "string", Description: "Authentication type: none, header, or preflight."},
 				"auth_preflight_url": {Type: "string", Description: "URL for preflight auth request (when auth_type=preflight)."},
-				"auth_extractions":  {Type: "object", Description: "Map of extraction name to {pattern, variable, header} for preflight auth."},
-				"results_path":      {Type: "string", Description: "JSONPath to the results array in the response (e.g. \"$.data.results\")."},
-				"field_mapping":     {Type: "object", Description: "Map of trvl field name to JSONPath in the provider response."},
-				"rate_limit_rps":    {Type: "number", Description: "Maximum requests per second (default: 0.5)."},
-				"tls_fingerprint":   {Type: "string", Description: "TLS fingerprint profile (default: chrome)."},
-				"cookies_source":    {Type: "string", Description: "Cookie source strategy (default: preflight)."},
+				"auth_extractions":   {Type: "object", Description: "Map of extraction name to {pattern, variable, header} for preflight auth."},
+				"results_path":       {Type: "string", Description: "JSONPath to the results array in the response (e.g. \"$.data.results\")."},
+				"field_mapping":      {Type: "object", Description: "Map of trvl field name to JSONPath in the provider response."},
+				"rate_limit_rps":     {Type: "number", Description: "Maximum requests per second (default: 0.5)."},
+				"tls_fingerprint":    {Type: "string", Description: "TLS fingerprint profile (default: chrome)."},
+				"cookies_source":     {Type: "string", Description: "Cookie source strategy (default: preflight)."},
 			},
 			Required: []string{"id", "name", "category", "endpoint", "results_path", "field_mapping"},
 		},
@@ -73,7 +73,7 @@ func configureProviderTool() ToolDef {
 				"method":          map[string]interface{}{"type": "string"},
 				"results_path":    map[string]interface{}{"type": "string"},
 				"field_mapping":   map[string]interface{}{"type": "object"},
-				"rate_limit_rps":  map[string]interface{}{"type": "number"},
+				"rate_limit_rps": map[string]interface{}{"type": "number"},
 				"tls_fingerprint": map[string]interface{}{"type": "string"},
 				"consent": map[string]interface{}{
 					"type": "object",
@@ -668,331 +668,13 @@ func handleTestProvider(ctx context.Context, args map[string]any, _ ElicitFunc, 
 }
 
 // --- suggest_providers ---
-
-// providerSuggestion describes an available provider that the user can configure.
-// Returned by suggest_providers to help any LLM suggest and configure providers.
-type providerSuggestion struct {
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	Category       string         `json:"category"`
-	Description    string         `json:"description"`
-	AuthPattern    string         `json:"auth_pattern"`
-	AuthHint       string         `json:"auth_hint"`
-	Reference      string         `json:"reference"`
-	TosURL         string         `json:"tos_url"`
-	TLS            string         `json:"tls"`
-	RateLimit      string         `json:"rate_limit"`
-	Configured     bool           `json:"configured"`
-	ConfigSkeleton map[string]any `json:"config_skeleton,omitempty"`
-}
-
-// availableProviders is the built-in catalog of providers that users can configure.
-// Each entry contains enough metadata for any LLM to understand the provider and
-// generate a working configure_provider call by consulting the reference project.
-var availableProviders = []providerSuggestion{
-	{
-		ID:          "booking",
-		Name:        "Booking.com",
-		Category:    "hotels",
-		Description: "Hotels and apartments worldwide.",
-		AuthPattern: "graphql_csrf",
-		AuthHint: "GraphQL with session CSRF token.\n" +
-			"Reference: github.com/opentabs-dev/opentabs\n" +
-			"  - See src/api.ts for the GraphQL endpoint URL and query structure\n" +
-			"  - See src/types.ts for response field names and result schema\n" +
-			"  - Auth: CSRF token from search results page, regex for session token in HTML\n" +
-			"  - Note: WAF-protected (HTTP 202 common), enable browser_escape_hatch: true\n" +
-			"  - Note: GraphQL with persisted queries (sha256Hash in extensions)",
-		Reference:   "github.com/opentabs-dev/opentabs",
-		TosURL:      "https://www.booking.com/content/terms.html",
-		TLS:         "chrome",
-		RateLimit:   "0.5 req/s",
-		ConfigSkeleton: skeletonBookingCSRF(),
-	},
-	{
-		ID:          "airbnb",
-		Name:        "Airbnb",
-		Category:    "hotels",
-		Description: "Vacation rentals, apartments, and unique stays.",
-		AuthPattern: "graphql_apikey",
-		AuthHint: "GraphQL with page-embedded API key.\n" +
-			"Reference: github.com/johnbalvin/gobnb\n" +
-			"  - See api/search.go for the search endpoint URL and request structure\n" +
-			"  - See api/types.go for response field names (ListingResult schema)\n" +
-			"  - Auth: API key extracted from HTML meta tag on airbnb.com homepage\n" +
-			"  - Note: GraphQL-style POST with JSON body containing search variables",
-		Reference:   "github.com/johnbalvin/gobnb",
-		TosURL:      "https://www.airbnb.com/terms",
-		TLS:         "chrome",
-		RateLimit:   "0.5 req/s",
-		ConfigSkeleton: skeletonGraphQLAPIKey(),
-	},
-	{
-		ID:          "vrbo",
-		Name:        "VRBO",
-		Category:    "hotels",
-		Description: "Vacation rentals (Expedia Group).",
-		AuthPattern: "graphql_headers",
-		AuthHint: "GraphQL with browser-like headers.\n" +
-			"Reference: search GitHub for 'vrbo graphql' or 'vrbo api'\n" +
-			"  - Look for the GraphQL endpoint in network requests or OSS client code\n" +
-			"  - Auth: browser-like headers required, no explicit token\n" +
-			"  - Note: Expedia Group backend, similar patterns to Hotels.com",
-		Reference:   "search GitHub for vrbo graphql",
-		TosURL:      "https://www.vrbo.com/legal/terms-and-conditions",
-		TLS:         "chrome",
-		RateLimit:   "0.5 req/s",
-		ConfigSkeleton: skeletonGraphQLHeaders(),
-	},
-	{
-		ID:          "hostelworld",
-		Name:        "Hostelworld",
-		Category:    "hotels",
-		Description: "Hostels and budget accommodation worldwide.",
-		AuthPattern: "rest_apikey",
-		AuthHint: "REST API with API key from page source.\n" +
-			"Reference: search GitHub for 'hostelworld api' or 'hostelworld-api'\n" +
-			"  - Look for src/client.ts or similar for the API base URL and endpoints\n" +
-			"  - Auth: APIGEE API key extracted from homepage HTML via regex\n" +
-			"  - City IDs: numeric (e.g. Paris=59, London=64, Barcelona=33, Berlin=4, Rome=88)\n" +
-			"  - Find city IDs by visiting hostelworld.com/hostels/$city and inspecting API calls\n" +
-			"  - Note: REST API, results typically in .properties[] array",
-		Reference:   "search GitHub for hostelworld api",
-		TosURL:      "https://www.hostelworld.com/securityprivacy/terms-and-conditions",
-		TLS:         "standard",
-		RateLimit:   "1 req/s",
-		ConfigSkeleton: skeletonHostelworld(),
-	},
-	{
-		ID:          "tripadvisor",
-		Name:        "TripAdvisor",
-		Category:    "reviews",
-		Description: "Hotel and restaurant reviews and ratings.",
-		AuthPattern: "graphql_queryid",
-		AuthHint: "GraphQL with pre-registered query IDs.\n" +
-			"Reference: search GitHub for 'tripadvisor graphql'\n" +
-			"  - Look for the GraphQL endpoint and query hash/ID in OSS client code\n" +
-			"  - Auth: session-based, may need cookies from an initial page visit\n" +
-			"  - Note: uses numeric location IDs for cities",
-		Reference:   "search GitHub for tripadvisor graphql",
-		TosURL:      "https://www.tripadvisor.com/pages/terms.html",
-		TLS:         "standard",
-		RateLimit:   "1 req/s",
-		ConfigSkeleton: skeletonGraphQLQueryID(),
-	},
-	{
-		ID:          "blablacar",
-		Name:        "BlaBlaCar",
-		Category:    "ground",
-		Description: "Ridesharing across Europe.",
-		AuthPattern: "rest_apikey",
-		AuthHint: "REST API requiring developer API key.\n" +
-			"Reference: search GitHub for 'blablacar api'\n" +
-			"  - Register at dev.blablacar.com for an API key\n" +
-			"  - Look for endpoint URL and query params in OSS client code\n" +
-			"  - Note: public REST API with straightforward JSON responses",
-		Reference:   "search GitHub for blablacar api",
-		TosURL:      "https://www.blablacar.com/about-us/terms-and-conditions",
-		TLS:         "standard",
-		RateLimit:   "2 req/s",
-		ConfigSkeleton: skeletonRESTAPIKey(),
-	},
-	{
-		ID:          "opentable",
-		Name:        "OpenTable",
-		Category:    "restaurants",
-		Description: "Restaurant availability and reservations.",
-		AuthPattern: "graphql_csrf",
-		AuthHint: "GraphQL with session token.\n" +
-			"Reference: search GitHub for 'opentable api'\n" +
-			"  - Look for the GraphQL or REST endpoint in OSS client code\n" +
-			"  - Auth: CSRF/session token extracted from page source\n" +
-			"  - Note: restaurant search uses lat/lon or location name",
-		Reference:   "search GitHub for opentable api",
-		TosURL:      "https://www.opentable.com/legal/terms-and-conditions",
-		TLS:         "chrome",
-		RateLimit:   "0.5 req/s",
-		ConfigSkeleton: skeletonGraphQLCSRF(),
-	},
-}
-
-// --- Config skeleton builders ---
-
-// skeletonResponseMapping returns the common response_mapping skeleton.
-func skeletonResponseMapping() map[string]any {
-	return map[string]any{
-		"results_path": "FILL: dot-notation path to results array in response JSON",
-		"fields": map[string]any{
-			"name":     "FILL: path to hotel/property name",
-			"hotel_id": "FILL: path to unique ID",
-			"rating":   "FILL: path to rating score",
-			"price":    "FILL: path to price amount",
-			"currency": "FILL: path to currency code",
-			"lat":      "FILL: path to latitude",
-			"lon":      "FILL: path to longitude",
-		},
-	}
-}
-
-func skeletonGraphQLCSRF() map[string]any {
-	return map[string]any{
-		"auth": map[string]any{
-			"type":          "preflight",
-			"preflight_url": "FILL: URL of a search results page on the target service",
-			"extractions": map[string]any{
-				"csrf_token": map[string]any{
-					"pattern":  "FILL: regex with capture group to extract CSRF/session token from HTML",
-					"variable": "csrf_token",
-				},
-			},
-		},
-		"endpoint": "FILL: GraphQL endpoint URL",
-		"method":   "POST",
-		"headers": map[string]any{
-			"Content-Type":    "application/json",
-			"FILL_csrf_header": "${csrf_token}",
-		},
-		"body_template":    "FILL: GraphQL query JSON with ${checkin}, ${checkout}, ${location} or ${ne_lat}/${sw_lat} variables",
-		"response_mapping": skeletonResponseMapping(),
-	}
-}
-
-// skeletonBookingCSRF returns the Booking.com-specific skeleton with
-// browser_escape_hatch defaulted on, since Booking.com is WAF-protected.
-func skeletonBookingCSRF() map[string]any {
-	return map[string]any{
-		"auth": map[string]any{
-			"type":                "preflight",
-			"preflight_url":      "FILL: URL of a search results page on the target service",
-			"browser_escape_hatch": true, // WAF-protected, needs browser delegation
-			"extractions": map[string]any{
-				"csrf_token": map[string]any{
-					"pattern":  "FILL: regex with capture group to extract CSRF/session token from HTML",
-					"variable": "csrf_token",
-				},
-			},
-		},
-		"endpoint": "FILL: GraphQL endpoint URL",
-		"method":   "POST",
-		"headers": map[string]any{
-			"Content-Type":     "application/json",
-			"FILL_csrf_header": "${csrf_token}",
-		},
-		"tls_fingerprint":  "chrome",
-		"body_template":    "FILL: GraphQL query JSON with ${checkin}, ${checkout}, ${location} or ${ne_lat}/${sw_lat} variables",
-		"response_mapping": skeletonResponseMapping(),
-	}
-}
-
-func skeletonGraphQLAPIKey() map[string]any {
-	return map[string]any{
-		"auth": map[string]any{
-			"type":          "preflight",
-			"preflight_url": "FILL: homepage or page that contains the API key in source",
-			"extractions": map[string]any{
-				"api_key": map[string]any{
-					"pattern":  "FILL: regex to extract API key from page source",
-					"variable": "api_key",
-				},
-			},
-		},
-		"endpoint": "FILL: GraphQL endpoint URL",
-		"method":   "POST",
-		"headers": map[string]any{
-			"Content-Type":   "application/json",
-			"FILL_key_header": "${api_key}",
-		},
-		"body_template":    "FILL: GraphQL persisted query JSON with ${checkin}, ${checkout}, ${ne_lat}/${sw_lat} variables",
-		"response_mapping": skeletonResponseMapping(),
-	}
-}
-
-func skeletonGraphQLHeaders() map[string]any {
-	return map[string]any{
-		"endpoint": "FILL: GraphQL endpoint URL",
-		"method":   "POST",
-		"headers": map[string]any{
-			"Content-Type": "application/json",
-			"FILL_header1": "FILL: browser-like header value",
-			"FILL_header2": "FILL: additional required header",
-		},
-		"body_template":    "FILL: GraphQL persisted query JSON with ${checkin}, ${checkout}, ${ne_lat}/${sw_lat} variables",
-		"response_mapping": skeletonResponseMapping(),
-	}
-}
-
-func skeletonRESTAPIKey() map[string]any {
-	return map[string]any{
-		"auth": map[string]any{
-			"type":          "preflight",
-			"preflight_url": "FILL: page that contains the API key in source or headers",
-			"extractions": map[string]any{
-				"api_key": map[string]any{
-					"pattern":  "FILL: regex to extract API key",
-					"variable": "api_key",
-				},
-			},
-		},
-		"endpoint": "FILL: REST API endpoint URL with path parameters",
-		"method":   "GET",
-		"headers": map[string]any{
-			"FILL_key_header": "${api_key}",
-		},
-		"query_params": map[string]any{
-			"FILL_location_param": "${location}",
-			"FILL_checkin_param":  "${checkin}",
-			"FILL_checkout_param": "${checkout}",
-			"FILL_guests_param":   "${guests}",
-			"FILL_currency_param": "${currency}",
-		},
-		"response_mapping": skeletonResponseMapping(),
-	}
-}
-
-func skeletonHostelworld() map[string]any {
-	return map[string]any{
-		"auth": map[string]any{
-			"type":          "preflight",
-			"preflight_url": "FILL: Hostelworld search page URL (e.g. https://www.hostelworld.com/hostels/paris)",
-			"extractions": map[string]any{
-				"api_key": map[string]any{
-					"pattern":  "FILL: regex to extract API key from page source",
-					"variable": "api_key",
-				},
-			},
-		},
-		"endpoint": "FILL: REST API endpoint (e.g. https://api.hostelworld.com/v2/properties/)",
-		"method":   "GET",
-		"headers": map[string]any{
-			"FILL_key_header": "${api_key}",
-		},
-		"query_params": map[string]any{
-			"FILL_city_id_param":  "FILL: numeric city_id (Paris=59, London=64, Barcelona=33, Berlin=4, Rome=88)",
-			"FILL_checkin_param":  "${checkin}",
-			"FILL_checkout_param": "${checkout}",
-			"FILL_guests_param":   "${guests}",
-			"FILL_currency_param": "${currency}",
-		},
-		"response_mapping": skeletonResponseMapping(),
-	}
-}
-
-// skeletonRESTPublic (reserved skeleton for no-auth public REST providers)
-// was deleted 2026-04-15 — YAGNI: no provider in availableProviders wired
-// it into ConfigSkeleton. Reintroduce from git history if a public-REST
-// provider is added. The other skeleton* helpers serve as templates.
-
-func skeletonGraphQLQueryID() map[string]any {
-	return map[string]any{
-		"endpoint": "FILL: GraphQL endpoint URL",
-		"method":   "POST",
-		"headers": map[string]any{
-			"Content-Type": "application/json",
-		},
-		"body_template":    "FILL: GraphQL query with pre-registered query ID, includes ${checkin}, ${checkout}, ${location} variables",
-		"response_mapping": skeletonResponseMapping(),
-	}
-}
+//
+// The provider catalog (availableProviders) and the skeleton* config
+// builders used by it live in tools_providers_catalog.go for
+// file-size hygiene (DoD file ≤800 LOC gate). Types used here:
+//   - providerSuggestion  (describes one catalog entry)
+//   - availableProviders  (the catalog, driven by suggest_providers)
+//   - skeleton* helpers   (ConfigSkeleton builders per auth pattern)
 
 // suggestProvidersTool returns the MCP tool definition for suggest_providers.
 func suggestProvidersTool() ToolDef {
