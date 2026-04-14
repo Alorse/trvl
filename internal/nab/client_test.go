@@ -6,9 +6,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// skipOnWindows short-circuits tests that rely on a POSIX-shell mock nab
+// binary (#!/bin/sh). The mock script is not executable on Windows and the
+// CLI contract tested here is exercised identically on Linux and macOS.
+func skipOnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX-shell mock nab binary is not portable to Windows")
+	}
+}
 
 func TestNewReturnsErrNotAvailableWhenNabMissing(t *testing.T) {
 	origLookPath := lookPath
@@ -29,6 +40,7 @@ func TestNewReturnsErrNotAvailableWhenNabMissing(t *testing.T) {
 }
 
 func TestClientFetchHTMLDefaultsToAutoCookies(t *testing.T) {
+	skipOnWindows(t)
 	script := writeMockNab(t, `#!/bin/sh
 [ "$1" = "fetch" ] || { echo "bad subcommand" >&2; exit 11; }
 [ "$2" = "https://example.com" ] || { echo "bad url" >&2; exit 12; }
@@ -52,6 +64,7 @@ printf '%s' '{"status":200,"markdown":"<html>ok</html>"}'
 }
 
 func TestClientFetchHTMLRejectsNon200(t *testing.T) {
+	skipOnWindows(t)
 	script := writeMockNab(t, `#!/bin/sh
 printf '%s' '{"status":403,"markdown":"blocked"}'
 `)
@@ -64,6 +77,7 @@ printf '%s' '{"status":403,"markdown":"blocked"}'
 }
 
 func TestClientFetchSupportsMethodBodyAndHeaders(t *testing.T) {
+	skipOnWindows(t)
 	script := writeMockNab(t, `#!/bin/sh
 [ "$1" = "fetch" ] || { echo "bad subcommand" >&2; exit 11; }
 [ "$2" = "https://api.example.com/search" ] || { echo "bad url" >&2; exit 12; }
