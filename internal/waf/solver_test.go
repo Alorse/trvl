@@ -40,6 +40,8 @@ func TestStubsLoadWithoutError(t *testing.T) {
 		"MessageEvent", "MutationObserver", "IntersectionObserver",
 		"ResizeObserver", "PerformanceObserver", "fetch", "XMLHttpRequest",
 		"atob", "btoa",
+		"console", "TextEncoder", "TextDecoder", "AbortController",
+		"URL", "URLSearchParams",
 	}
 	for _, name := range globals {
 		v := vm.Get(name)
@@ -63,6 +65,98 @@ func TestStubsLoadWithoutError(t *testing.T) {
 	got, err := vm.RunString(`document.cookie`)
 	if err != nil || !strings.Contains(got.String(), "foo=bar") {
 		t.Errorf("document.cookie round-trip failed: %q err=%v", got, err)
+	}
+}
+
+func TestConsoleDoesNotCrash(t *testing.T) {
+	vm, _, _ := newTestHost(t, http.DefaultClient)
+	// All console methods should be callable without throwing.
+	_, err := vm.RunString(`
+		console.log("hello", 42);
+		console.warn("w");
+		console.error("e");
+		console.info("i");
+		console.debug("d");
+		console.trace();
+		console.dir({});
+		console.table([]);
+		console.assert(true);
+		console.time("t");
+		console.timeEnd("t");
+		console.group("g");
+		console.groupEnd();
+		console.groupCollapsed("gc");
+	`)
+	if err != nil {
+		t.Fatalf("console methods threw: %v", err)
+	}
+}
+
+func TestCanvasGetContext2D(t *testing.T) {
+	vm, _, _ := newTestHost(t, http.DefaultClient)
+	v, err := vm.RunString(`
+		var c = document.createElement("canvas");
+		var ctx = c.getContext("2d");
+		ctx.fillText("test", 0, 0);
+		var m = ctx.measureText("hello");
+		var url = c.toDataURL();
+		JSON.stringify({width: c.width, height: c.height, tw: m.width, hasURL: url.indexOf("data:image/png") === 0});
+	`)
+	if err != nil {
+		t.Fatalf("canvas stub threw: %v", err)
+	}
+	got := v.String()
+	if !strings.Contains(got, `"width":300`) || !strings.Contains(got, `"hasURL":true`) {
+		t.Errorf("unexpected canvas result: %s", got)
+	}
+}
+
+func TestTextEncoderDecoder(t *testing.T) {
+	vm, _, _ := newTestHost(t, http.DefaultClient)
+	v, err := vm.RunString(`
+		var enc = new TextEncoder();
+		var buf = enc.encode("ABC");
+		var dec = new TextDecoder();
+		var out = dec.decode(buf);
+		out + "|" + buf.length;
+	`)
+	if err != nil {
+		t.Fatalf("TextEncoder/Decoder threw: %v", err)
+	}
+	if v.String() != "ABC|3" {
+		t.Errorf("TextEncoder/Decoder mismatch: %q", v.String())
+	}
+}
+
+func TestAbortController(t *testing.T) {
+	vm, _, _ := newTestHost(t, http.DefaultClient)
+	v, err := vm.RunString(`
+		var ac = new AbortController();
+		var before = ac.signal.aborted;
+		ac.abort("cancelled");
+		before + "|" + ac.signal.aborted + "|" + ac.signal.reason;
+	`)
+	if err != nil {
+		t.Fatalf("AbortController threw: %v", err)
+	}
+	if v.String() != "false|true|cancelled" {
+		t.Errorf("AbortController mismatch: %q", v.String())
+	}
+}
+
+func TestURLAndURLSearchParams(t *testing.T) {
+	vm, _, _ := newTestHost(t, http.DefaultClient)
+	v, err := vm.RunString(`
+		var u = new URL("https://example.com:8080/path?foo=bar&baz=1#hash");
+		var p = u.searchParams;
+		u.hostname + "|" + u.port + "|" + u.pathname + "|" + p.get("foo") + "|" + p.has("baz") + "|" + u.hash;
+	`)
+	if err != nil {
+		t.Fatalf("URL/URLSearchParams threw: %v", err)
+	}
+	want := "example.com|8080|/path|bar|true|#hash"
+	if v.String() != want {
+		t.Errorf("URL mismatch: got %q want %q", v.String(), want)
 	}
 }
 

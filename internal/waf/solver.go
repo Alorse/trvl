@@ -90,6 +90,7 @@ func SolveAWSWAF(ctx context.Context, client *http.Client, pageURL, pageBody str
 	vm := sobek.New()
 	loop := newEventLoop(vm)
 	host := newVMHost(vm, loop, client, origin, ua)
+	host.logger = opts.Logger
 	if err := host.install(); err != nil {
 		return nil, err
 	}

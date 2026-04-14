@@ -105,6 +105,33 @@
       focus: function () {}, blur: function () {}, click: function () {},
       contains: function () { return false; }
     };
+    // ----- canvas getContext("2d") stub for fingerprinting -----
+    if ((tag || "").toLowerCase() === "canvas") {
+      el.width = 300; el.height = 150;
+      el.getContext = function(type) {
+        return {
+          fillStyle: "", strokeStyle: "", font: "10px sans-serif",
+          globalAlpha: 1, globalCompositeOperation: "source-over",
+          fillRect: function(){}, strokeRect: function(){}, clearRect: function(){},
+          fillText: function(){}, strokeText: function(){}, measureText: function(t){ return {width: t.length * 6}; },
+          beginPath: function(){}, closePath: function(){}, moveTo: function(){}, lineTo: function(){},
+          arc: function(){}, arcTo: function(){}, rect: function(){}, ellipse: function(){},
+          fill: function(){}, stroke: function(){}, clip: function(){},
+          drawImage: function(){}, createImageData: function(w,h){ return {data: new Uint8ClampedArray(w*h*4), width:w, height:h}; },
+          getImageData: function(x,y,w,h){ return {data: new Uint8ClampedArray(w*h*4), width:w, height:h}; },
+          putImageData: function(){},
+          createLinearGradient: function(){ return {addColorStop: function(){}}; },
+          createRadialGradient: function(){ return {addColorStop: function(){}}; },
+          createPattern: function(){ return {}; },
+          save: function(){}, restore: function(){},
+          translate: function(){}, rotate: function(){}, scale: function(){},
+          transform: function(){}, setTransform: function(){}, resetTransform: function(){},
+          canvas: el
+        };
+      };
+      el.toDataURL = function(){ return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQA="; };
+      el.toBlob = function(cb){ if(cb) cb(new Blob([""])); };
+    }
     return el;
   }
   var docCookieJar = Object.create(null);
@@ -255,6 +282,75 @@
     }
     return out;
   };
+
+  // ----- console -----
+  g.console = {
+    log: g.__goLog || function(){},
+    warn: g.__goLog || function(){},
+    error: g.__goLog || function(){},
+    info: g.__goLog || function(){},
+    debug: g.__goLog || function(){},
+    trace: function(){}, dir: function(){}, table: function(){},
+    assert: function(){}, time: function(){}, timeEnd: function(){},
+    group: function(){}, groupEnd: function(){}, groupCollapsed: function(){}
+  };
+
+  // ----- TextEncoder / TextDecoder -----
+  g.TextEncoder = function(){};
+  g.TextEncoder.prototype.encode = function(s) {
+    var a = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i) & 0xff;
+    return a;
+  };
+  g.TextDecoder = function(enc){ this.encoding = enc || "utf-8"; };
+  g.TextDecoder.prototype.decode = function(buf) {
+    var a = new Uint8Array(buf.buffer || buf);
+    var s = "";
+    for (var i = 0; i < a.length; i++) s += String.fromCharCode(a[i]);
+    return s;
+  };
+
+  // ----- AbortController / AbortSignal -----
+  g.AbortController = function() {
+    var ctrl = this;
+    ctrl.signal = { aborted: false, reason: undefined, addEventListener: function(){}, removeEventListener: function(){} };
+    ctrl.abort = function(reason) { ctrl.signal.aborted = true; ctrl.signal.reason = reason; };
+  };
+
+  // ----- URL / URLSearchParams -----
+  if (typeof g.URL === "undefined") {
+    g.URL = function(url, base) {
+      if (base && url.startsWith("/")) url = base.replace(/\/[^/]*$/, "") + url;
+      var m = url.match(/^(https?:)\/\/([^/:]+)(:\d+)?(\/[^?#]*)?(\?[^#]*)?(#.*)?$/);
+      this.protocol = m ? m[1] : ""; this.hostname = m ? m[2] : "";
+      this.port = m ? (m[3] || "").replace(":", "") : "";
+      this.pathname = m ? (m[4] || "/") : "/";
+      this.search = m ? (m[5] || "") : ""; this.hash = m ? (m[6] || "") : "";
+      this.host = this.hostname + (this.port ? ":" + this.port : "");
+      this.origin = this.protocol + "//" + this.host;
+      this.href = url;
+      this.searchParams = new g.URLSearchParams(this.search.replace(/^\?/, ""));
+      this.toString = function(){ return this.href; };
+    };
+  }
+  if (typeof g.URLSearchParams === "undefined") {
+    g.URLSearchParams = function(init) {
+      this._entries = [];
+      if (typeof init === "string") {
+        var pairs = init.split("&");
+        for (var i = 0; i < pairs.length; i++) {
+          var kv = pairs[i].split("=");
+          if (kv[0]) this._entries.push([decodeURIComponent(kv[0]), decodeURIComponent(kv[1] || "")]);
+        }
+      }
+    };
+    g.URLSearchParams.prototype.get = function(k) { for (var i=0;i<this._entries.length;i++) if(this._entries[i][0]===k) return this._entries[i][1]; return null; };
+    g.URLSearchParams.prototype.set = function(k,v) { for (var i=0;i<this._entries.length;i++) if(this._entries[i][0]===k){this._entries[i][1]=v;return;} this._entries.push([k,v]); };
+    g.URLSearchParams.prototype.append = function(k,v) { this._entries.push([k,v]); };
+    g.URLSearchParams.prototype.has = function(k) { for (var i=0;i<this._entries.length;i++) if(this._entries[i][0]===k) return true; return false; };
+    g.URLSearchParams.prototype.delete = function(k) { this._entries = this._entries.filter(function(e){return e[0]!==k;}); };
+    g.URLSearchParams.prototype.toString = function() { return this._entries.map(function(e){return encodeURIComponent(e[0])+"="+encodeURIComponent(e[1]);}).join("&"); };
+  }
 
   // ----- fetch / XHR bridge -----
   function buildResponse(raw) {

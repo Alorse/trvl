@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -41,6 +42,7 @@ type vmHost struct {
 	fetchCap   int // max outstanding fetches; keeps challenge scripts from DoSing us
 	maxBody    int64
 	cookies    []cookieEntry
+	logger     func(msg string, args ...any)
 }
 
 const (
@@ -66,8 +68,16 @@ func (h *vmHost) install() error {
 		return fmt.Errorf("set now: %w", err)
 	}
 	if err := vm.Set("__goLog", func(args ...sobek.Value) {
-		// intentional no-op; JS side uses this as a vent so challenge console
-		// calls don't blow up the runtime. Wire to slog.Debug if ever needed.
+		parts := make([]string, len(args))
+		for i, a := range args {
+			parts[i] = a.String()
+		}
+		msg := strings.Join(parts, " ")
+		if h.logger != nil {
+			h.logger("waf-js: " + msg)
+		} else {
+			slog.Debug("waf-js", "msg", msg)
+		}
 	}); err != nil {
 		return fmt.Errorf("set log: %w", err)
 	}
