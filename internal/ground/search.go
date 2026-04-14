@@ -310,6 +310,26 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		}()
 	}
 
+	// European Sleeper — night train Brussels→Amsterdam→Berlin→Dresden→Prague.
+	if useProvider("european_sleeper") && HasEuropeanSleeperRoute(from, to) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			routes, err := SearchEuropeanSleeper(ctx, from, to, date, opts.Currency)
+			results <- providerResult{routes: routes, err: err, name: "european_sleeper"}
+		}()
+	}
+
+	// Snälltåget — Swedish night trains (Stockholm→Malmö, Stockholm→Åre, Stockholm→Berlin).
+	if useProvider("snalltaget") && HasSnalltagetRoute(from, to) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			routes, err := SearchSnalltaget(ctx, from, to, date, opts.Currency)
+			results <- providerResult{routes: routes, err: err, name: "snalltaget"}
+		}()
+	}
+
 	// Transitous — coordinate-based, always available as a fallback.
 	// Requires geocoding city names to coordinates; skipped if geocoding fails.
 	if useProvider("transitous") {
@@ -473,7 +493,8 @@ func deduplicateGroundRoutes(routes []models.GroundRoute) []models.GroundRoute {
 // when price is 0 (they provide schedule data without live pricing).
 var scheduleOnlyProviders = map[string]bool{
 	"distribusion": true, "transitous": true, "db": true, "ns": true,
-	"oebb": true, "vr": true, "tallink": true, "stenaline": true,
+	"oebb": true, "vr": true, "european_sleeper": true, "snalltaget": true,
+	"tallink": true, "stenaline": true,
 	"dfds": true, "vikingline": true, "eckeroline": true, "finnlines": true,
 	"ferryhopper": true,
 }
