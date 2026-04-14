@@ -1464,3 +1464,130 @@ func containsIdx(s, substr string) bool {
 	}
 	return false
 }
+
+func TestDiscoverArrayPaths_FindsNestedArray(t *testing.T) {
+	raw := map[string]any{
+		"data": map[string]any{
+			"presentation": map[string]any{
+				"staysSearch": map[string]any{
+					"results": []any{
+						map[string]any{"name": "Hotel A", "id": "1"},
+						map[string]any{"name": "Hotel B", "id": "2"},
+					},
+				},
+			},
+			"metadata": map[string]any{"total": 42},
+		},
+	}
+
+	sug := discoverArrayPaths(raw, "")
+	path, ok := sug["results_path"]
+	if !ok {
+		t.Fatal("expected results_path suggestion, got none")
+	}
+	if !containsStr(path, "data.presentation.staysSearch.results") {
+		t.Errorf("unexpected results_path: %s", path)
+	}
+	if !containsStr(path, "2 items") {
+		t.Errorf("expected item count in suggestion: %s", path)
+	}
+}
+
+func TestDiscoverArrayPaths_ExcludesCurrentPath(t *testing.T) {
+	raw := map[string]any{
+		"results": []any{
+			map[string]any{"name": "Hotel A"},
+		},
+	}
+
+	sug := discoverArrayPaths(raw, "results")
+	if _, ok := sug["results_path"]; ok {
+		t.Error("should exclude the path the caller already tried")
+	}
+}
+
+func TestDiscoverArrayPaths_IgnoresPrimitiveArrays(t *testing.T) {
+	raw := map[string]any{
+		"tags": []any{"a", "b", "c"},
+		"items": []any{
+			map[string]any{"name": "X"},
+		},
+	}
+
+	sug := discoverArrayPaths(raw, "")
+	path := sug["results_path"]
+	if containsStr(path, "tags") {
+		t.Error("should not suggest primitive arrays")
+	}
+	if !containsStr(path, "items") {
+		t.Errorf("should suggest object arrays: %s", path)
+	}
+}
+
+func TestDiscoverFieldMappings_FindsCommonFields(t *testing.T) {
+	obj := map[string]any{
+		"displayName": map[string]any{
+			"text": "Grand Hotel",
+		},
+		"id":       "12345",
+		"rating":   4.5,
+		"location": map[string]any{
+			"latitude":  48.856,
+			"longitude": 2.352,
+		},
+		"priceInfo": map[string]any{
+			"amount": 129.0,
+		},
+	}
+
+	sug := discoverFieldMappings(obj, "")
+
+	checks := map[string]string{
+		"field:hotel_id": "id",
+		"field:rating":   "rating",
+		"field:lat":      "location.latitude",
+		"field:lon":      "location.longitude",
+	}
+
+	for key, wantContains := range checks {
+		got, ok := sug[key]
+		if !ok {
+			t.Errorf("missing suggestion for %s", key)
+			continue
+		}
+		if !containsStr(got, wantContains) {
+			t.Errorf("%s: got %q, want to contain %q", key, got, wantContains)
+		}
+	}
+}
+
+func TestDiscoverFieldMappings_FlatObject(t *testing.T) {
+	obj := map[string]any{
+		"name":  "Budget Inn",
+		"price": 59.99,
+		"lat":   51.5074,
+		"lon":   -0.1278,
+	}
+
+	sug := discoverFieldMappings(obj, "")
+
+	if sug["field:name"] != "name" {
+		t.Errorf("name: %q", sug["field:name"])
+	}
+	if sug["field:price"] != "price" {
+		t.Errorf("price: %q", sug["field:price"])
+	}
+}
+
+func containsStr(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(sub) == 0 || findSubstr(s, sub))
+}
+
+func findSubstr(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
