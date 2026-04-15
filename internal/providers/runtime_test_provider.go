@@ -231,6 +231,13 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		"${location}": location,
 	}
 
+	// Resolve provider-specific city ID when the config provides a lookup
+	// table (same behaviour as searchProvider so test_provider faithfully
+	// mirrors live search URL construction).
+	if id := resolveCityID(cfg.CityLookup, location); id != "" {
+		vars["${city_id}"] = id
+	}
+
 	// Add auth-extracted variables.
 	for k, v := range pc.authValues {
 		vars["${"+k+"}"] = v
