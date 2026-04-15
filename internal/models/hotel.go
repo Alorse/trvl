@@ -28,13 +28,26 @@ type HotelResult struct {
 	Sources      []PriceSource `json:"sources,omitempty"` // All providers that found this hotel
 }
 
+// ProviderStatus reports the outcome of a single external provider query.
+// Included in search responses so the orchestrating LLM can autonomously
+// diagnose and fix broken providers.
+type ProviderStatus struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Status  string `json:"status"`           // "ok", "error", "disabled"
+	Results int    `json:"results,omitempty"` // number of results returned
+	Error   string `json:"error,omitempty"`   // error message if status != "ok"
+	FixHint string `json:"fix_hint,omitempty"` // actionable hint for the LLM
+}
+
 // HotelSearchResult is the top-level response for a hotel search.
 type HotelSearchResult struct {
-	Success        bool          `json:"success"`
-	Count          int           `json:"count"`
-	TotalAvailable int           `json:"total_available,omitempty"`
-	Hotels         []HotelResult `json:"hotels"`
-	Error          string        `json:"error,omitempty"`
+	Success          bool             `json:"success"`
+	Count            int              `json:"count"`
+	TotalAvailable   int              `json:"total_available,omitempty"`
+	Hotels           []HotelResult    `json:"hotels"`
+	ProviderStatuses []ProviderStatus `json:"provider_statuses,omitempty"`
+	Error            string           `json:"error,omitempty"`
 }
 
 // ProviderPrice represents a single booking provider's price for a hotel.

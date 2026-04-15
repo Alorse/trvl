@@ -281,12 +281,12 @@ func FilterHotels(hotels []models.HotelResult, city string, p *Preferences) []mo
 			continue
 		}
 		// Drop low-review properties when quality matters.
-		if minReviews > 0 && h.ReviewCount > 0 && h.ReviewCount < minReviews {
+		if minReviews > 0 && h.ReviewCount > 0 && h.ReviewCount < minReviews && !models.HasExternalProviderSource(h) {
 			continue
 		}
 		// If the user wants min rating but the property has no reviews at all,
 		// drop it — we can't verify quality.
-		if p.MinHotelRating > 0 && h.ReviewCount == 0 && h.Rating == 0 {
+		if p.MinHotelRating > 0 && h.ReviewCount == 0 && h.Rating == 0 && !models.HasExternalProviderSource(h) {
 			continue
 		}
 		// Drop suspiciously cheap hotels when BudgetPerNightMin is set.

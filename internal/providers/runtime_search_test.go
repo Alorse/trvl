@@ -43,7 +43,7 @@ func TestSearchHotelsProviderError(t *testing.T) {
 	}
 
 	rt := NewRuntime(reg)
-	_, err = rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
+	_, _, err = rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
 	if err == nil {
 		t.Fatal("expected error from provider returning 500")
 	}
@@ -89,7 +89,7 @@ func TestSearchHotelsContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
-	_, err = rt.SearchHotels(ctx, "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
+	_, _, err = rt.SearchHotels(ctx, "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
 	if err == nil {
 		t.Fatal("expected error from canceled context")
 	}
@@ -152,7 +152,7 @@ func TestSearchHotelsPostMethod(t *testing.T) {
 	}
 
 	rt := NewRuntime(reg)
-	hotels, err := rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
+	hotels, _, err := rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
 	if err != nil {
 		t.Fatalf("SearchHotels: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestRunPreflight_POST(t *testing.T) {
 	}
 
 	rt := NewRuntime(reg)
-	hotels, err := rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
+	hotels, _, err := rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
 	if err != nil {
 		t.Fatalf("SearchHotels: %v", err)
 	}

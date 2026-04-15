@@ -22,12 +22,37 @@ import (
 // this unset so the Tier 4 escape hatch never fires.
 type providerInteractiveKey struct{}
 
+// providerElicitKey is the context key for the elicitation callback.
+type providerElicitKey struct{}
+
+// ElicitConfirmFunc prompts the user with a message and returns true if they
+// confirmed. This abstraction decouples the provider runtime from the MCP
+// protocol layer — MCP handlers wrap their ElicitFunc into this signature.
+type ElicitConfirmFunc func(message string) (confirmed bool, err error)
+
 // WithInteractive returns a derived context marked as an interactive session.
 // CLI entrypoints and MCP handlers that run with a human in the loop should
 // call this so that the provider runtime may, if absolutely needed, open the
 // user's browser to solve a JS bot-detection challenge.
 func WithInteractive(ctx context.Context) context.Context {
 	return context.WithValue(ctx, providerInteractiveKey{}, true)
+}
+
+// WithElicit returns a derived context carrying an elicitation callback.
+// When the provider runtime needs user confirmation (e.g. "please visit
+// booking.com to clear a WAF challenge"), it calls this function instead
+// of silently opening a browser and timing out.
+func WithElicit(ctx context.Context, fn ElicitConfirmFunc) context.Context {
+	return context.WithValue(ctx, providerElicitKey{}, fn)
+}
+
+// getElicit returns the elicitation callback from ctx, or nil if none is set.
+func getElicit(ctx context.Context) ElicitConfirmFunc {
+	if ctx == nil {
+		return nil
+	}
+	fn, _ := ctx.Value(providerElicitKey{}).(ElicitConfirmFunc)
+	return fn
 }
 
 // isInteractive reports whether ctx was marked interactive by WithInteractive.

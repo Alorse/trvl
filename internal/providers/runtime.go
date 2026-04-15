@@ -105,17 +105,20 @@ func (rt *Runtime) getOrCreateClient(cfg *ProviderConfig) *providerClient {
 	return pc
 }
 
-// SearchHotels queries all hotel-category providers and returns combined results.
-func (rt *Runtime) SearchHotels(ctx context.Context, location string, lat, lon float64, checkin, checkout, currency string, guests int) ([]models.HotelResult, error) {
+// SearchHotels queries all hotel-category providers and returns combined results
+// along with per-provider status entries so the caller can surface failures to
+// the LLM for autonomous diagnosis.
+func (rt *Runtime) SearchHotels(ctx context.Context, location string, lat, lon float64, checkin, checkout, currency string, guests int) ([]models.HotelResult, []models.ProviderStatus, error) {
 	providers := rt.registry.ListByCategory("hotels")
 	if len(providers) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	type result struct {
 		hotels []models.HotelResult
 		err    error
 		id     string
+		name   string
 	}
 
 	results := make(chan result, len(providers))
@@ -126,7 +129,7 @@ func (rt *Runtime) SearchHotels(ctx context.Context, location string, lat, lon f
 		go func(cfg *ProviderConfig) {
 			defer wg.Done()
 			hotels, err := rt.searchProvider(ctx, cfg, location, lat, lon, checkin, checkout, currency, guests)
-			results <- result{hotels: hotels, err: err, id: cfg.ID}
+			results <- result{hotels: hotels, err: err, id: cfg.ID, name: cfg.Name}
 		}(cfg)
 	}
 
@@ -135,25 +138,56 @@ func (rt *Runtime) SearchHotels(ctx context.Context, location string, lat, lon f
 		close(results)
 	}()
 
+	var statuses []models.ProviderStatus
 	var combined []models.HotelResult
 	var firstErr error
 	for r := range results {
 		if r.err != nil {
 			slog.Warn("provider error", "provider", r.id, "error", r.err.Error())
 			rt.registry.MarkError(r.id, r.err.Error())
+			statuses = append(statuses, models.ProviderStatus{
+				ID:      r.id,
+				Name:    r.name,
+				Status:  "error",
+				Error:   r.err.Error(),
+				FixHint: providerFixHint(r.err),
+			})
 			if firstErr == nil {
 				firstErr = r.err
 			}
 			continue
 		}
 		rt.registry.MarkSuccess(r.id)
+		statuses = append(statuses, models.ProviderStatus{
+			ID:      r.id,
+			Name:    r.name,
+			Status:  "ok",
+			Results: len(r.hotels),
+		})
 		combined = append(combined, r.hotels...)
 	}
 
 	if len(combined) == 0 && firstErr != nil {
-		return nil, firstErr
+		return nil, statuses, firstErr
 	}
-	return combined, nil
+	return combined, statuses, nil
+}
+
+// providerFixHint generates an actionable LLM-readable hint for common failures.
+func providerFixHint(err error) string {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "preflight"):
+		return "Call test_provider with this provider's id to diagnose. WAF/auth may need refresh."
+	case strings.Contains(msg, "results_path"):
+		return "API response structure changed. Call test_provider to see current response shape, then configure_provider to update results_path."
+	case strings.Contains(msg, "http 403"), strings.Contains(msg, "http 202"):
+		return "WAF block detected. Try test_provider — if it fails, the provider may need browser cookie refresh."
+	case strings.Contains(msg, "rate limit"):
+		return "Rate limited. Wait and retry, or reduce request frequency in provider config."
+	default:
+		return "Call test_provider with this provider's id to diagnose the issue."
+	}
 }
 
 func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, location string, lat, lon float64, checkin, checkout, currency string, guests int) ([]models.HotelResult, error) {
@@ -406,11 +440,33 @@ func tryWAFSolve(ctx context.Context, pc *providerClient, statusCode int, pageBo
 // challenge was solved), then retry preflight with the fresh cookies. Only
 // fires when the caller has opted in both per-provider
 // (AuthConfig.BrowserEscapeHatch) and per-call (WithInteractive context).
+//
+// When an ElicitConfirmFunc is present in the context (MCP sessions), the
+// user is prompted before the browser opens — this replaces the old silent
+// 15-second timeout that users never noticed.
 func tryBrowserEscapeHatch(ctx context.Context, pc *providerClient) bool {
 	targetURL := pc.config.Auth.PreflightURL
 	browserPref := pc.config.Cookies.Browser
 
-	slog.Info("opening URL in browser to refresh WAF cookies, waiting up to 15s...",
+	// If elicitation is available, ask the user to confirm before opening
+	// the browser. This turns a silent 15s timeout into an explicit user
+	// action that actually succeeds.
+	if elicit := getElicit(ctx); elicit != nil {
+		msg := fmt.Sprintf(
+			"%s needs a browser visit to refresh its WAF session. "+
+				"I'll open %s in your browser — please complete any challenge "+
+				"(CAPTCHA, cookie consent) and then confirm here.",
+			pc.config.Name, targetURL,
+		)
+		confirmed, err := elicit(msg)
+		if err != nil || !confirmed {
+			slog.Info("browser escape hatch: user declined or elicitation failed",
+				"provider", pc.config.ID)
+			return false
+		}
+	}
+
+	slog.Info("opening URL in browser to refresh WAF cookies, waiting up to 30s...",
 		"provider", pc.config.ID,
 		"url", targetURL,
 		"browser", browserPref,
@@ -423,7 +479,15 @@ func tryBrowserEscapeHatch(ctx context.Context, pc *providerClient) bool {
 		return false
 	}
 
-	fresh, changed := waitForFreshCookies(ctx, targetURL, prev, time.Second, 15*time.Second)
+	// With elicitation the user explicitly confirmed they completed the
+	// challenge, so extend the cookie-change wait to 30s. Without
+	// elicitation, keep the original 15s.
+	deadline := 15 * time.Second
+	if getElicit(ctx) != nil {
+		deadline = 30 * time.Second
+	}
+
+	fresh, changed := waitForFreshCookies(ctx, targetURL, prev, time.Second, deadline)
 	if !changed {
 		slog.Warn("browser escape hatch: no cookie change observed within deadline",
 			"provider", pc.config.ID)
@@ -686,119 +750,3 @@ func substituteEnvVars(s string) string {
 	}
 	return s
 }
-
-// discoverArrayPaths walks a JSON value tree up to 4 levels deep, looking for
-// arrays with 1+ elements that look like result sets (contain objects). Returns
-// a suggestions map like {"results_path": "data.search.results (25 items)"}.
-// excludePath is the path the caller already tried (omitted from suggestions).
-func discoverArrayPaths(v any, excludePath string) map[string]string {
-	suggestions := make(map[string]string)
-	var walk func(val any, path string, depth int)
-	walk = func(val any, path string, depth int) {
-		if depth > 4 {
-			return
-		}
-		switch t := val.(type) {
-		case []any:
-			if len(t) > 0 && path != excludePath {
-				// Check if elements are objects (likely result items).
-				if _, isObj := t[0].(map[string]any); isObj {
-					suggestions["results_path"] = fmt.Sprintf("%s (%d items)", path, len(t))
-				}
-			}
-		case map[string]any:
-			for k, child := range t {
-				childPath := k
-				if path != "" {
-					childPath = path + "." + k
-				}
-				walk(child, childPath, depth+1)
-			}
-		}
-	}
-	walk(v, "", 0)
-	return suggestions
-}
-
-// discoverFieldMappings inspects a result object and suggests field_mapping
-// entries by matching common hotel-like field names. Returns suggestions like
-// {"field:name": "displayName.text", "field:price": "priceInfo.amount"}.
-func discoverFieldMappings(obj map[string]any, prefix string) map[string]string {
-	suggestions := make(map[string]string)
-
-	// Common name patterns → target field.
-	namePatterns := map[string]string{
-		"name": "name", "hotel_name": "name", "hotelName": "name",
-		"displayName": "name", "title": "name", "property_name": "name",
-		"propertyName": "name",
-	}
-	pricePatterns := map[string]string{
-		"price": "price", "amount": "price", "total": "price",
-		"amountPerStay": "price", "displayPrice": "price",
-		"pricePerNight": "price", "rate": "price",
-	}
-	idPatterns := map[string]string{
-		"id": "hotel_id", "hotelId": "hotel_id", "hotel_id": "hotel_id",
-		"propertyId": "hotel_id", "listingId": "hotel_id",
-	}
-	ratingPatterns := map[string]string{
-		"rating": "rating", "score": "rating", "reviewScore": "rating",
-		"starRating": "rating", "overallRating": "rating",
-	}
-	latPatterns := map[string]string{
-		"latitude": "lat", "lat": "lat",
-	}
-	lonPatterns := map[string]string{
-		"longitude": "lon", "lon": "lon", "lng": "lon",
-	}
-
-	allPatterns := []struct {
-		field    string
-		patterns map[string]string
-	}{
-		{"name", namePatterns},
-		{"price", pricePatterns},
-		{"hotel_id", idPatterns},
-		{"rating", ratingPatterns},
-		{"lat", latPatterns},
-		{"lon", lonPatterns},
-	}
-
-	var scan func(val any, path string, depth int)
-	scan = func(val any, path string, depth int) {
-		if depth > 3 {
-			return
-		}
-		m, ok := val.(map[string]any)
-		if !ok {
-			return
-		}
-		for k, child := range m {
-			childPath := k
-			if path != "" {
-				childPath = path + "." + k
-			}
-			for _, pat := range allPatterns {
-				if _, matched := pat.patterns[k]; matched {
-					key := "field:" + pat.field
-					// Prefer shallower paths.
-					if _, exists := suggestions[key]; !exists {
-						switch child.(type) {
-						case string, float64, json.Number:
-							suggestions[key] = childPath
-						case map[string]any:
-							// Nested — keep scanning for the leaf value.
-							scan(child, childPath, depth+1)
-						}
-					}
-				}
-			}
-			if childMap, isMap := child.(map[string]any); isMap {
-				scan(childMap, childPath, depth+1)
-			}
-		}
-	}
-	scan(obj, prefix, 0)
-	return suggestions
-}
-

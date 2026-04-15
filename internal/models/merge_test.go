@@ -203,6 +203,60 @@ func TestNormalizeAddress(t *testing.T) {
 	}
 }
 
+func TestHasExternalProviderSource(t *testing.T) {
+	tests := []struct {
+		name  string
+		hotel HotelResult
+		want  bool
+	}{
+		{
+			name:  "google only",
+			hotel: HotelResult{Sources: []PriceSource{{Provider: "google_hotels"}}},
+			want:  false,
+		},
+		{
+			name:  "trivago only",
+			hotel: HotelResult{Sources: []PriceSource{{Provider: "trivago"}}},
+			want:  false,
+		},
+		{
+			name:  "hostelworld",
+			hotel: HotelResult{Sources: []PriceSource{{Provider: "hostelworld"}}},
+			want:  true,
+		},
+		{
+			name:  "airbnb",
+			hotel: HotelResult{Sources: []PriceSource{{Provider: "airbnb"}}},
+			want:  true,
+		},
+		{
+			name: "mixed google and booking",
+			hotel: HotelResult{Sources: []PriceSource{
+				{Provider: "google_hotels"},
+				{Provider: "booking"},
+			}},
+			want: true,
+		},
+		{
+			name:  "no sources",
+			hotel: HotelResult{},
+			want:  false,
+		},
+		{
+			name:  "empty provider string",
+			hotel: HotelResult{Sources: []PriceSource{{Provider: ""}}},
+			want:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := HasExternalProviderSource(tt.hotel); got != tt.want {
+				t.Errorf("HasExternalProviderSource() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHaversineMeters(t *testing.T) {
 	// Helsinki to Tallinn ≈ 80km.
 	dist := haversineMeters(60.1699, 24.9384, 59.4370, 24.7536)

@@ -363,6 +363,31 @@ func (s *Server) handleToolsCall(req *Request) *Response {
 	defer cancel()
 	ctx = providers.WithInteractive(ctx)
 
+	// Thread elicitation into the provider runtime context so Tier 4 WAF
+	// recovery can prompt the user instead of silently timing out.
+	if elicit != nil {
+		ctx = providers.WithElicit(ctx, func(message string) (bool, error) {
+			resp, err := elicit(message, map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"done": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Confirm when you have completed the browser challenge",
+						"default":     true,
+					},
+				},
+			})
+			if err != nil {
+				return false, err
+			}
+			if done, ok := resp["done"].(bool); ok {
+				return done, nil
+			}
+			// If the user responded at all, treat it as confirmation.
+			return resp != nil, nil
+		})
+	}
+
 	content, structured, err := handler(ctx, params.Arguments, elicit, sampling, progress)
 	if err != nil {
 		return &Response{

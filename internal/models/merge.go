@@ -6,6 +6,19 @@ import (
 	"strings"
 )
 
+// HasExternalProviderSource returns true if the hotel has at least one price
+// source from an external provider (not google_hotels or trivago). External
+// results may lack rating/review data and should not be penalised by quality
+// filters designed for Google's well-annotated results.
+func HasExternalProviderSource(h HotelResult) bool {
+	for _, s := range h.Sources {
+		if s.Provider != "google_hotels" && s.Provider != "trivago" && s.Provider != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // MergeHotelResults deduplicates hotels from multiple sources. When the same
 // hotel appears from different providers, sources are merged into a single
 // HotelResult with the lowest price as the primary and all provider prices

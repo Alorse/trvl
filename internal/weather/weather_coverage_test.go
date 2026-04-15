@@ -24,11 +24,6 @@ func clearGeoCache() {
 	geocache.Unlock()
 }
 
-// newTestHTTPClient returns an http.Client that is pre-configured to work
-// against the given test server (no redirects, no real TLS).
-func newTestHTTPClient(srv *httptest.Server) *http.Client {
-	return srv.Client()
-}
 
 // ------------------------------------------------------------------ geocodeCity
 

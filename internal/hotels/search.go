@@ -237,6 +237,7 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 	}
 	var trivagoResults []models.HotelResult
 	var externalResults []models.HotelResult
+	var providerStatuses []models.ProviderStatus
 	var auxWg sync.WaitGroup
 
 	auxWg.Add(1)
@@ -262,13 +263,15 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 				slog.Warn("external providers: geocode failed", "error", err)
 				return
 			}
-			res, err := externalProviderRuntime.SearchHotels(ctx, location, lat, lon,
+			res, statuses, err := externalProviderRuntime.SearchHotels(ctx, location, lat, lon,
 				auxOpts.CheckIn, auxOpts.CheckOut, auxOpts.Currency, auxOpts.Guests)
 			if err != nil {
 				slog.Warn("external providers search failed", "error", err)
+				providerStatuses = statuses // keep statuses even on error
 				return
 			}
 			externalResults = res
+			providerStatuses = statuses
 		}()
 	}
 
@@ -296,8 +299,25 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		}
 	}
 
+	// Log pre-filter counts by source for debugging merge visibility.
+	if len(externalResults) > 0 {
+		slog.Info("pre-filter hotel counts",
+			"total", len(hotels),
+			"google", countBySource(hotels, "google_hotels"),
+			"trivago", countBySource(hotels, "trivago"),
+			"external", countExternalSources(hotels),
+		)
+	}
+
 	// Apply post-filters.
 	hotels = filterHotels(hotels, opts)
+
+	if len(externalResults) > 0 {
+		slog.Info("post-filter hotel counts",
+			"total", len(hotels),
+			"external_surviving", countExternalSources(hotels),
+		)
+	}
 
 	// Sort results.
 	sortHotels(hotels, opts.Sort, opts.CenterLat, opts.CenterLon)
@@ -324,10 +344,11 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 	}
 
 	return &models.HotelSearchResult{
-		Success:        true,
-		Count:          len(hotels),
-		TotalAvailable: totalAvailable,
-		Hotels:         hotels,
+		Success:          true,
+		Count:            len(hotels),
+		TotalAvailable:   totalAvailable,
+		Hotels:           hotels,
+		ProviderStatuses: providerStatuses,
 	}, nil
 }
 
@@ -449,7 +470,7 @@ func filterHotels(hotels []models.HotelResult, opts HotelSearchOptions) []models
 		// it meets the minimum. Unrated properties (h.Rating == 0) are
 		// suspicious — usually new listings, private rooms, or apartments
 		// without enough reviews to establish quality.
-		if opts.MinRating > 0 && h.Rating < opts.MinRating {
+		if opts.MinRating > 0 && h.Rating < opts.MinRating && !models.HasExternalProviderSource(h) {
 			continue
 		}
 		if opts.MaxDistanceKm > 0 && h.Lat != 0 && h.Lon != 0 && opts.CenterLat != 0 {
@@ -548,6 +569,29 @@ func lessPrice(a, b models.HotelResult) bool {
 		return true
 	}
 	return a.Price < b.Price
+}
+
+func countBySource(hotels []models.HotelResult, provider string) int {
+	count := 0
+	for _, h := range hotels {
+		for _, s := range h.Sources {
+			if s.Provider == provider {
+				count++
+				break
+			}
+		}
+	}
+	return count
+}
+
+func countExternalSources(hotels []models.HotelResult) int {
+	count := 0
+	for _, h := range hotels {
+		if models.HasExternalProviderSource(h) {
+			count++
+		}
+	}
+	return count
 }
 
 // parseDateArray converts "YYYY-MM-DD" to [year, month, day].

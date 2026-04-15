@@ -1,33 +1,27 @@
 # Provider Reliability Improvements
 
-## 1. Booking.com: Elicitation-based WAF flow
+All items completed 2026-04-15.
 
-**Problem**: Browser escape hatch opens booking.com silently with 15s timeout. User doesn't notice → timeout → error_count climbs.
+## 1. Booking.com: Elicitation-based WAF flow ✅
 
-**Fix**: In `runPreflight`, when Tier 4 triggers in interactive MCP context, use elicitation instead of silent browser open:
-1. Pass elicit function through search context (new context key)
-2. Before opening browser, elicit: "Booking.com needs a browser visit. Please open booking.com, search for any hotel, then click Done."
-3. After user confirms, read cookies via kooky
-4. Cookie persistence (`cookie_cache.go`) caches session for 24h
+**Root cause**: Browser escape hatch opened booking.com silently with 15s timeout. User never noticed → timeout → error_count climbed.
 
-**Files**: `internal/providers/runtime.go`, `internal/hotels/search.go`, `mcp/tools_hotels.go`
+**Fix**: Added `ElicitConfirmFunc` context key (`providers/cookies.go`). MCP server threads its `ElicitFunc` into the context (`mcp/server.go`). `tryBrowserEscapeHatch` now prompts the user via elicitation before opening the browser, and extends the cookie-change deadline to 30s after confirmation.
 
-## 2. Auto-healing: provider_status in search responses
+**Files changed**: `internal/providers/cookies.go`, `internal/providers/runtime.go`, `mcp/server.go`
 
-**Problem**: External provider failures are silent. LLM can't fix what it can't see.
+## 2. Auto-healing: provider_status in search responses ✅
 
-**Fix**: Return `provider_status` in search_hotels structured output:
-```json
-{"id":"booking","status":"error","error":"WAF 202","fix":"Call test_provider id=booking"}
-```
-LLM can then autonomously call test_provider → apply auto-suggest → configure_provider → retry.
+**Root cause**: External provider failures were invisible to the LLM. No way to autonomously diagnose or fix.
 
-**Files**: `internal/providers/runtime.go` (return per-provider status), `mcp/tools_hotels.go` (include in response)
+**Fix**: Added `ProviderStatus` type to models (`ID`, `Name`, `Status`, `Results`, `Error`, `FixHint`). `Runtime.SearchHotels` now returns `[]ProviderStatus` alongside results. `providerFixHint()` pattern-matches errors to emit actionable hints (WAF block, results_path mismatch, rate limit). `HotelSearchResult.ProviderStatuses` propagates to MCP response.
 
-## 3. Merge pipeline: external results not visible
+**Files changed**: `internal/models/hotel.go`, `internal/providers/runtime.go`, `internal/hotels/search.go`
 
-**Problem**: Hostelworld "Iona Inn" at EUR 180 returns from runtime (last_success proves it) but doesn't appear in search output. Google's cheapest-6 fill the result set.
+## 3. Merge pipeline: external results not visible ✅
 
-**Fix**: Ensure external-only results always surface. Either raise the merge budget or tag external results as priority-include.
+**Root cause**: `filterHotels()` dropped external results with `Rating == 0` (MinRating=4.0 filter). `preferences.FilterHotels()` dropped external results with `ReviewCount == 0 && Rating == 0` and those with `ReviewCount < 20`. External providers don't return rating/review data in the same format as Google.
 
-**Files**: `internal/hotels/search.go`, `internal/models/merge.go`
+**Fix**: Added `models.HasExternalProviderSource()` helper. All three filter paths now skip quality-based filters for external provider results that lack rating/review data. Added pre/post-filter logging (`countBySource`, `countExternalSources`) gated on external results presence.
+
+**Files changed**: `internal/models/merge.go`, `internal/models/merge_test.go`, `internal/hotels/search.go`, `internal/preferences/preferences.go`

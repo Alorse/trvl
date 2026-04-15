@@ -394,7 +394,7 @@ func TestSearchHotelsFullFlow(t *testing.T) {
 	}
 
 	rt := NewRuntime(reg)
-	hotels, err := rt.SearchHotels(context.Background(), "Paris", 48.856613, 2.352222, "2025-06-01", "2025-06-05", "USD", 2)
+	hotels, _, err := rt.SearchHotels(context.Background(), "Paris", 48.856613, 2.352222, "2025-06-01", "2025-06-05", "USD", 2)
 	if err != nil {
 		t.Fatalf("SearchHotels: %v", err)
 	}
@@ -453,7 +453,7 @@ func TestSearchHotelsNoProviders(t *testing.T) {
 	}
 
 	rt := NewRuntime(reg)
-	hotels, err := rt.SearchHotels(context.Background(), "Paris", 48.856613, 2.352222, "2025-06-01", "2025-06-05", "USD", 2)
+	hotels, _, err := rt.SearchHotels(context.Background(), "Paris", 48.856613, 2.352222, "2025-06-01", "2025-06-05", "USD", 2)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -543,7 +543,7 @@ func TestPreflightAuthExtraction(t *testing.T) {
 	}
 
 	rt := NewRuntime(reg)
-	hotels, err := rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
+	hotels, _, err := rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2)
 	if err != nil {
 		t.Fatalf("SearchHotels: %v", err)
 	}
