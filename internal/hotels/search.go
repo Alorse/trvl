@@ -280,6 +280,9 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 	// primary.
 	allBatches := append(rawBatches, trivagoResults)
 	allBatches = append(allBatches, externalResults)
+	if len(externalResults) > 0 {
+		slog.Info("external providers contributed results", "count", len(externalResults))
+	}
 	hotels := models.MergeHotelResults(allBatches...)
 
 	// Resolve city center for distance filter/sort if needed.
