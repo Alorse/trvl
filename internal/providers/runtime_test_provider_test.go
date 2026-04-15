@@ -45,7 +45,7 @@ func TestTestProvider_Success(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "test-provider-success",
 		Name:     "Test Provider Success",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: srv.URL + "/search",
 		Method:   "GET",
 		ResponseMapping: ResponseMapping{
@@ -92,7 +92,7 @@ func TestTestProvider_PreflightFailure(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "preflight-fail",
 		Name:     "Preflight Fail",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: srv.URL + "/search",
 		Method:   "GET",
 		Auth: &AuthConfig{
@@ -137,7 +137,7 @@ func TestTestProvider_BadResponseParse(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "bad-parse",
 		Name:     "Bad Parse",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: srv.URL + "/search",
 		Method:   "GET",
 		ResponseMapping: ResponseMapping{
@@ -174,7 +174,7 @@ func TestTestProvider_EmptyResults(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "empty-results",
 		Name:     "Empty Results",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: srv.URL + "/search",
 		Method:   "GET",
 		ResponseMapping: ResponseMapping{
@@ -230,7 +230,7 @@ func TestSubstituteEnvVars_InPreflight(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "env-preflight-test",
 		Name:     "Env Preflight Test",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: searchSrv.URL + "/search",
 		Method:   "GET",
 		Headers: map[string]string{

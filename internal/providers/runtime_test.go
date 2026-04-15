@@ -110,18 +110,18 @@ func TestJSONPathEmpty(t *testing.T) {
 
 func TestJSONPathScalar(t *testing.T) {
 	data := map[string]any{
-		"hotel": map[string]any{
+		"hotels": map[string]any{
 			"name":   "Grand Plaza",
 			"rating": 4.5,
 		},
 	}
 
-	name := jsonPath(data, "hotel.name")
+	name := jsonPath(data, "hotels.name")
 	if name != "Grand Plaza" {
 		t.Errorf("expected 'Grand Plaza', got %v", name)
 	}
 
-	rating := jsonPath(data, "hotel.rating")
+	rating := jsonPath(data, "hotels.rating")
 	if rating != 4.5 {
 		t.Errorf("expected 4.5, got %v", rating)
 	}
@@ -138,7 +138,7 @@ func TestConfigValidate(t *testing.T) {
 			config: ProviderConfig{
 				ID:       "test",
 				Name:     "Test Provider",
-				Category: "hotel",
+				Category: "hotels",
 				Endpoint: "https://api.example.com/search",
 				ResponseMapping: ResponseMapping{
 					ResultsPath: "results",
@@ -150,7 +150,7 @@ func TestConfigValidate(t *testing.T) {
 			name: "missing id",
 			config: ProviderConfig{
 				Name:     "Test",
-				Category: "hotel",
+				Category: "hotels",
 				Endpoint: "https://api.example.com",
 				ResponseMapping: ResponseMapping{
 					ResultsPath: "results",
@@ -162,7 +162,7 @@ func TestConfigValidate(t *testing.T) {
 			name: "missing name",
 			config: ProviderConfig{
 				ID:       "test",
-				Category: "hotel",
+				Category: "hotels",
 				Endpoint: "https://api.example.com",
 				ResponseMapping: ResponseMapping{
 					ResultsPath: "results",
@@ -187,7 +187,7 @@ func TestConfigValidate(t *testing.T) {
 			config: ProviderConfig{
 				ID:       "test",
 				Name:     "Test",
-				Category: "hotel",
+				Category: "hotels",
 				ResponseMapping: ResponseMapping{
 					ResultsPath: "results",
 				},
@@ -199,7 +199,7 @@ func TestConfigValidate(t *testing.T) {
 			config: ProviderConfig{
 				ID:       "test",
 				Name:     "Test",
-				Category: "hotel",
+				Category: "hotels",
 				Endpoint: "https://api.example.com",
 			},
 			wantErr: true,
@@ -246,7 +246,7 @@ func TestRateLimiterCreation(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "rate-test",
 		Name:     "Rate Test",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: "https://example.com",
 		RateLimit: RateLimitConfig{
 			RequestsPerSecond: 5.0,
@@ -266,7 +266,7 @@ func TestRateLimiterCreation(t *testing.T) {
 	cfgDefault := &ProviderConfig{
 		ID:       "rate-default",
 		Name:     "Rate Default",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: "https://example.com",
 	}
 
@@ -360,7 +360,7 @@ func TestSearchHotelsFullFlow(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "test-hotel",
 		Name:     "Test Hotels",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: srv.URL + "/search",
 		Method:   "GET",
 		QueryParams: map[string]string{
@@ -503,7 +503,7 @@ func TestPreflightAuthExtraction(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "auth-test",
 		Name:     "Auth Test",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: searchSrv.URL + "/search",
 		Method:   "GET",
 		Headers: map[string]string{
@@ -566,7 +566,7 @@ func TestRegistryRoundTrip(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "round-trip",
 		Name:     "Round Trip",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: "https://example.com/search",
 		ResponseMapping: ResponseMapping{
 			ResultsPath: "results",
@@ -600,7 +600,7 @@ func TestRegistryRoundTrip(t *testing.T) {
 	}
 
 	// Test ListByCategory.
-	hotels := reg2.ListByCategory("hotel")
+	hotels := reg2.ListByCategory("hotels")
 	if len(hotels) != 1 {
 		t.Errorf("ListByCategory hotel = %d, want 1", len(hotels))
 	}
@@ -627,7 +627,7 @@ func TestRegistryMarkSuccessAndError(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "mark-test",
 		Name:     "Mark Test",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: "https://example.com",
 		ResponseMapping: ResponseMapping{
 			ResultsPath: "results",

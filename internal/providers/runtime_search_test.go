@@ -27,7 +27,7 @@ func TestSearchHotelsProviderError(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "error-test",
 		Name:     "Error Test",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: srv.URL + "/search",
 		Method:   "GET",
 		ResponseMapping: ResponseMapping{
@@ -65,7 +65,7 @@ func TestSearchHotelsContextCanceled(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "ctx-test",
 		Name:     "Ctx Test",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: "https://example.com/search",
 		Method:   "GET",
 		ResponseMapping: ResponseMapping{
@@ -129,7 +129,7 @@ func TestSearchHotelsPostMethod(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:           "post-test",
 		Name:         "POST Test",
-		Category:     "hotel",
+		Category:     "hotels",
 		Endpoint:     srv.URL + "/search",
 		Method:       "POST",
 		BodyTemplate: `{"checkin":"${checkin}","checkout":"${checkout}"}`,
@@ -267,7 +267,7 @@ func TestRunPreflight_POST(t *testing.T) {
 	cfg := &ProviderConfig{
 		ID:       "post-preflight-test",
 		Name:     "POST Preflight Test",
-		Category: "hotel",
+		Category: "hotels",
 		Endpoint: searchSrv.URL + "/search",
 		Method:   "GET",
 		Headers: map[string]string{

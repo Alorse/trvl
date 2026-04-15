@@ -107,7 +107,7 @@ func (rt *Runtime) getOrCreateClient(cfg *ProviderConfig) *providerClient {
 
 // SearchHotels queries all hotel-category providers and returns combined results.
 func (rt *Runtime) SearchHotels(ctx context.Context, location string, lat, lon float64, checkin, checkout, currency string, guests int) ([]models.HotelResult, error) {
-	providers := rt.registry.ListByCategory("hotel")
+	providers := rt.registry.ListByCategory("hotels")
 	if len(providers) == 0 {
 		return nil, nil
 	}
