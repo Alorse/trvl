@@ -152,6 +152,44 @@ func TestMergeHotelResults_SingleSource(t *testing.T) {
 	}
 }
 
+// TestMergeHotelResults_GeoProximityDedup verifies that hotels with different
+// name variants but the same physical location are merged across providers.
+// This is the core cross-provider dedup scenario: Google Hotels calls it
+// "Holiday Inn Express Amsterdam - Arena Towers" and Booking calls it
+// "Holiday Inn Express Amsterdam Arena Towers by IHG" — different names
+// but within 100m of each other.
+func TestMergeHotelResults_GeoProximityDedup(t *testing.T) {
+	google := []HotelResult{
+		{
+			Name: "Holiday Inn Express Amsterdam - Arena Towers", Price: 120, Currency: "EUR",
+			Rating: 4.3, ReviewCount: 5000, Lat: 52.3096, Lon: 4.9418,
+			Sources: []PriceSource{{Provider: "google_hotels", Price: 120, Currency: "EUR"}},
+		},
+	}
+	booking := []HotelResult{
+		{
+			Name: "Holiday Inn Express Amsterdam Arena Towers by IHG", Price: 110, Currency: "EUR",
+			Rating: 0, ReviewCount: 0, Lat: 52.3096, Lon: 4.9419, // ~10m away
+			Sources: []PriceSource{{Provider: "booking", Price: 110, Currency: "EUR"}},
+		},
+	}
+	result := MergeHotelResults(google, booking)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 merged hotel, got %d", len(result))
+	}
+	h := result[0]
+	// Should have Google's rating + Booking's lower price.
+	if h.Rating != 4.3 {
+		t.Errorf("rating = %v, want 4.3 (from Google)", h.Rating)
+	}
+	if h.Price != 110 {
+		t.Errorf("price = %v, want 110 (cheapest)", h.Price)
+	}
+	if len(h.Sources) != 2 {
+		t.Errorf("sources = %d, want 2 (both providers)", len(h.Sources))
+	}
+}
+
 func TestMergeHotelResults_MergesMissingFields(t *testing.T) {
 	a := []HotelResult{{Name: "Hotel X", Price: 100, Currency: "EUR", Rating: 4.5, Stars: 4}}
 	b := []HotelResult{{Name: "hotel x", Price: 90, Currency: "EUR", Address: "123 Main St", ReviewCount: 500}}

@@ -37,9 +37,34 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 	merged := make(map[key]*HotelResult)
 	var order []key // preserve insertion order
 
+	// geoIndex maps each merged entry's key to its coordinates for
+	// secondary geo-proximity dedup. When two providers use different name
+	// variants for the same physical property (e.g. "Holiday Inn Express
+	// Amsterdam Arena Towers by IHG" vs "Holiday Inn Express Amsterdam -
+	// Arena Towers"), the primary name-key lookup misses. The geo-index
+	// catches these by finding the nearest existing entry within 150m.
+	const geoMergeMeters = 150.0
+	type geoEntry struct {
+		k        key
+		lat, lon float64
+	}
+	var geoIndex []geoEntry
+
 	for _, batch := range sources {
 		for _, h := range batch {
 			k := key{name: normalizeName(h.Name)}
+
+			// Secondary geo-proximity lookup: if name-key doesn't match any
+			// existing entry, check if a nearby hotel (within 150m) exists.
+			// This catches cross-provider name variants for the same building.
+			if _, ok := merged[k]; !ok && h.Lat != 0 {
+				for _, ge := range geoIndex {
+					if haversineMeters(h.Lat, h.Lon, ge.lat, ge.lon) <= geoMergeMeters {
+						k = ge.k // remap to the existing entry's key
+						break
+					}
+				}
+			}
 
 			if existing, ok := merged[k]; ok {
 				if !sameHotelCandidate(*existing, h, maxDistanceMeters) {
@@ -51,6 +76,9 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 						clone.Sources = buildSources(clone)
 						merged[dk] = &clone
 						order = append(order, dk)
+						if clone.Lat != 0 {
+							geoIndex = append(geoIndex, geoEntry{k: dk, lat: clone.Lat, lon: clone.Lon})
+						}
 					}
 					continue
 				}
@@ -93,6 +121,9 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 				clone.Sources = buildSources(clone)
 				merged[k] = &clone
 				order = append(order, k)
+				if clone.Lat != 0 {
+					geoIndex = append(geoIndex, geoEntry{k: k, lat: clone.Lat, lon: clone.Lon})
+				}
 			}
 		}
 	}
