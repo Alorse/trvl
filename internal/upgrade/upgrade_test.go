@@ -293,9 +293,9 @@ func TestWhatsNew(t *testing.T) {
 		want string
 	}{
 		{
-			name: "fresh install",
+			name: "fresh install — no output",
 			r:    &Result{NewVersion: "0.6.0", FreshInstall: true},
-			want: "Welcome to trvl 0.6.0.",
+			want: "",
 		},
 		{
 			name: "downgrade",
@@ -303,9 +303,18 @@ func TestWhatsNew(t *testing.T) {
 			want: "Warning: running older version 0.6.0 (stamp is 0.7.0). Stamp not modified.",
 		},
 		{
-			name: "upgrade",
-			r:    &Result{OldVersion: "0.5.0", NewVersion: "0.6.0", MigrationsApplied: 2},
-			want: "Upgraded from 0.5.0 to 0.6.0. 2 migrations applied.",
+			name: "upgrade with whats-new entries",
+			r:    &Result{OldVersion: "0.5.0", NewVersion: "0.6.0", MigrationsApplied: 0},
+			want: "What's new since v0.5.0:\n" +
+				"  - New `upgrade` command with version stamp and migration framework\n" +
+				"  - Agent-first install: tell your AI to read the README\n" +
+				"  - 10 MCP client auto-install targets (gemini, amazon-q, lm-studio added)\n" +
+				"trvl upgraded v0.5.0 → v0.6.0",
+		},
+		{
+			name: "upgrade without whats-new entries",
+			r:    &Result{OldVersion: "0.6.0", NewVersion: "0.7.0"},
+			want: "trvl upgraded v0.6.0 → v0.7.0",
 		},
 		{
 			name: "same version",
@@ -318,8 +327,30 @@ func TestWhatsNew(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := WhatsNew(tt.r)
 			if got != tt.want {
-				t.Errorf("WhatsNew: got %q, want %q", got, tt.want)
+				t.Errorf("WhatsNew:\n got %q\nwant %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// --- whatsNewSince ---
+
+func TestWhatsNewSince(t *testing.T) {
+	// 0.5.0 → 0.6.0 should include all 0.6.0 entries.
+	items := whatsNewSince("0.5.0", "0.6.0")
+	if len(items) != 3 {
+		t.Errorf("whatsNewSince(0.5.0, 0.6.0): got %d items, want 3", len(items))
+	}
+
+	// 0.6.0 → 0.7.0 should include nothing (no 0.7.0 entries).
+	items = whatsNewSince("0.6.0", "0.7.0")
+	if len(items) != 0 {
+		t.Errorf("whatsNewSince(0.6.0, 0.7.0): got %d items, want 0", len(items))
+	}
+
+	// 0.4.0 → 0.6.0 should include 0.6.0 entries.
+	items = whatsNewSince("0.4.0", "0.6.0")
+	if len(items) != 3 {
+		t.Errorf("whatsNewSince(0.4.0, 0.6.0): got %d items, want 3", len(items))
 	}
 }

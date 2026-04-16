@@ -38,13 +38,14 @@ Examples:
 				return nil
 			}
 
-			if dryRun {
-				fmt.Fprint(os.Stderr, "[dry-run] ")
-			}
-
 			msg := upgrade.WhatsNew(r)
 			if msg != "" {
+				if dryRun {
+					fmt.Fprintln(os.Stderr, "[dry-run]")
+				}
 				fmt.Println(msg)
+			} else if r.FreshInstall {
+				fmt.Printf("trvl v%s — fresh install, stamp created.\n", r.NewVersion)
 			} else if r.OldVersion == r.NewVersion {
 				fmt.Printf("trvl %s — already up to date.\n", r.NewVersion)
 			}

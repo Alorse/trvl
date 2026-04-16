@@ -251,10 +251,40 @@ func backupPreferences(dir, oldVersion string) {
 	_ = os.WriteFile(dst, data, 0o600)
 }
 
-// WhatsNew returns the "what's new" message for an upgrade result.
+// whatsNewEntry describes what changed in a specific version.
+type whatsNewEntry struct {
+	Version string   // version that introduced these changes
+	Items   []string // bullet points shown to the user
+}
+
+// whatsNewRegistry holds all what's-new entries, newest first.
+var whatsNewRegistry = []whatsNewEntry{
+	{
+		Version: "0.6.0",
+		Items: []string{
+			"New `upgrade` command with version stamp and migration framework",
+			"Agent-first install: tell your AI to read the README",
+			"10 MCP client auto-install targets (gemini, amazon-q, lm-studio added)",
+		},
+	},
+}
+
+// whatsNewSince returns bullet-point items for all versions strictly after
+// oldVersion and up to (including) newVersion.
+func whatsNewSince(oldVersion, newVersion string) []string {
+	var items []string
+	for _, entry := range whatsNewRegistry {
+		if CompareSemver(entry.Version, oldVersion) > 0 && CompareSemver(entry.Version, newVersion) <= 0 {
+			items = append(items, entry.Items...)
+		}
+	}
+	return items
+}
+
+// WhatsNew returns the full "what's new" message for an upgrade result.
 func WhatsNew(r *Result) string {
 	if r.FreshInstall {
-		return fmt.Sprintf("Welcome to trvl %s.", r.NewVersion)
+		return ""
 	}
 	if r.Downgrade {
 		return fmt.Sprintf("Warning: running older version %s (stamp is %s). Stamp not modified.", r.NewVersion, r.OldVersion)
@@ -262,7 +292,19 @@ func WhatsNew(r *Result) string {
 	if r.OldVersion == "" || r.OldVersion == r.NewVersion {
 		return ""
 	}
-	return fmt.Sprintf("Upgraded from %s to %s. %d migrations applied.", r.OldVersion, r.NewVersion, r.MigrationsApplied)
+
+	var b strings.Builder
+
+	items := whatsNewSince(r.OldVersion, r.NewVersion)
+	if len(items) > 0 {
+		fmt.Fprintf(&b, "What's new since v%s:\n", r.OldVersion)
+		for _, item := range items {
+			fmt.Fprintf(&b, "  - %s\n", item)
+		}
+	}
+
+	fmt.Fprintf(&b, "trvl upgraded v%s → v%s", r.OldVersion, r.NewVersion)
+	return b.String()
 }
 
 // --- semver comparison ---
