@@ -45,6 +45,36 @@ type ProviderConfig struct {
 	// "hostel", "resort", "bnb", "villa") to its own vocabulary. Example:
 	//   {"hotel": "204", "apartment": "201", "hostel": "203"}
 	PropertyTypeLookup map[string]string `json:"property_type_lookup,omitempty"`
+
+	// FilterComposite builds a compound URL parameter from active filter vars.
+	// Used by providers like Booking.com that combine multiple filters into a
+	// single semicolon-delimited parameter (nflt=ht_id%3D204%3Bfc%3D1%3B...).
+	//
+	// The map keys are the names of active filter ${vars} (without the ${} wrapper).
+	// The values are the URL-encoded prefix to prepend to the resolved var value.
+	// The runtime joins all active (non-empty) entries with Separator and stores
+	// the result as ${TargetVar}.
+	//
+	// Example for Booking:
+	//   "filter_composite": {
+	//     "target_var": "nflt",
+	//     "separator": "%3B",
+	//     "parts": {
+	//       "property_type": "ht_id%3D",
+	//       "free_cancellation": "fc%3D",
+	//       "stars": "class%3D",
+	//       "min_rating": "review_score%3D"
+	//     }
+	//   }
+	FilterComposite *FilterComposite `json:"filter_composite,omitempty"`
+}
+
+// FilterComposite describes how to build a compound URL parameter from
+// individual filter variables. See ProviderConfig.FilterComposite.
+type FilterComposite struct {
+	TargetVar string            `json:"target_var"`          // output variable name (e.g. "nflt")
+	Separator string            `json:"separator"`           // URL-encoded separator (e.g. "%3B")
+	Parts     map[string]string `json:"parts"`               // filter_var → url_prefix mapping
 }
 
 // AuthConfig describes how to authenticate with the provider.

@@ -311,6 +311,18 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		}
 	}
 
+	// Build composite filter parameters (e.g. Booking's nflt) from
+	// individual filter vars. Only active (non-empty) parts are joined.
+	if fc := cfg.FilterComposite; fc != nil && fc.TargetVar != "" {
+		var parts []string
+		for filterVar, prefix := range fc.Parts {
+			if val := vars["${"+filterVar+"}"]; val != "" {
+				parts = append(parts, prefix+val)
+			}
+		}
+		vars["${"+fc.TargetVar+"}"] = strings.Join(parts, fc.Separator)
+	}
+
 	// Add auth-extracted variables.
 	pc.authMu.RLock()
 	for k, v := range pc.authValues {
@@ -329,7 +341,16 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		}
 		q := u.Query()
 		for k, v := range cfg.QueryParams {
-			q.Set(k, substituteVars(v, vars))
+			resolved := substituteVars(v, vars)
+			// Skip query params whose value still contains an unresolved
+			// ${placeholder} — this happens when an optional filter (e.g.
+			// ${property_type}, ${min_price}) was not set by the caller.
+			// Sending a literal "${property_type}" as a query value would
+			// confuse the provider's API.
+			if strings.Contains(resolved, "${") {
+				continue
+			}
+			q.Set(k, resolved)
 		}
 		u.RawQuery = q.Encode()
 		endpoint = u.String()

@@ -260,7 +260,11 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		}
 		q := u.Query()
 		for k, v := range cfg.QueryParams {
-			q.Set(k, substituteVars(v, vars))
+			resolved := substituteVars(v, vars)
+			if strings.Contains(resolved, "${") {
+				continue // skip unresolved optional filter vars
+			}
+			q.Set(k, resolved)
 		}
 		u.RawQuery = q.Encode()
 		endpoint = u.String()
