@@ -69,6 +69,16 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		authValues: make(map[string]string),
 	}
 
+	// Seed browser cookies unconditionally when configured, same as
+	// searchProvider — carries JS sensor cookies for bot bypass.
+	if cfg.Cookies.Source == "browser" {
+		targetURL := cfg.Endpoint
+		if cfg.Auth != nil && cfg.Auth.PreflightURL != "" {
+			targetURL = cfg.Auth.PreflightURL
+		}
+		applyBrowserCookies(pc.client, targetURL)
+	}
+
 	// Step 1: Preflight auth.
 	if cfg.Auth != nil && cfg.Auth.Type == "preflight" {
 		result.Step = "preflight"
@@ -250,7 +260,7 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		vars["${"+k+"}"] = v
 	}
 
-	endpoint := substituteVars(cfg.Endpoint, vars)
+	endpoint := stripUnresolvedPlaceholders(substituteVars(cfg.Endpoint, vars))
 
 	if len(cfg.QueryParams) > 0 {
 		u, err := url.Parse(endpoint)
