@@ -292,6 +292,31 @@ func mapHotelResult(raw any, fields map[string]string) models.HotelResult {
 	return h
 }
 
+// extractBlocksPriceSpread scans the "blocks" array on a raw hotel result
+// (Booking.com SSR structure) and returns the maximum block price and the
+// number of distinct room types. This gives the LLM a price spread signal
+// ("cheapest room €120, most expensive €280, 4 room types") without
+// requiring a separate hotel_rooms drill-down call.
+func extractBlocksPriceSpread(raw any) (maxPrice float64, roomCount int) {
+	blocksRaw := jsonPath(raw, "blocks")
+	blocks, ok := blocksRaw.([]any)
+	if !ok || len(blocks) == 0 {
+		return 0, 0
+	}
+	seen := make(map[string]bool)
+	for _, b := range blocks {
+		price := toFloat64(jsonPath(b, "finalPrice.amount"))
+		if price > maxPrice {
+			maxPrice = price
+		}
+		// Count distinct room types by blockId.roomId.
+		if roomID := fmt.Sprintf("%v", jsonPath(b, "blockId.roomId")); roomID != "<nil>" {
+			seen[roomID] = true
+		}
+	}
+	return maxPrice, len(seen)
+}
+
 func toFloat64(v any) float64 {
 	switch n := v.(type) {
 	case float64:

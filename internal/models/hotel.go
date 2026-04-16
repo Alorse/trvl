@@ -6,7 +6,9 @@ package models
 type PriceSource struct {
 	Provider   string  `json:"provider"` // "google_hotels", "trivago", "airbnb", "booking"
 	Price      float64 `json:"price"`
+	MaxPrice   float64 `json:"max_price,omitempty"`   // highest room/block price (when available)
 	Currency   string  `json:"currency"`
+	RoomCount  int     `json:"room_count,omitempty"`   // distinct room types (when available)
 	BookingURL string  `json:"booking_url,omitempty"`
 }
 

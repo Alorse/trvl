@@ -488,11 +488,17 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 	hotels := make([]models.HotelResult, 0, len(arr))
 	for _, item := range arr {
 		h := mapHotelResult(item, cfg.ResponseMapping.Fields)
-		h.Sources = []models.PriceSource{{
+		src := models.PriceSource{
 			Provider: cfg.ID,
 			Price:    h.Price,
 			Currency: h.Currency,
-		}}
+		}
+		// Extract room-level price spread from Booking-style "blocks" array.
+		if maxP, roomCt := extractBlocksPriceSpread(item); roomCt > 0 {
+			src.MaxPrice = maxP
+			src.RoomCount = roomCt
+		}
+		h.Sources = []models.PriceSource{src}
 		hotels = append(hotels, h)
 	}
 
