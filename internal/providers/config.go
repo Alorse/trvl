@@ -195,6 +195,7 @@ type ResponseMapping struct {
 	ResultsPath        string            `json:"results_path"`                    // dot-notation path to results array, supports `prefix*` segment wildcard
 	Fields             map[string]string `json:"fields"`                          // model field -> JSON path mapping
 	BodyExtractPattern string            `json:"body_extract_pattern,omitempty"` // optional regex applied to the HTTP body; capture group 1 becomes the JSON input
+	RatingScale        float64           `json:"rating_scale,omitempty"`          // multiply raw rating by this to normalize to 0-10 (e.g. 2.0 for Booking's 0-5 scale)
 }
 
 // RateLimitConfig controls request pacing.

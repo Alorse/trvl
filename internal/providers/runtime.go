@@ -881,6 +881,11 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 	hotels := make([]models.HotelResult, 0, len(arr))
 	for _, item := range arr {
 		h := mapHotelResult(item, cfg.ResponseMapping.Fields)
+		// Normalize rating to 0-10 scale when the provider uses a different
+		// range (e.g. Booking GraphQL returns 0-5, Hostelworld 0-100).
+		if scale := cfg.ResponseMapping.RatingScale; scale > 0 && h.Rating > 0 {
+			h.Rating = h.Rating * scale
+		}
 		src := models.PriceSource{
 			Provider: cfg.ID,
 			Price:    h.Price,
