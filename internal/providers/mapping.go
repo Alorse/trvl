@@ -273,6 +273,7 @@ func resolvePropertyType(lookup map[string]string, propertyType string) string {
 // mapHotelResult maps a raw JSON object to a HotelResult using field mappings.
 func mapHotelResult(raw any, fields map[string]string) models.HotelResult {
 	var h models.HotelResult
+	var priceStr string // raw price string for currency extraction fallback
 	for modelField, jsonField := range fields {
 		val := jsonPath(raw, jsonField)
 		if val == nil {
@@ -304,6 +305,9 @@ func mapHotelResult(raw any, fields map[string]string) models.HotelResult {
 			h.Stars = toInt(val)
 		case "price":
 			h.Price = toFloat64(val)
+			if s, ok := val.(string); ok {
+				priceStr = s
+			}
 		case "currency":
 			h.Currency, _ = val.(string)
 		case "address":
@@ -318,6 +322,15 @@ func mapHotelResult(raw any, fields map[string]string) models.HotelResult {
 			h.EcoCertified, _ = val.(bool)
 		}
 	}
+
+	// When no explicit currency field was mapped (or it resolved to empty),
+	// try to extract a currency code from the raw price string. Providers
+	// like Airbnb embed the currency in the display price ("EUR 204", "€175")
+	// without exposing a separate currency field.
+	if h.Currency == "" && priceStr != "" {
+		h.Currency = extractCurrencyCode(priceStr)
+	}
+
 	return h
 }
 
@@ -443,4 +456,86 @@ func lastIntToken(s string) string {
 		last = current.String()
 	}
 	return last
+}
+
+// currencySymbols maps common single-character currency symbols to their
+// ISO 4217 codes. Multi-character symbols (kr, zł, лв) are not included;
+// those currencies use the 3-letter code path instead.
+var currencySymbols = map[rune]string{
+	'€': "EUR",
+	'$': "USD",
+	'£': "GBP",
+	'¥': "JPY",
+	'₩': "KRW",
+	'₹': "INR",
+	'₽': "RUB",
+	'₺': "TRY",
+	'₴': "UAH",
+	'₿': "BTC",
+	'฿': "THB",
+	'₫': "VND",
+	'₱': "PHP",
+	'₡': "CRC",
+	'₦': "NGN",
+	'₪': "ILS",
+	'₸': "KZT",
+	'₾': "GEL",
+	'₼': "AZN",
+	'₵': "GHS",
+	'₲': "PYG",
+	'₮': "MNT",
+	'₭': "LAK",
+	'৳': "BDT",
+}
+
+// extractCurrencyCode extracts an ISO 4217 currency code from a price string.
+// It handles two formats:
+//   - 3-letter code prefix/suffix: "EUR 204", "204 USD"
+//   - Currency symbol prefix: "€175", "£99", "$120"
+//
+// Returns the empty string when no currency can be determined.
+func extractCurrencyCode(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+
+	// Check for a 3-letter uppercase ISO code at the start or end.
+	// Leading: "EUR 204", "USD204"
+	if len(s) >= 3 {
+		prefix := s[:3]
+		if isUpperAlpha(prefix) {
+			return prefix
+		}
+	}
+	// Trailing: "204 EUR", "204EUR"
+	if len(s) >= 3 {
+		suffix := s[len(s)-3:]
+		if isUpperAlpha(suffix) {
+			return suffix
+		}
+	}
+
+	// Check for currency symbol at start of string.
+	for _, r := range s {
+		if code, ok := currencySymbols[r]; ok {
+			return code
+		}
+		// Only check the first non-space rune.
+		if r != ' ' {
+			break
+		}
+	}
+
+	return ""
+}
+
+// isUpperAlpha reports whether s consists entirely of uppercase ASCII letters.
+func isUpperAlpha(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < 'A' || s[i] > 'Z' {
+			return false
+		}
+	}
+	return len(s) > 0
 }

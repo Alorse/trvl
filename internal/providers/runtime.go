@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"bytes"
+
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/waf"
 	"golang.org/x/time/rate"
@@ -485,6 +487,61 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
+	// Detect Akamai/AWS WAF challenge pages. HTTP 202 is in the 2xx range so
+	// the generic status check below would accept it, but the body is an HTML
+	// challenge page — not the real API response. When detected, run the same
+	// Tier 3/4 escape-hatch cascade that runPreflight uses: browser cookies →
+	// WAF JS solver → browser escape hatch. If any tier succeeds, retry the
+	// main request with the fresh cookies.
+	if isAkamaiChallenge(resp.StatusCode, body) {
+		slog.Info("search response is an Akamai/WAF challenge page, attempting cookie recovery",
+			"provider", cfg.ID, "status", resp.StatusCode)
+
+		recovered := false
+
+		// Tier 3a: re-read cookies from the user's browser.
+		if applyBrowserCookies(pc.client, endpoint) {
+			resp2, body2, err2 := doSearchRequest(ctx, pc.client, req)
+			if err2 == nil && !isAkamaiChallenge(resp2.StatusCode, body2) && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+				resp, body = resp2, body2
+				recovered = true
+				slog.Info("search challenge bypassed via browser cookies", "provider", cfg.ID)
+			}
+		}
+
+		// Tier 3b: WAF JS solver.
+		if !recovered {
+			cookie, wafErr := waf.SolveAWSWAF(ctx, pc.client, endpoint, string(body), nil)
+			if wafErr == nil && cookie != nil {
+				if u, parseErr := url.Parse(endpoint); parseErr == nil {
+					pc.client.Jar.SetCookies(u, []*http.Cookie{cookie})
+				}
+				resp2, body2, err2 := doSearchRequest(ctx, pc.client, req)
+				if err2 == nil && !isAkamaiChallenge(resp2.StatusCode, body2) && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+					resp, body = resp2, body2
+					recovered = true
+					slog.Info("search challenge bypassed via WAF JS solver", "provider", cfg.ID)
+				}
+			}
+		}
+
+		// Tier 4: browser escape hatch.
+		if !recovered && cfg.Auth != nil && cfg.Auth.BrowserEscapeHatch && isInteractive(ctx) {
+			if tryBrowserEscapeHatch(ctx, pc, cfg.Auth) {
+				resp2, body2, err2 := doSearchRequest(ctx, pc.client, req)
+				if err2 == nil && !isAkamaiChallenge(resp2.StatusCode, body2) && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+					resp, body = resp2, body2
+					recovered = true
+					slog.Info("search challenge bypassed via browser escape hatch", "provider", cfg.ID)
+				}
+			}
+		}
+
+		if !recovered {
+			return nil, fmt.Errorf("http %d: WAF/JS challenge page — all cookie recovery tiers failed (provider %s)", resp.StatusCode, cfg.ID)
+		}
+	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("http %d: %s", resp.StatusCode, string(body[:min(len(body), 200)]))
 	}
@@ -714,6 +771,11 @@ func tryBrowserCookieRetry(ctx context.Context, pc *providerClient, auth *AuthCo
 	if err2 != nil || resp2.StatusCode < 200 || resp2.StatusCode >= 300 {
 		return false
 	}
+	// Reject 202 challenge pages — they are in the 2xx range but are WAF
+	// interstitials, not real responses.
+	if isAkamaiChallenge(resp2.StatusCode, body2) {
+		return false
+	}
 	for k := range pc.authValues {
 		delete(pc.authValues, k)
 	}
@@ -751,6 +813,10 @@ func tryWAFSolve(ctx context.Context, pc *providerClient, auth *AuthConfig, stat
 	// Retry preflight with the fresh token.
 	resp2, body2, err2 := doPreflightRequest(ctx, pc.client, auth)
 	if err2 != nil || resp2.StatusCode < 200 || resp2.StatusCode >= 300 {
+		return false
+	}
+	// Reject 202 challenge pages — still a WAF interstitial despite being 2xx.
+	if isAkamaiChallenge(resp2.StatusCode, body2) {
 		return false
 	}
 	for k := range pc.authValues {
@@ -836,6 +902,12 @@ func tryBrowserEscapeHatch(ctx context.Context, pc *providerClient, auth *AuthCo
 			"provider", pc.config.ID)
 		return false
 	}
+	// Reject 202 challenge pages — still a WAF interstitial despite being 2xx.
+	if isAkamaiChallenge(resp2.StatusCode, body2) {
+		slog.Warn("browser escape hatch: preflight retry returned another challenge page",
+			"provider", pc.config.ID)
+		return false
+	}
 	for k := range pc.authValues {
 		delete(pc.authValues, k)
 	}
@@ -843,6 +915,40 @@ func tryBrowserEscapeHatch(ctx context.Context, pc *providerClient, auth *AuthCo
 	applyURLExtractions(ctx, pc.client, auth.Extractions, pc.authValues)
 	slog.Info("browser escape hatch: preflight recovered", "provider", pc.config.ID)
 	return true
+}
+
+// doSearchRequest clones the given request, executes it via client, reads the
+// response body, and returns (resp, body, err). Used to retry the main search
+// request after recovering cookies from the escape hatch. The original request
+// body (if any) is not consumed by this helper — req.GetBody is used to obtain
+// a fresh reader. The returned *http.Response must NOT be used for streaming;
+// the body is already consumed and closed.
+func doSearchRequest(ctx context.Context, client *http.Client, orig *http.Request) (*http.Response, []byte, error) {
+	var bodyReader io.Reader
+	if orig.GetBody != nil {
+		b, err := orig.GetBody()
+		if err != nil {
+			return nil, nil, fmt.Errorf("search retry: get body: %w", err)
+		}
+		bodyReader = b
+	}
+	req, err := http.NewRequestWithContext(ctx, orig.Method, orig.URL.String(), bodyReader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("search retry: create request: %w", err)
+	}
+	req.Header = orig.Header.Clone()
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("search retry: http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	if err != nil {
+		return resp, nil, fmt.Errorf("search retry: read body: %w", err)
+	}
+	return resp, body, nil
 }
 
 // doPreflightRequest issues the preflight request described by auth using
@@ -1014,6 +1120,29 @@ func needsBrowserCookieFallback(status, extracted int, extractions map[string]Ex
 		return true
 	}
 	return false
+}
+
+// isAkamaiChallenge reports whether an HTTP response looks like an Akamai (or
+// AWS WAF) JavaScript challenge page. These are characterised by HTTP 202
+// status paired with body markers such as "window.aws", "reportChallengeError",
+// or "challenge.js" script references. An HTTP 202 WITHOUT these markers is
+// treated as a legitimate response (some APIs use 202 Accepted).
+func isAkamaiChallenge(statusCode int, body []byte) bool {
+	if statusCode != http.StatusAccepted {
+		return false
+	}
+	// Short-circuit: if the body parses as valid JSON with no challenge markers,
+	// it is a real 202 Accepted response (e.g. async job acknowledgement).
+	// Challenge pages are always HTML, never JSON.
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+		return false
+	}
+	// Look for challenge page signatures in HTML.
+	return bytes.Contains(body, []byte("challenge.js")) ||
+		bytes.Contains(body, []byte("window.aws")) ||
+		bytes.Contains(body, []byte("reportChallengeError")) ||
+		bytes.Contains(body, []byte("awswaf"))
 }
 
 // applyBrowserCookies reads cookies from the user's browsers for the given

@@ -216,6 +216,159 @@ func TestSubstituteEnvVars(t *testing.T) {
 	})
 }
 
+// TestSearchHotels_AkamaiChallenge202 verifies that an HTTP 202 Akamai
+// challenge page on the main search endpoint is detected and retried after
+// browser cookie recovery. The mock server returns a challenge on the first
+// request and real results on the second (simulating cookies being applied).
+func TestSearchHotels_AkamaiChallenge202(t *testing.T) {
+	var reqCount int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCount++
+		if reqCount == 1 {
+			// First request: return an Akamai challenge page.
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprint(w, `<html><script src="https://1234.awswaf.com/challenge.js"></script></html>`)
+			return
+		}
+		// Subsequent requests: return real results (browser cookies worked).
+		resp := map[string]any{
+			"results": []any{
+				map[string]any{"name": "Recovered Hotel", "id": "rh1"},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	reg, err := NewRegistryAt(dir)
+	if err != nil {
+		t.Fatalf("NewRegistryAt: %v", err)
+	}
+
+	cfg := &ProviderConfig{
+		ID:       "akamai-test",
+		Name:     "Akamai Test",
+		Category: "hotels",
+		Endpoint: srv.URL + "/search",
+		Method:   "GET",
+		Cookies: CookieConfig{
+			Source: "browser",
+		},
+		ResponseMapping: ResponseMapping{
+			ResultsPath: "results",
+			Fields: map[string]string{
+				"name":     "name",
+				"hotel_id": "id",
+			},
+		},
+		RateLimit: RateLimitConfig{
+			RequestsPerSecond: 100,
+			Burst:             10,
+		},
+	}
+	if err := reg.Save(cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	rt := NewRuntime(reg)
+	// The test cannot install real browser cookies, but the mock server
+	// returns real results on the second request regardless. The key assertion
+	// is that searchProvider detects the 202 challenge and retries rather than
+	// trying to parse the HTML as JSON and failing with a confusing error.
+	hotels, statuses, err := rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2, nil)
+
+	// The outcome depends on whether browserCookiesForURL returns anything
+	// in the test environment (it won't for the mock server's localhost).
+	// What matters: the error message, if any, should mention "WAF/JS challenge"
+	// NOT "parse json" or "body_extract_pattern".
+	if err != nil {
+		if containsSubstring(err.Error(), "parse json") || containsSubstring(err.Error(), "body_extract_pattern") {
+			t.Fatalf("challenge page was not detected — error leaked through as JSON parse: %v", err)
+		}
+		// The error should reference WAF/challenge, which is correct behaviour
+		// when no browser cookies are available to recover.
+		if !containsSubstring(err.Error(), "WAF") && !containsSubstring(err.Error(), "challenge") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Verify statuses contain a meaningful fix hint.
+		for _, s := range statuses {
+			if s.ID == "akamai-test" && s.Status == "error" {
+				if !containsSubstring(s.FixHint, "WAF") && !containsSubstring(s.FixHint, "test_provider") {
+					t.Errorf("fix hint should mention WAF or test_provider, got %q", s.FixHint)
+				}
+			}
+		}
+		return // acceptable: challenge detected, no browser cookies to recover
+	}
+
+	// If we got here, the retry succeeded (mock returned results on second call).
+	if len(hotels) != 1 {
+		t.Fatalf("got %d hotels, want 1", len(hotels))
+	}
+	if hotels[0].Name != "Recovered Hotel" {
+		t.Errorf("name = %q, want 'Recovered Hotel'", hotels[0].Name)
+	}
+}
+
+// TestSearchHotels_202NonChallenge verifies that a legitimate HTTP 202
+// Accepted response (JSON body, not an Akamai challenge) is treated normally
+// and not rejected as a WAF challenge.
+func TestSearchHotels_202NonChallenge(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+		resp := map[string]any{
+			"results": []any{
+				map[string]any{"name": "Async Hotel", "id": "ah1"},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	reg, err := NewRegistryAt(dir)
+	if err != nil {
+		t.Fatalf("NewRegistryAt: %v", err)
+	}
+
+	cfg := &ProviderConfig{
+		ID:       "async-test",
+		Name:     "Async Test",
+		Category: "hotels",
+		Endpoint: srv.URL + "/search",
+		Method:   "GET",
+		ResponseMapping: ResponseMapping{
+			ResultsPath: "results",
+			Fields: map[string]string{
+				"name":     "name",
+				"hotel_id": "id",
+			},
+		},
+		RateLimit: RateLimitConfig{
+			RequestsPerSecond: 100,
+			Burst:             10,
+		},
+	}
+	if err := reg.Save(cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	rt := NewRuntime(reg)
+	hotels, _, err := rt.SearchHotels(context.Background(), "Test", 0, 0, "2025-06-01", "2025-06-05", "USD", 2, nil)
+	if err != nil {
+		t.Fatalf("SearchHotels: %v (legitimate 202 JSON should not be rejected)", err)
+	}
+	if len(hotels) != 1 {
+		t.Fatalf("got %d hotels, want 1", len(hotels))
+	}
+	if hotels[0].Name != "Async Hotel" {
+		t.Errorf("name = %q, want 'Async Hotel'", hotels[0].Name)
+	}
+}
+
 func TestRunPreflight_POST(t *testing.T) {
 	// Mock OAuth2-style token endpoint.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

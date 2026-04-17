@@ -113,7 +113,7 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 			tier = ""
 			if applied := applyBrowserCookies(pc.client, cfg.Auth.PreflightURL); applied {
 				resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
-				if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+				if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
 					resp, body = resp2, body2
 					result.HTTPStatus = resp.StatusCode
 					snippet = string(body)
@@ -137,7 +137,7 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 					u, _ := url.Parse(cfg.Auth.PreflightURL)
 					pc.client.Jar.SetCookies(u, []*http.Cookie{cookie})
 					resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
-					if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+					if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
 						resp, body = resp2, body2
 						result.HTTPStatus = resp.StatusCode
 						snippet = string(body)
@@ -166,7 +166,7 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 					// pc.authValues; re-issue preflight once more here only
 					// to capture the body for diagnostics.
 					resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
-					if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
+					if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
 						resp, body = resp2, body2
 						result.HTTPStatus = resp.StatusCode
 						snippet = string(body)
@@ -312,6 +312,18 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
 		result.Error = fmt.Sprintf("request: read body: %v", err)
+		return result
+	}
+
+	// Detect Akamai/WAF challenge pages that use HTTP 202 (which is in the
+	// 2xx success range but is actually an interstitial challenge page).
+	if isAkamaiChallenge(resp.StatusCode, body) {
+		snippet := string(body)
+		if len(snippet) > 500 {
+			snippet = snippet[:500]
+		}
+		result.BodySnippet = snippet
+		result.Error = fmt.Sprintf("request: http %d WAF/JS challenge page detected — provider needs browser cookie refresh", resp.StatusCode)
 		return result
 	}
 

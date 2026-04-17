@@ -336,3 +336,32 @@ func TestWithInteractive(t *testing.T) {
 		t.Error("nil ctx must not be interactive")
 	}
 }
+
+// TestIsAkamaiChallenge verifies detection of Akamai/AWS WAF challenge pages.
+func TestIsAkamaiChallenge(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		want   bool
+	}{
+		{"200 normal", 200, `{"results":[]}`, false},
+		{"202 JSON accepted", 202, `{"job_id":"abc123"}`, false},
+		{"202 challenge.js", 202, `<html><script src="https://example.com/challenge.js"></script></html>`, true},
+		{"202 window.aws", 202, `<html><script>window.aws = {token:"x"}</script></html>`, true},
+		{"202 reportChallengeError", 202, `<html><script>reportChallengeError("fail")</script></html>`, true},
+		{"202 awswaf", 202, `<html><script src="https://1234.awswaf.com/challenge.js"></script></html>`, true},
+		{"202 plain HTML no markers", 202, `<html><body>Please wait...</body></html>`, false},
+		{"403 with challenge markers", 403, `<html><script src="challenge.js"></script></html>`, false},
+		{"202 empty body", 202, "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isAkamaiChallenge(tc.status, []byte(tc.body))
+			if got != tc.want {
+				t.Errorf("isAkamaiChallenge(%d, %q) = %v, want %v",
+					tc.status, tc.body[:min(len(tc.body), 40)], got, tc.want)
+			}
+		})
+	}
+}

@@ -1128,3 +1128,96 @@ func TestNormalizePrice(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractCurrencyCode(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		// 3-letter ISO code prefix
+		{"EUR 204", "EUR"},
+		{"USD204", "USD"},
+		{"GBP 99.50", "GBP"},
+
+		// 3-letter ISO code suffix
+		{"204 EUR", "EUR"},
+		{"204USD", "USD"},
+
+		// Currency symbol prefix
+		{"€175", "EUR"},
+		{"€ 175", "EUR"},
+		{"$120", "USD"},
+		{"£99", "GBP"},
+		{"¥1500", "JPY"},
+		{"₹2500", "INR"},
+
+		// Numeric-only — no currency
+		{"175", ""},
+		{"99.50", ""},
+
+		// Empty / whitespace
+		{"", ""},
+		{"   ", ""},
+
+		// Mixed case — not a valid ISO code
+		{"Eur 204", ""},
+		{"eur 204", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := extractCurrencyCode(tt.input)
+			if got != tt.want {
+				t.Errorf("extractCurrencyCode(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMapHotelResultCurrencyFromPriceString(t *testing.T) {
+	// Simulate Airbnb-like response: price is a string with embedded currency,
+	// no separate currency field in the mapping.
+	raw := map[string]any{
+		"listing": map[string]any{
+			"name": "Cozy Apartment",
+		},
+		"display_price": "EUR 204",
+	}
+	fields := map[string]string{
+		"name":  "listing.name",
+		"price": "display_price",
+	}
+
+	h := mapHotelResult(raw, fields)
+	if h.Currency != "EUR" {
+		t.Errorf("expected currency EUR from price string, got %q", h.Currency)
+	}
+	if h.Price != 204 {
+		t.Errorf("expected price 204, got %v", h.Price)
+	}
+
+	// When an explicit currency field IS mapped, it takes precedence.
+	raw["currency_code"] = "GBP"
+	fields["currency"] = "currency_code"
+
+	h = mapHotelResult(raw, fields)
+	if h.Currency != "GBP" {
+		t.Errorf("expected explicit currency GBP to take precedence, got %q", h.Currency)
+	}
+}
+
+func TestMapHotelResultCurrencySymbol(t *testing.T) {
+	raw := map[string]any{
+		"price_display": "€175",
+	}
+	fields := map[string]string{
+		"price": "price_display",
+	}
+
+	h := mapHotelResult(raw, fields)
+	if h.Currency != "EUR" {
+		t.Errorf("expected currency EUR from € symbol, got %q", h.Currency)
+	}
+	if h.Price != 175 {
+		t.Errorf("expected price 175, got %v", h.Price)
+	}
+}
