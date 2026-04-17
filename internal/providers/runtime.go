@@ -661,6 +661,11 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		h.Price = normalizePrice(h.Price, srcCurrency, currency)
 		h.Currency = currency
 
+		// Update source currency too — it was captured before the fallback.
+		if len(h.Sources) > 0 && h.Sources[0].Currency == "" {
+			h.Sources[0].Currency = currency
+		}
+
 		hotels = append(hotels, h)
 	}
 
