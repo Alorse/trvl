@@ -579,7 +579,7 @@ func TestSearchDates_ReversedDates(t *testing.T) {
 // --- buildFlightBookingURL ---
 
 func TestBuildFlightBookingURL_Basic(t *testing.T) {
-	url := buildFlightBookingURL("HEL", "NRT", "2026-06-15", "")
+	url := buildFlightBookingURL("HEL", "NRT", "2026-06-15", "", "")
 	if url == "" {
 		t.Fatal("expected non-empty URL")
 	}
@@ -598,7 +598,7 @@ func TestBuildFlightBookingURL_Basic(t *testing.T) {
 }
 
 func TestBuildFlightBookingURL_Format(t *testing.T) {
-	url := buildFlightBookingURL("JFK", "LAX", "2027-01-01", "")
+	url := buildFlightBookingURL("JFK", "LAX", "2027-01-01", "", "")
 	expected := "https://www.google.com/travel/flights?q=Flights+to+LAX+from+JFK+on+2027-01-01"
 	if url != expected {
 		t.Errorf("URL = %q, want %q", url, expected)
@@ -614,7 +614,7 @@ func TestBuildFlightBookingURL_DifferentRoutes(t *testing.T) {
 		{"SFO", "BCN", "2027-07-15"},
 	}
 	for _, tt := range tests {
-		url := buildFlightBookingURL(tt.origin, tt.dest, tt.date, "")
+		url := buildFlightBookingURL(tt.origin, tt.dest, tt.date, "", "")
 		if !strings.Contains(url, tt.dest) {
 			t.Errorf("URL for %s->%s missing destination: %s", tt.origin, tt.dest, url)
 		}
@@ -630,7 +630,7 @@ func TestBuildFlightBookingURL_DifferentRoutes(t *testing.T) {
 // --- buildFilters passengers ---
 
 func TestBuildFlightBookingURL_RoundTrip(t *testing.T) {
-	url := buildFlightBookingURL("HEL", "NRT", "2026-06-15", "2026-06-30")
+	url := buildFlightBookingURL("HEL", "NRT", "2026-06-15", "2026-06-30", "")
 	if !strings.Contains(url, "through+2026-06-30") {
 		t.Errorf("round-trip URL missing return date: %s", url)
 	}
@@ -639,9 +639,25 @@ func TestBuildFlightBookingURL_RoundTrip(t *testing.T) {
 	}
 
 	// One-way should not contain "through"
-	oneWay := buildFlightBookingURL("HEL", "NRT", "2026-06-15", "")
+	oneWay := buildFlightBookingURL("HEL", "NRT", "2026-06-15", "", "")
 	if strings.Contains(oneWay, "through") {
 		t.Errorf("one-way URL should not contain return date: %s", oneWay)
+	}
+}
+
+func TestBuildFlightBookingURL_Currency(t *testing.T) {
+	url := buildFlightBookingURL("MDE", "MAD", "2026-05-01", "2026-05-20", "USD")
+	if !strings.Contains(url, "&curr=USD") {
+		t.Errorf("URL missing currency param: %s", url)
+	}
+	if !strings.Contains(url, "through+2026-05-20") {
+		t.Errorf("URL missing return date: %s", url)
+	}
+
+	// Without currency, no &curr= in URL
+	noCurrency := buildFlightBookingURL("HEL", "NRT", "2026-06-15", "", "")
+	if strings.Contains(noCurrency, "curr=") {
+		t.Errorf("URL should not contain currency: %s", noCurrency)
 	}
 }
 

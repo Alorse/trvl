@@ -193,7 +193,7 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 	// Currency conversion, if needed, happens in the CLI display layer.
 	for i := range flights {
 		flights[i].Provider = "google_flights"
-		flights[i].BookingURL = buildFlightBookingURL(origin, destination, date, opts.ReturnDate)
+		flights[i].BookingURL = buildFlightBookingURL(origin, destination, date, opts.ReturnDate, opts.Currency)
 	}
 
 	return &models.FlightSearchResult{
@@ -206,10 +206,13 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 
 // buildFlightBookingURL constructs a Google Flights deep link for a route and date.
 // For round-trip, the return date is appended so Google shows both legs.
-func buildFlightBookingURL(origin, destination, date, returnDate string) string {
+func buildFlightBookingURL(origin, destination, date, returnDate, currency string) string {
 	url := fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", destination, origin, date)
 	if returnDate != "" {
 		url += fmt.Sprintf("+through+%s", returnDate)
+	}
+	if currency != "" {
+		url += "&curr=" + currency
 	}
 	return url
 }
