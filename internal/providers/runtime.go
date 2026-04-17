@@ -749,6 +749,23 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 			src.MaxPrice = maxP
 			src.RoomCount = roomCt
 		}
+
+		// Construct booking URL from pageName + countryCode when available.
+		// Booking.com SSR results contain basicPropertyData.pageName (e.g.
+		// "aix-europe") and basicPropertyData.location.countryCode (e.g. "fr")
+		// which combine into the canonical hotel URL:
+		// https://www.booking.com/hotel/{cc}/{pageName}.html
+		if h.BookingURL == "" {
+			if pageName, _ := jsonPath(item, "basicPropertyData.pageName").(string); pageName != "" {
+				cc, _ := jsonPath(item, "basicPropertyData.location.countryCode").(string)
+				if cc == "" {
+					cc = "xx" // fallback — Booking will redirect
+				}
+				h.BookingURL = "https://www.booking.com/hotel/" + cc + "/" + pageName + ".html"
+				src.BookingURL = h.BookingURL
+			}
+		}
+
 		h.Sources = []models.PriceSource{src}
 
 		// Normalize top-level price to the requested currency so
@@ -770,7 +787,121 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		hotels = append(hotels, h)
 	}
 
+	// Rating enrichment: when hotels have a BookingURL but rating=0, fetch
+	// the detail page to extract the JSON-LD aggregateRating. This only
+	// fires for providers that produce booking URLs (currently Booking.com).
+	// Capped at 5 enrichments per search to limit latency.
+	enrichRatings(ctx, pc.client, hotels, cfg)
+
 	return hotels, nil
+}
+
+// enrichRatings fetches hotel detail pages for results with rating=0 and a
+// booking URL, extracting the aggregateRating from JSON-LD. This compensates
+// for Booking.com's SSR response sometimes omitting review scores from the
+// search results Apollo cache. Maximum 5 enrichments per call.
+func enrichRatings(ctx context.Context, client *http.Client, hotels []models.HotelResult, cfg *ProviderConfig) {
+	const maxEnrichments = 5
+	enriched := 0
+
+	for i := range hotels {
+		if enriched >= maxEnrichments {
+			break
+		}
+		if hotels[i].Rating > 0 || hotels[i].BookingURL == "" {
+			continue
+		}
+
+		rating, reviewCount, err := fetchJSONLDRating(ctx, client, hotels[i].BookingURL)
+		if err != nil {
+			slog.Debug("rating enrichment failed", "url", hotels[i].BookingURL, "error", err.Error())
+			continue
+		}
+		if rating > 0 {
+			hotels[i].Rating = rating
+			if reviewCount > 0 && hotels[i].ReviewCount == 0 {
+				hotels[i].ReviewCount = reviewCount
+			}
+			slog.Debug("rating enriched from detail page",
+				"hotel", hotels[i].Name, "rating", rating, "reviews", reviewCount)
+		}
+		enriched++
+	}
+	if enriched > 0 {
+		slog.Info("enriched hotel ratings from detail pages",
+			"provider", cfg.ID, "count", enriched)
+	}
+}
+
+// fetchJSONLDRating fetches a hotel detail page and extracts the
+// aggregateRating from the JSON-LD structured data. Booking.com embeds
+// a <script type="application/ld+json"> block with the hotel's
+// aggregateRating.ratingValue and aggregateRating.reviewCount.
+func fetchJSONLDRating(ctx context.Context, client *http.Client, hotelURL string) (rating float64, reviewCount int, err error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", hotelURL, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return 0, 0, fmt.Errorf("http %d", resp.StatusCode)
+	}
+
+	body, err := decompressBody(resp, maxResponseBytes)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// Extract JSON-LD blocks from the HTML.
+	re := regexp.MustCompile(`<script[^>]*type="application/ld\+json"[^>]*>([\s\S]*?)</script>`)
+	matches := re.FindAllSubmatch(body, -1)
+
+	for _, m := range matches {
+		if len(m) < 2 {
+			continue
+		}
+		var ld map[string]any
+		if err := json.Unmarshal(m[1], &ld); err != nil {
+			continue
+		}
+		// Look for aggregateRating in the top level or within @graph.
+		if r, rc := extractAggregateRating(ld); r > 0 {
+			return r, rc, nil
+		}
+		// Check @graph array.
+		if graph, ok := ld["@graph"].([]any); ok {
+			for _, item := range graph {
+				if obj, ok := item.(map[string]any); ok {
+					if r, rc := extractAggregateRating(obj); r > 0 {
+						return r, rc, nil
+					}
+				}
+			}
+		}
+	}
+
+	return 0, 0, fmt.Errorf("no aggregateRating in JSON-LD")
+}
+
+// extractAggregateRating extracts ratingValue and reviewCount from a JSON-LD
+// object that has an "aggregateRating" property.
+func extractAggregateRating(obj map[string]any) (float64, int) {
+	ar, ok := obj["aggregateRating"].(map[string]any)
+	if !ok {
+		return 0, 0
+	}
+	rating := toFloat64(ar["ratingValue"])
+	count := toInt(ar["reviewCount"])
+	return rating, count
 }
 
 // runPreflight performs a GET to the preflight URL and extracts auth values.

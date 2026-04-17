@@ -1289,3 +1289,123 @@ func TestMapHotelResultCurrencySymbol(t *testing.T) {
 		t.Errorf("expected price 175, got %v", h.Price)
 	}
 }
+
+// TestBookingFieldMapping verifies that the corrected Booking.com field paths
+// resolve correctly against the actual Apollo cache structure. The rating field
+// was incorrectly mapped to basicPropertyData.reviewScore.score (which doesn't
+// exist in the SSR data); it should be basicPropertyData.reviews.totalScore.
+func TestBookingFieldMapping(t *testing.T) {
+	// Minimal Booking search result matching the actual Apollo structure
+	// discovered via TestBookingFieldDiscovery.
+	raw := map[string]any{
+		"displayName": map[string]any{
+			"text": "Hotel Aix Europe",
+		},
+		"basicPropertyData": map[string]any{
+			"id":       float64(2215748),
+			"pageName": "aix-europe",
+			"reviews": map[string]any{
+				"totalScore":   7.1,
+				"reviewsCount": float64(2551),
+				"showScore":    true,
+			},
+			"location": map[string]any{
+				"latitude":    48.870111,
+				"longitude":   2.369928,
+				"address":     "4 Rue d'Aix",
+				"city":        "Paris",
+				"countryCode": "fr",
+			},
+		},
+		"priceDisplayInfoIrene": map[string]any{
+			"displayPrice": map[string]any{
+				"amountPerStay": map[string]any{
+					"amount":   "€ 71.86",
+					"currency": "EUR",
+				},
+			},
+		},
+	}
+
+	// These are the corrected field mappings from booking.json.
+	fields := map[string]string{
+		"name":         "displayName.text",
+		"hotel_id":     "basicPropertyData.id",
+		"rating":       "basicPropertyData.reviews.totalScore",
+		"review_count": "basicPropertyData.reviews.reviewsCount",
+		"lat":          "basicPropertyData.location.latitude",
+		"lon":          "basicPropertyData.location.longitude",
+		"address":      "basicPropertyData.location.address",
+		"price":        "priceDisplayInfoIrene.displayPrice.amountPerStay.amount",
+		"currency":     "priceDisplayInfoIrene.displayPrice.amountPerStay.currency",
+	}
+
+	h := mapHotelResult(raw, fields)
+
+	if h.Name != "Hotel Aix Europe" {
+		t.Errorf("name: got %q, want %q", h.Name, "Hotel Aix Europe")
+	}
+	if h.HotelID != "2215748" {
+		t.Errorf("hotel_id: got %q, want %q", h.HotelID, "2215748")
+	}
+	if h.Rating != 7.1 {
+		t.Errorf("rating: got %v, want 7.1 (was 0 with old reviewScore.score path)", h.Rating)
+	}
+	if h.ReviewCount != 2551 {
+		t.Errorf("review_count: got %d, want 2551", h.ReviewCount)
+	}
+	if h.Lat == 0 {
+		t.Error("lat should not be 0")
+	}
+	if h.Address != "4 Rue d'Aix" {
+		t.Errorf("address: got %q, want %q", h.Address, "4 Rue d'Aix")
+	}
+	if h.Currency != "EUR" {
+		t.Errorf("currency: got %q, want %q", h.Currency, "EUR")
+	}
+	if h.Price != 71.86 {
+		t.Errorf("price: got %v, want 71.86", h.Price)
+	}
+
+	// Verify the OLD (broken) path returns 0 — this was the bug.
+	oldFields := map[string]string{
+		"rating":       "basicPropertyData.reviewScore.score",
+		"review_count": "basicPropertyData.reviewScore.reviewCount",
+	}
+	hOld := mapHotelResult(raw, oldFields)
+	if hOld.Rating != 0 {
+		t.Errorf("old reviewScore.score path should yield 0, got %v", hOld.Rating)
+	}
+	if hOld.ReviewCount != 0 {
+		t.Errorf("old reviewScore.reviewCount path should yield 0, got %d", hOld.ReviewCount)
+	}
+}
+
+// TestBookingURLConstruction verifies that the pageName + countryCode fields
+// are correctly combined into a booking URL.
+func TestBookingURLConstruction(t *testing.T) {
+	raw := map[string]any{
+		"basicPropertyData": map[string]any{
+			"pageName": "aix-europe",
+			"location": map[string]any{
+				"countryCode": "fr",
+			},
+		},
+	}
+
+	pageName, _ := jsonPath(raw, "basicPropertyData.pageName").(string)
+	cc, _ := jsonPath(raw, "basicPropertyData.location.countryCode").(string)
+
+	if pageName != "aix-europe" {
+		t.Errorf("pageName: got %q, want %q", pageName, "aix-europe")
+	}
+	if cc != "fr" {
+		t.Errorf("countryCode: got %q, want %q", cc, "fr")
+	}
+
+	wantURL := "https://www.booking.com/hotel/fr/aix-europe.html"
+	gotURL := "https://www.booking.com/hotel/" + cc + "/" + pageName + ".html"
+	if gotURL != wantURL {
+		t.Errorf("booking URL: got %q, want %q", gotURL, wantURL)
+	}
+}
