@@ -90,6 +90,18 @@ type HotelSearchOptions struct {
 	// (Google's "Eco-certified" badge). Applied server-side via the &ecof=1
 	// URL parameter. When true, all returned hotels are marked EcoCertified.
 	EcoCertified bool
+
+	// Extended provider-specific filters passed through to external providers.
+	MinBedrooms    int    // minimum bedrooms (Airbnb)
+	MinBathrooms   int    // minimum bathrooms (Airbnb)
+	MinBeds        int    // minimum beds (Airbnb)
+	RoomType       string // "entire_home", "private_room", "shared_room", "hotel_room" (Airbnb)
+	Superhost      bool   // Superhost-only (Airbnb)
+	InstantBook    bool   // instant-bookable only (Airbnb)
+	MaxDistanceM   int    // max distance from center in meters (Booking nflt=distance)
+	Sustainable    bool   // eco/sustainable properties (Booking nflt=sustainable)
+	MealPlan       bool   // breakfast/meal included (Booking nflt=mealplan)
+	IncludeSoldOut bool   // include sold-out properties (Booking nflt=oos)
 }
 
 // SearchHotels searches for hotels in the given location.
@@ -272,6 +284,16 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 				MinRating:        opts.MinRating,
 				Amenities:        opts.Amenities,
 				FreeCancellation: opts.FreeCancellation,
+				MinBedrooms:      opts.MinBedrooms,
+				MinBathrooms:     opts.MinBathrooms,
+				MinBeds:          opts.MinBeds,
+				RoomType:         opts.RoomType,
+				Superhost:        opts.Superhost,
+				InstantBook:      opts.InstantBook,
+				MaxDistanceM:     opts.MaxDistanceM,
+				Sustainable:      opts.Sustainable,
+				MealPlan:         opts.MealPlan,
+				IncludeSoldOut:   opts.IncludeSoldOut,
 			}
 			res, statuses, err := externalProviderRuntime.SearchHotels(ctx, location, lat, lon,
 				auxOpts.CheckIn, auxOpts.CheckOut, auxOpts.Currency, auxOpts.Guests, filters)

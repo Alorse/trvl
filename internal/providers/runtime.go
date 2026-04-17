@@ -54,6 +54,18 @@ type HotelFilterParams struct {
 	MinRating        float64  // minimum guest rating, 0 = no filter
 	Amenities        []string // required amenities
 	FreeCancellation bool
+
+	// Extended filters — wired to providers that support them.
+	MinBedrooms      int    // minimum bedrooms (Airbnb)
+	MinBathrooms     int    // minimum bathrooms (Airbnb)
+	MinBeds          int    // minimum beds (Airbnb)
+	RoomType         string // "entire_home", "private_room", "shared_room" (Airbnb)
+	Superhost        bool   // Superhost-only filter (Airbnb)
+	InstantBook      bool   // instant-bookable only (Airbnb)
+	MaxDistanceM     int    // max distance from center in meters (Booking)
+	Sustainable      bool   // eco/sustainable properties (Booking)
+	MealPlan         bool   // breakfast/meal included (Booking)
+	IncludeSoldOut   bool   // include sold-out properties in results (Booking)
 }
 
 // Runtime is the generic HTTP execution engine for configured providers.
@@ -385,6 +397,7 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		}
 		if filters.FreeCancellation {
 			vars["${free_cancellation}"] = "1"
+			vars["${flexible_cancellation}"] = "true"
 		}
 		// Build composite price_range var for providers like Booking that
 		// encode price filters as "currency-min-max-1" (e.g. "EUR-50-200-1").
@@ -398,6 +411,50 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 				maxS = strconv.FormatFloat(filters.MaxPrice, 'f', 0, 64)
 			}
 			vars["${price_range}"] = currency + "-" + minS + "-" + maxS + "-1"
+		}
+
+		// Extended filter vars.
+		if filters.MinBedrooms > 0 {
+			vars["${min_bedrooms}"] = strconv.Itoa(filters.MinBedrooms)
+		}
+		if filters.MinBathrooms > 0 {
+			vars["${min_bathrooms}"] = strconv.Itoa(filters.MinBathrooms)
+		}
+		if filters.MinBeds > 0 {
+			vars["${min_beds}"] = strconv.Itoa(filters.MinBeds)
+		}
+		if filters.RoomType != "" {
+			// Map canonical names to Airbnb room_types[] values.
+			switch strings.ToLower(filters.RoomType) {
+			case "entire_home", "entire home", "entire":
+				vars["${room_type}"] = "Entire home/apt"
+			case "private_room", "private room", "private":
+				vars["${room_type}"] = "Private room"
+			case "shared_room", "shared room", "shared":
+				vars["${room_type}"] = "Shared room"
+			case "hotel_room", "hotel room", "hotel":
+				vars["${room_type}"] = "Hotel room"
+			default:
+				vars["${room_type}"] = filters.RoomType
+			}
+		}
+		if filters.Superhost {
+			vars["${superhost}"] = "true"
+		}
+		if filters.InstantBook {
+			vars["${instant_book}"] = "true"
+		}
+		if filters.MaxDistanceM > 0 {
+			vars["${max_distance_m}"] = strconv.Itoa(filters.MaxDistanceM)
+		}
+		if filters.Sustainable {
+			vars["${sustainable}"] = "1"
+		}
+		if filters.MealPlan {
+			vars["${meal_plan}"] = "1"
+		}
+		if filters.IncludeSoldOut {
+			vars["${include_sold_out}"] = "1"
 		}
 	}
 

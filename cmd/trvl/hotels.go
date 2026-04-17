@@ -42,6 +42,21 @@ Examples:
 	cmd.Flags().Float64("max-price", 0, "Maximum price per night")
 	cmd.Flags().Float64("min-rating", 0, "Minimum guest rating (e.g. 4.0)")
 	cmd.Flags().Float64("max-distance", 0, "Maximum distance from city center in km")
+	cmd.Flags().String("amenities", "", "Filter by amenities (comma-separated, e.g. pool,wifi,breakfast)")
+	cmd.Flags().Bool("free-cancellation", false, "Only show hotels with free cancellation")
+	cmd.Flags().String("property-type", "", "Property type: hotel, apartment, hostel, resort, bnb, villa")
+	cmd.Flags().String("brand", "", "Filter by hotel brand/chain name (e.g. hilton, marriott)")
+	cmd.Flags().Bool("eco-certified", false, "Only show eco-certified/sustainable hotels")
+	cmd.Flags().Int("min-bedrooms", 0, "Minimum bedrooms (Airbnb)")
+	cmd.Flags().Int("min-bathrooms", 0, "Minimum bathrooms (Airbnb)")
+	cmd.Flags().Int("min-beds", 0, "Minimum beds (Airbnb)")
+	cmd.Flags().String("room-type", "", "Room type: entire_home, private_room, shared_room, hotel_room (Airbnb)")
+	cmd.Flags().Bool("superhost", false, "Only show Superhost listings (Airbnb)")
+	cmd.Flags().Bool("instant-book", false, "Only show instant-bookable listings (Airbnb)")
+	cmd.Flags().Int("max-distance-m", 0, "Maximum distance from city center in meters (Booking)")
+	cmd.Flags().Bool("sustainable", false, "Only show eco/sustainable properties (Booking)")
+	cmd.Flags().Bool("meal-plan", false, "Only show properties with breakfast/meals included (Booking)")
+	cmd.Flags().Bool("include-sold-out", false, "Include sold-out properties (Booking)")
 
 	_ = cmd.MarkFlagRequired("checkin")
 	_ = cmd.MarkFlagRequired("checkout")
@@ -78,6 +93,21 @@ func runHotels(cmd *cobra.Command, args []string) error {
 	maxPrice, _ := cmd.Flags().GetFloat64("max-price")
 	minRating, _ := cmd.Flags().GetFloat64("min-rating")
 	maxDistance, _ := cmd.Flags().GetFloat64("max-distance")
+	amenitiesStr, _ := cmd.Flags().GetString("amenities")
+	freeCancellation, _ := cmd.Flags().GetBool("free-cancellation")
+	propertyType, _ := cmd.Flags().GetString("property-type")
+	brand, _ := cmd.Flags().GetString("brand")
+	ecoCertified, _ := cmd.Flags().GetBool("eco-certified")
+	minBedrooms, _ := cmd.Flags().GetInt("min-bedrooms")
+	minBathrooms, _ := cmd.Flags().GetInt("min-bathrooms")
+	minBeds, _ := cmd.Flags().GetInt("min-beds")
+	roomType, _ := cmd.Flags().GetString("room-type")
+	superhost, _ := cmd.Flags().GetBool("superhost")
+	instantBook, _ := cmd.Flags().GetBool("instant-book")
+	maxDistanceM, _ := cmd.Flags().GetInt("max-distance-m")
+	sustainable, _ := cmd.Flags().GetBool("sustainable")
+	mealPlan, _ := cmd.Flags().GetBool("meal-plan")
+	includeSoldOut, _ := cmd.Flags().GetBool("include-sold-out")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -90,17 +120,43 @@ func runHotels(cmd *cobra.Command, args []string) error {
 		currency = prefs.DisplayCurrency
 	}
 
+	// Parse amenities filter: comma-separated, trimmed, lowercased.
+	var amenities []string
+	if amenitiesStr != "" {
+		for _, a := range strings.Split(amenitiesStr, ",") {
+			a = strings.ToLower(strings.TrimSpace(a))
+			if a != "" {
+				amenities = append(amenities, a)
+			}
+		}
+	}
+
 	opts := hotels.HotelSearchOptions{
-		CheckIn:       checkin,
-		CheckOut:      checkout,
-		Guests:        guests,
-		Stars:         stars,
-		Sort:          sortBy,
-		Currency:      currency,
-		MinPrice:      minPrice,
-		MaxPrice:      maxPrice,
-		MinRating:     minRating,
-		MaxDistanceKm: maxDistance,
+		CheckIn:          checkin,
+		CheckOut:         checkout,
+		Guests:           guests,
+		Stars:            stars,
+		Sort:             sortBy,
+		Currency:         currency,
+		MinPrice:         minPrice,
+		MaxPrice:         maxPrice,
+		MinRating:        minRating,
+		MaxDistanceKm:    maxDistance,
+		Amenities:        amenities,
+		FreeCancellation: freeCancellation,
+		PropertyType:     propertyType,
+		Brand:            brand,
+		EcoCertified:     ecoCertified,
+		MinBedrooms:      minBedrooms,
+		MinBathrooms:     minBathrooms,
+		MinBeds:          minBeds,
+		RoomType:         roomType,
+		Superhost:        superhost,
+		InstantBook:      instantBook,
+		MaxDistanceM:     maxDistanceM,
+		Sustainable:      sustainable,
+		MealPlan:         mealPlan,
+		IncludeSoldOut:   includeSoldOut,
 	}
 
 	// Apply preference-based filters (only when not already set via flags).
