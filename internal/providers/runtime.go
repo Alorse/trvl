@@ -323,6 +323,19 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		if filters.FreeCancellation {
 			vars["${free_cancellation}"] = "1"
 		}
+		// Build composite price_range var for providers like Booking that
+		// encode price filters as "currency-min-max-1" (e.g. "EUR-50-200-1").
+		if filters.MinPrice > 0 || filters.MaxPrice > 0 {
+			minS := "0"
+			maxS := "9999"
+			if filters.MinPrice > 0 {
+				minS = strconv.FormatFloat(filters.MinPrice, 'f', 0, 64)
+			}
+			if filters.MaxPrice > 0 {
+				maxS = strconv.FormatFloat(filters.MaxPrice, 'f', 0, 64)
+			}
+			vars["${price_range}"] = currency + "-" + minS + "-" + maxS + "-1"
+		}
 	}
 
 	// Build composite filter parameters (e.g. Booking's nflt) from
