@@ -76,7 +76,7 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		if cfg.Auth != nil && cfg.Auth.PreflightURL != "" {
 			targetURL = cfg.Auth.PreflightURL
 		}
-		applyBrowserCookies(pc.client, targetURL)
+		applyBrowserCookies(pc.client, targetURL, cfg.Cookies.Browser)
 	}
 
 	// Step 1: Preflight auth.
@@ -111,7 +111,7 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		// (escape hatch — open URL in browser and wait for fresh cookies).
 		if needsBrowserCookieFallback(resp.StatusCode, matched, cfg.Auth.Extractions) {
 			tier = ""
-			if applied := applyBrowserCookies(pc.client, cfg.Auth.PreflightURL); applied {
+			if applied := applyBrowserCookies(pc.client, cfg.Auth.PreflightURL, cfg.Cookies.Browser); applied {
 				resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
 				if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
 					resp, body = resp2, body2

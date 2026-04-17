@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/destinations"
@@ -13,6 +14,7 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/hotels"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/preferences"
+	"github.com/MikkoParkkola/trvl/internal/providers"
 	"github.com/spf13/cobra"
 )
 
@@ -47,7 +49,22 @@ Examples:
 	return cmd
 }
 
+// initProviderRuntime wires external provider configs (Booking, Airbnb, etc.)
+// into the hotel search pipeline. Safe to call multiple times; executes once.
+var initProviderRuntime = sync.OnceFunc(func() {
+	reg, err := providers.NewRegistry()
+	if err != nil {
+		return
+	}
+	if len(reg.List()) == 0 {
+		return
+	}
+	hotels.SetExternalProviderRuntime(providers.NewRuntime(reg))
+})
+
 func runHotels(cmd *cobra.Command, args []string) error {
+	initProviderRuntime()
+
 	location := args[0]
 
 	checkin, _ := cmd.Flags().GetString("checkin")
@@ -64,6 +81,7 @@ func runHotels(cmd *cobra.Command, args []string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	ctx = providers.WithInteractive(ctx) // allow browser escape hatch for WAF challenges
 
 	// Load preferences and apply defaults where flags weren't explicitly set.
 	prefs, _ := preferences.Load() // non-fatal; nil prefs means no defaults applied

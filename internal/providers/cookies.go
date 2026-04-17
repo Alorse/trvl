@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/browserutils/kooky"
+	"github.com/browserutils/kooky/browser/brave"
+	"github.com/browserutils/kooky/browser/chrome"
 	_ "github.com/browserutils/kooky/browser/all" // register all browser cookie finders
 )
 
@@ -195,9 +199,14 @@ func cookieSnapshotKey(cookies []*http.Cookie) string {
 }
 
 // browserCookieLookupTimeout bounds how long we spend reading cookies from
-// browser stores. Local SQLite reads are fast but Keychain prompts on macOS
-// can block indefinitely; a short deadline lets us fail fast.
-const browserCookieLookupTimeout = 5 * time.Second
+// browser stores. On macOS, kooky iterates ALL registered browser finders
+// concurrently, many of which fail fast (no such file). However, the Brave
+// and Chrome stores require a Keychain lookup for the Safe Storage password
+// plus an SQLite read with AES decryption — this routinely takes 6-10s on
+// first access (subsequent calls are cached by the Keychain daemon). The
+// previous 5s budget caused systematic timeouts before the valid Brave
+// cookies could be returned.
+const browserCookieLookupTimeout = 15 * time.Second
 
 // browserCookiesForURL reads cookies from the user's browsers matching the
 // given URL's domain. Iterates all registered browser cookie stores and
@@ -225,8 +234,89 @@ func browserCookiesForURL(targetURL string) []*http.Cookie {
 	}
 
 	result := make([]*http.Cookie, 0, len(cookies))
-	seen := make(map[string]struct{}, len(cookies))
+	// Track best cookie per dedup key (name+domain+path). When kooky returns
+	// cookies from multiple browsers (Chrome, Brave, etc.), stale sessions in
+	// one browser can shadow fresh sessions in another. Prefer the cookie with
+	// the longest value, since fresh session cookies carry more data than
+	// stale/expired ones (e.g. bkng_sso_ses: 96 bytes fresh vs 3 bytes stale).
+	type entry struct {
+		cookie http.Cookie
+		idx    int // position in result slice, -1 if not yet appended
+	}
+	seen := make(map[string]*entry, len(cookies))
 	for _, c := range cookies {
+		if c == nil {
+			continue
+		}
+		if !cookieDomainMatchesHost(c.Cookie.Domain, host) {
+			continue
+		}
+		key := c.Cookie.Name + "\x00" + c.Cookie.Domain + "\x00" + c.Cookie.Path
+		if prev, dup := seen[key]; dup {
+			// Replace if this cookie has a longer (fresher) value.
+			if len(c.Cookie.Value) > len(prev.cookie.Value) {
+				prev.cookie = c.Cookie
+				if prev.idx >= 0 {
+					result[prev.idx] = &prev.cookie
+				}
+			}
+			continue
+		}
+		cp := c.Cookie // copy
+		idx := len(result)
+		result = append(result, &cp)
+		seen[key] = &entry{cookie: cp, idx: idx}
+	}
+	return result
+}
+
+// browserCookiesForURLWithHint reads cookies from a specific browser's cookie
+// store for the given URL's domain. When browserHint is non-empty (e.g. "brave",
+// "chrome"), it bypasses kooky's auto-discovery and reads directly from that
+// browser's default profile cookie file. This avoids cross-browser cookie
+// contamination where stale Chrome sessions overwrite fresh Brave sessions (or
+// vice versa) during auto-discovery deduplication.
+//
+// Falls back to browserCookiesForURL (all-browser auto-discovery) when the
+// hint is empty or the specified browser's cookie store cannot be found.
+func browserCookiesForURLWithHint(targetURL, browserHint string) []*http.Cookie {
+	if browserHint == "" {
+		return browserCookiesForURL(targetURL)
+	}
+
+	u, err := url.Parse(targetURL)
+	if err != nil || u.Host == "" {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), browserCookieLookupTimeout)
+	defer cancel()
+
+	host := u.Hostname()
+	domainSuffix := registrableSuffix(host)
+
+	var kookyCookies []*kooky.Cookie
+
+	switch strings.ToLower(browserHint) {
+	case "brave":
+		if path := findBraveCookiePath(); path != "" {
+			kookyCookies, _ = brave.ReadCookies(ctx, path, kooky.Valid, kooky.DomainHasSuffix(domainSuffix))
+		}
+	case "chrome":
+		if path := findChromeCookiePath(); path != "" {
+			kookyCookies, _ = chrome.ReadCookies(ctx, path, kooky.Valid, kooky.DomainHasSuffix(domainSuffix))
+		}
+	}
+
+	if len(kookyCookies) == 0 {
+		// Fallback to all-browser auto-discovery.
+		return browserCookiesForURL(targetURL)
+	}
+
+	// Filter and deduplicate.
+	result := make([]*http.Cookie, 0, len(kookyCookies))
+	seen := make(map[string]struct{}, len(kookyCookies))
+	for _, c := range kookyCookies {
 		if c == nil {
 			continue
 		}
@@ -238,11 +328,46 @@ func browserCookiesForURL(targetURL string) []*http.Cookie {
 			continue
 		}
 		seen[key] = struct{}{}
-
-		cp := c.Cookie // copy
+		cp := c.Cookie
 		result = append(result, &cp)
 	}
 	return result
+}
+
+// findBraveCookiePath returns the path to Brave's default profile cookie DB.
+func findBraveCookiePath() string {
+	cfgDir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	candidates := []string{
+		filepath.Join(cfgDir, "BraveSoftware", "Brave-Browser", "Default", "Cookies"),
+		filepath.Join(cfgDir, "BraveSoftware", "Brave-Browser", "Default", "Network", "Cookies"),
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+// findChromeCookiePath returns the path to Chrome's default profile cookie DB.
+func findChromeCookiePath() string {
+	cfgDir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	candidates := []string{
+		filepath.Join(cfgDir, "Google", "Chrome", "Default", "Cookies"),
+		filepath.Join(cfgDir, "Google", "Chrome", "Default", "Network", "Cookies"),
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
 }
 
 // registrableSuffix returns a suffix of host suitable for a DomainHasSuffix

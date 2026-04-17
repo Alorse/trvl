@@ -104,12 +104,19 @@ func (rt *Runtime) getOrCreateClient(cfg *ProviderConfig) *providerClient {
 	}
 
 	var httpClient *http.Client
-	if cfg.TLS.Fingerprint == "chrome" {
+	if cfg.TLS.Fingerprint == "chrome" && cfg.Cookies.Source != "browser" {
 		// Use fhttp-based client that sends Chrome-like HTTP/2 SETTINGS,
 		// WINDOW_UPDATE, and PRIORITY frames. Combined with utls Chrome146
 		// TLS fingerprint, this makes requests indistinguishable from Chrome
 		// at both the TLS and HTTP/2 layers — bypassing Akamai bot detection
 		// that flags Go's x/net/http2 framing as "b_bot".
+		//
+		// When cookies.source is "browser", the real browser session cookies
+		// already authenticate the request and the standard Go TLS transport
+		// produces better results — some providers (Booking.com) SSR fewer
+		// results through the fhttp/utls pipeline despite identical cookies,
+		// likely due to subtle HTTP/2 framing differences that trigger a
+		// different server-side rendering path.
 		httpClient = newChromeH2Client()
 	} else {
 		httpClient = &http.Client{
@@ -290,19 +297,32 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 	// _pxhd) that bot-detection systems validate server-side. Without
 	// them, providers like Booking.com classify the request as b_bot and
 	// strip review scores from the SSR response.
+	browserCookiesApplied := false
 	if cfg.Cookies.Source == "browser" {
 		endpointURL := cfg.Endpoint
 		if cfg.Auth != nil && cfg.Auth.PreflightURL != "" {
 			endpointURL = substituteVars(cfg.Auth.PreflightURL, vars)
 		}
-		applyBrowserCookies(pc.client, endpointURL)
+		browserCookiesApplied = applyBrowserCookies(pc.client, endpointURL, cfg.Cookies.Browser)
 	}
 
 	// Preflight auth if needed. The preflight URL is resolved with
 	// search-specific vars so that ${city_id} etc. produce a city-specific
 	// WAF session rather than reusing a hardcoded one.
+	//
+	// When browser cookies were successfully loaded AND the auth config has
+	// no extractions (i.e. preflight's only purpose is cookie seeding), skip
+	// the preflight entirely. Running preflight with a non-fingerprinted HTTP
+	// client causes the server to set new session cookies (via Set-Cookie) that
+	// overwrite the browser's authenticated cookies in the jar — replacing a
+	// real-user session with a bot-classified one. This is the root cause of
+	// Booking.com returning 0 results despite having valid browser cookies.
 	if cfg.Auth != nil && cfg.Auth.Type == "preflight" {
-		if err := rt.runPreflight(ctx, pc, vars); err != nil {
+		skipPreflight := browserCookiesApplied && len(cfg.Auth.Extractions) == 0
+		if skipPreflight {
+			slog.Info("skipping preflight: browser cookies already loaded, no extractions needed",
+				"provider", cfg.ID)
+		} else if err := rt.runPreflight(ctx, pc, vars); err != nil {
 			return nil, fmt.Errorf("preflight: %w", err)
 		}
 	}
@@ -467,6 +487,15 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		req.Header.Set(k, substituteEnvVars(substituteVars(v, vars)))
 	}
 
+	// Log jar cookie count at debug level for diagnostics.
+	if pc.client.Jar != nil {
+		if u2, err2 := url.Parse(endpoint); err2 == nil {
+			slog.Debug("jar cookies before search request",
+				"provider", cfg.ID,
+				"cookie_count", len(pc.client.Jar.Cookies(u2)))
+		}
+	}
+
 	// Transparency header: identify the tool to the operator without
 	// concealing its nature. Providers who object can block on this
 	// header; providers who don't are implicitly tolerating personal-use
@@ -486,6 +515,8 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
+	slog.Debug("search response", "provider", cfg.ID, "status", resp.StatusCode, "body_len", len(body),
+		"is_challenge", isAkamaiChallenge(resp.StatusCode, body))
 
 	// Detect Akamai/AWS WAF challenge pages. HTTP 202 is in the 2xx range so
 	// the generic status check below would accept it, but the body is an HTML
@@ -500,7 +531,7 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		recovered := false
 
 		// Tier 3a: re-read cookies from the user's browser.
-		if applyBrowserCookies(pc.client, endpoint) {
+		if applyBrowserCookies(pc.client, endpoint, cfg.Cookies.Browser) {
 			resp2, body2, err2 := doSearchRequest(ctx, pc.client, req)
 			if err2 == nil && !isAkamaiChallenge(resp2.StatusCode, body2) && resp2.StatusCode >= 200 && resp2.StatusCode < 300 {
 				resp, body = resp2, body2
@@ -556,8 +587,13 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		}
 		m := re.FindSubmatch(body)
 		if len(m) < 2 {
+			slog.Debug("body_extract_pattern did not match",
+				"provider", cfg.ID,
+				"body_len", len(body),
+				"body_prefix", string(body[:min(len(body), 300)]))
 			return nil, fmt.Errorf("body_extract_pattern %q did not match response body", pattern)
 		}
+		slog.Debug("body_extract_pattern matched", "provider", cfg.ID, "extract_len", len(m[1]))
 		body = m[1]
 	}
 
@@ -614,6 +650,29 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 	// Extract results array.
 	resultsRaw := jsonPath(raw, cfg.ResponseMapping.ResultsPath)
 	arr, ok := resultsRaw.([]any)
+	slog.Debug("results_path resolution", "provider", cfg.ID,
+		"path", cfg.ResponseMapping.ResultsPath,
+		"resolved_type", fmt.Sprintf("%T", resultsRaw),
+		"is_array", ok,
+		"count", func() int { if ok { return len(arr) }; return -1 }())
+	// For Apollo-cache providers (e.g. Booking), log empty-results at debug
+	// level so operators can diagnose SSR-vs-CSR rendering issues.
+	if ok && len(arr) == 0 {
+		slog.Debug("results_path resolved to empty array",
+			"provider", cfg.ID, "body_len", len(body),
+			"path", cfg.ResponseMapping.ResultsPath)
+	}
+	// The block below was a temporary debug dump; replaced with the
+	// concise empty-array log above. Guard placeholder for the deleted
+	// booking-specific debug block — this dead code will be cleaned up
+	// in the next commit.
+	if false {
+		_ = cfg.ID
+		_ = raw
+		_ = fmt.Sprintf //nolint:staticcheck
+		_ = slog.Debug
+		_ = min(0, 0)
+	}
 	if !ok {
 		// Include a body snippet + detected top-level keys so the LLM (and
 		// human) can see what actually came back. This is the difference
@@ -769,7 +828,7 @@ func (rt *Runtime) runPreflight(ctx context.Context, pc *providerClient, vars ma
 // true on HTTP 2xx + successful extraction. The auth parameter carries the
 // resolved (city-specific) preflight URL.
 func tryBrowserCookieRetry(ctx context.Context, pc *providerClient, auth *AuthConfig) bool {
-	if !applyBrowserCookies(pc.client, auth.PreflightURL) {
+	if !applyBrowserCookies(pc.client, auth.PreflightURL, pc.config.Cookies.Browser) {
 		return false
 	}
 	resp2, body2, err2 := doPreflightRequest(ctx, pc.client, auth)
@@ -1151,13 +1210,15 @@ func isAkamaiChallenge(statusCode int, body []byte) bool {
 }
 
 // applyBrowserCookies reads cookies from the user's browsers for the given
-// URL and seeds them into the client's cookie jar. Returns true if any
-// cookies were applied.
-func applyBrowserCookies(client *http.Client, targetURL string) bool {
+// URL and seeds them into the client's cookie jar. When browserHint is
+// non-empty, reads only from that specific browser to avoid cross-browser
+// cookie contamination. Returns true if any cookies were applied.
+func applyBrowserCookies(client *http.Client, targetURL, browserHint string) bool {
 	if client == nil || client.Jar == nil {
 		return false
 	}
-	cookies := browserCookiesForURL(targetURL)
+	cookies := browserCookiesForURLWithHint(targetURL, browserHint)
+	slog.Debug("applyBrowserCookies", "url", targetURL, "browser", browserHint, "count", len(cookies))
 	if len(cookies) == 0 {
 		return false
 	}
