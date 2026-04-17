@@ -117,6 +117,15 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 				if existing.BookingURL == "" && h.BookingURL != "" {
 					existing.BookingURL = h.BookingURL
 				}
+				if existing.Description == "" && h.Description != "" {
+					existing.Description = h.Description
+				}
+				if existing.ImageURL == "" && h.ImageURL != "" {
+					existing.ImageURL = h.ImageURL
+				}
+				if len(existing.RoomTypes) == 0 && len(h.RoomTypes) > 0 {
+					existing.RoomTypes = h.RoomTypes
+				}
 			} else {
 				clone := h
 				clone.Sources = buildSources(clone)

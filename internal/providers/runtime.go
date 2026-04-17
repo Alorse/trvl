@@ -807,6 +807,27 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 			src.RoomCount = roomCt
 		}
 
+		// Extract room types from Booking-style blocks/unitConfigurations.
+		if len(h.RoomTypes) == 0 {
+			if rt := extractRoomTypes(item); len(rt) > 0 {
+				h.RoomTypes = rt
+			}
+		}
+
+		// Extract image URL from Booking-style basicPropertyData.photos.
+		if h.ImageURL == "" {
+			if img := extractImageURL(item); img != "" {
+				h.ImageURL = img
+			}
+		}
+
+		// Extract property description from Booking-style fields.
+		if h.Description == "" {
+			if desc := extractDescription(item); desc != "" {
+				h.Description = desc
+			}
+		}
+
 		// Construct booking URL from pageName + countryCode when available.
 		// Booking.com SSR results contain basicPropertyData.pageName (e.g.
 		// "aix-europe") and basicPropertyData.location.countryCode (e.g. "fr")

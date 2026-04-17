@@ -310,7 +310,7 @@ func TestParseOrganicHotel_AllFields(t *testing.T) {
 		{"Rating", h.Rating, 4.8},
 		{"ReviewCount", h.ReviewCount, 2000},
 		{"HotelID", h.HotelID, "ChIJ123abc"},
-		{"Address", h.Address, "123 London Road"},
+		{"Description", h.Description, "123 London Road"},
 	}
 
 	for _, c := range checks {

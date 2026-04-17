@@ -280,12 +280,12 @@ func parseOrganicHotel(entry []any, currency string) models.HotelResult {
 		h.Amenities = extractAmenityCodes(entry[10])
 	}
 
-	// [11] = description array
+	// [11] = description array (hotel tagline, e.g. "Relaxed hotel featuring a gym...")
 	var description string
 	if len(entry) > 11 {
 		if descArr, ok := entry[11].([]any); ok && len(descArr) > 0 {
 			if desc := jsonutil.StringValue(descArr[0]); desc != "" {
-				h.Address = desc // Use description as address fallback
+				h.Description = desc
 				description = desc
 			}
 		}

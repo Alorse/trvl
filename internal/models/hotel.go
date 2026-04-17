@@ -12,6 +12,13 @@ type PriceSource struct {
 	BookingURL string  `json:"booking_url,omitempty"`
 }
 
+// Room represents a single bookable room type at a property.
+type Room struct {
+	Name     string  `json:"name"`               // e.g. "Standard Double Room", "Superior Suite"
+	Price    float64 `json:"price,omitempty"`     // price for this room type
+	Currency string  `json:"currency,omitempty"`
+}
+
 // HotelResult represents a single hotel from a search.
 type HotelResult struct {
 	Name         string        `json:"name"`
@@ -22,6 +29,9 @@ type HotelResult struct {
 	Price        float64       `json:"price"` // Lowest price across all sources
 	Currency     string        `json:"currency"`
 	Address      string        `json:"address"`
+	Description  string        `json:"description,omitempty"`  // property tagline or summary
+	ImageURL     string        `json:"image_url,omitempty"`    // main property image
+	RoomTypes    []Room        `json:"room_types,omitempty"`   // available rooms with names and prices
 	Lat          float64       `json:"lat"`
 	Lon          float64       `json:"lon"`
 	Amenities    []string      `json:"amenities,omitempty"`

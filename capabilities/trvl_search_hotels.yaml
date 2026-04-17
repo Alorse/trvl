@@ -58,6 +58,24 @@ schema:
               type: string
             address:
               type: string
+            description:
+              type: string
+              description: Property tagline or summary (e.g. "Relaxed hotel featuring a gym...")
+            image_url:
+              type: string
+              description: Main property image URL
+            room_types:
+              type: array
+              description: Available room types with names and per-room prices
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  price:
+                    type: number
+                  currency:
+                    type: string
             lat:
               type: number
             lon:

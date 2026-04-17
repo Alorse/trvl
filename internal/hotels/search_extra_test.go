@@ -475,10 +475,10 @@ func TestParseOrganicHotel_NilName(t *testing.T) {
 func TestParseOrganicHotel_WithDescription(t *testing.T) {
 	entry := make([]any, 12)
 	entry[1] = "Hotel With Desc"
-	entry[11] = []any{"Main Street 42, Helsinki"}
+	entry[11] = []any{"Relaxed hotel featuring a gym and sauna"}
 	h := parseOrganicHotel(entry, "EUR")
-	if h.Address != "Main Street 42, Helsinki" {
-		t.Errorf("Address = %q", h.Address)
+	if h.Description != "Relaxed hotel featuring a gym and sauna" {
+		t.Errorf("Description = %q", h.Description)
 	}
 }
 

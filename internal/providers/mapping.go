@@ -361,6 +361,10 @@ func mapHotelResult(raw any, fields map[string]string) models.HotelResult {
 			h.BookingURL, _ = val.(string)
 		case "eco_certified":
 			h.EcoCertified, _ = val.(bool)
+		case "description":
+			h.Description, _ = val.(string)
+		case "image_url":
+			h.ImageURL, _ = val.(string)
 		}
 	}
 
@@ -398,6 +402,104 @@ func extractBlocksPriceSpread(raw any) (maxPrice float64, roomCount int) {
 		}
 	}
 	return maxPrice, len(seen)
+}
+
+// extractRoomTypes extracts distinct room types from a Booking.com SSR hotel
+// result. It checks two sources:
+//
+//  1. matchingUnitConfigurations.unitConfigurations — an array of room type
+//     objects with a "name" field (e.g. "Standard Double Room", "Superior Suite").
+//
+//  2. blocks — the per-room pricing array. Each block has a "roomName" (or
+//     "room_name") field and a "finalPrice.amount" for per-room pricing.
+//
+// Returns deduplicated rooms. Empty when the raw data has neither structure.
+func extractRoomTypes(raw any) []models.Room {
+	seen := make(map[string]bool)
+	var rooms []models.Room
+
+	// Source 1: matchingUnitConfigurations.unitConfigurations
+	unitsRaw := jsonPath(raw, "matchingUnitConfigurations.unitConfigurations")
+	if units, ok := unitsRaw.([]any); ok {
+		for _, u := range units {
+			name, _ := jsonPath(u, "name").(string)
+			if name == "" {
+				continue
+			}
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
+			rooms = append(rooms, models.Room{Name: name})
+		}
+	}
+
+	// Source 2: blocks array — has per-room pricing.
+	blocksRaw := jsonPath(raw, "blocks")
+	blocks, ok := blocksRaw.([]any)
+	if !ok || len(blocks) == 0 {
+		return rooms
+	}
+
+	for _, b := range blocks {
+		// Try roomName first, then room_name.
+		name, _ := jsonPath(b, "roomName").(string)
+		if name == "" {
+			name, _ = jsonPath(b, "room_name").(string)
+		}
+		if name == "" {
+			continue
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		price := toFloat64(jsonPath(b, "finalPrice.amount"))
+		currency, _ := jsonPath(b, "finalPrice.currency").(string)
+		rooms = append(rooms, models.Room{
+			Name:     name,
+			Price:    price,
+			Currency: currency,
+		})
+	}
+
+	return rooms
+}
+
+// extractImageURL extracts the main property image from a Booking.com SSR
+// hotel result. Booking stores images at basicPropertyData.photos.main with
+// highResUrl and lowResUrl variants. Airbnb and Hostelworld use field mappings
+// instead (image_url in the provider config).
+func extractImageURL(raw any) string {
+	// Booking: basicPropertyData.photos.main.highResUrl
+	if url, ok := jsonPath(raw, "basicPropertyData.photos.main.highResUrl").(map[string]any); ok {
+		if relURL, ok := url["relativeUrl"].(string); ok && relURL != "" {
+			return "https://cf.bstatic.com" + relURL
+		}
+	}
+	if url, _ := jsonPath(raw, "basicPropertyData.photos.main.highResUrl").(string); url != "" {
+		return url
+	}
+	// Fallback: lowResUrl
+	if url, _ := jsonPath(raw, "basicPropertyData.photos.main.lowResUrl").(string); url != "" {
+		return url
+	}
+	return ""
+}
+
+// extractDescription extracts a property description/tagline from a Booking.com
+// SSR hotel result. Booking stores this at basicPropertyData.tagline or
+// in the propertyDescription field.
+func extractDescription(raw any) string {
+	// Try propertyDescription first (full text).
+	if desc, ok := jsonPath(raw, "propertyDescription").(string); ok && desc != "" {
+		return desc
+	}
+	// Booking tagline.
+	if desc, ok := jsonPath(raw, "basicPropertyData.tagline").(string); ok && desc != "" {
+		return desc
+	}
+	return ""
 }
 
 // normalizePrice converts price from fromCurrency to toCurrency using live
