@@ -80,6 +80,12 @@ schema:
               type: number
             lon:
               type: number
+            neighborhood:
+              type: string
+              description: Neighborhood or district name (e.g. "Montmartre", "Le Marais")
+            distance_km:
+              type: number
+              description: Distance in km from city center
             amenities:
               type: array
               items:

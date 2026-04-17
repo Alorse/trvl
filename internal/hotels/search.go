@@ -320,14 +320,14 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 	}
 	hotels := models.MergeHotelResults(allBatches...)
 
-	// Resolve city center for distance filter/sort if needed.
-	if opts.MaxDistanceKm > 0 || strings.EqualFold(opts.Sort, "distance") {
-		if opts.CenterLat == 0 && opts.CenterLon == 0 {
-			lat, lon, err := ResolveLocation(ctx, location)
-			if err == nil {
-				opts.CenterLat = lat
-				opts.CenterLon = lon
-			}
+	// Resolve city center coordinates. Used for distance filter/sort and
+	// for computing DistanceKm on every hotel (useful info for the user
+	// even when no distance filter is active).
+	if opts.CenterLat == 0 && opts.CenterLon == 0 {
+		lat, lon, err := ResolveLocation(ctx, location)
+		if err == nil {
+			opts.CenterLat = lat
+			opts.CenterLon = lon
 		}
 	}
 
@@ -353,6 +353,16 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 
 	// Sort results.
 	sortHotels(hotels, opts.Sort, opts.CenterLat, opts.CenterLon)
+
+	// Compute distance from city center for every hotel with coordinates.
+	// This is always useful context for the user, not just for filtering.
+	if opts.CenterLat != 0 || opts.CenterLon != 0 {
+		for i := range hotels {
+			if hotels[i].Lat != 0 || hotels[i].Lon != 0 {
+				hotels[i].DistanceKm = Haversine(opts.CenterLat, opts.CenterLon, hotels[i].Lat, hotels[i].Lon)
+			}
+		}
+	}
 
 	// Enrich top hotels with full amenity data from detail pages.
 	if opts.EnrichAmenities {

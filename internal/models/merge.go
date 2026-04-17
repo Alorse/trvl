@@ -123,6 +123,9 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 				if existing.ImageURL == "" && h.ImageURL != "" {
 					existing.ImageURL = h.ImageURL
 				}
+				if existing.Neighborhood == "" && h.Neighborhood != "" {
+					existing.Neighborhood = h.Neighborhood
+				}
 				if len(existing.RoomTypes) == 0 && len(h.RoomTypes) > 0 {
 					existing.RoomTypes = h.RoomTypes
 				}

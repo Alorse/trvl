@@ -828,6 +828,13 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 			}
 		}
 
+		// Extract neighborhood from Booking-style location data.
+		if h.Neighborhood == "" {
+			if nb := extractNeighborhood(item); nb != "" {
+				h.Neighborhood = nb
+			}
+		}
+
 		// Construct booking URL from pageName + countryCode when available.
 		// Booking.com SSR results contain basicPropertyData.pageName (e.g.
 		// "aix-europe") and basicPropertyData.location.countryCode (e.g. "fr")

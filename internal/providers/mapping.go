@@ -365,6 +365,8 @@ func mapHotelResult(raw any, fields map[string]string) models.HotelResult {
 			h.Description, _ = val.(string)
 		case "image_url":
 			h.ImageURL, _ = val.(string)
+		case "neighborhood":
+			h.Neighborhood, _ = val.(string)
 		}
 	}
 
@@ -377,6 +379,21 @@ func mapHotelResult(raw any, fields map[string]string) models.HotelResult {
 	}
 
 	return h
+}
+
+// extractNeighborhood extracts the neighborhood/district name from a Booking.com
+// SSR hotel result. Booking stores this at basicPropertyData.location.neighbourhood.name
+// or basicPropertyData.neighbourhood.name. Returns empty string when unavailable.
+func extractNeighborhood(raw any) string {
+	// Primary: basicPropertyData.location.neighbourhood.name
+	if name, ok := jsonPath(raw, "basicPropertyData.location.neighbourhood.name").(string); ok && name != "" {
+		return name
+	}
+	// Fallback: basicPropertyData.neighbourhood.name
+	if name, ok := jsonPath(raw, "basicPropertyData.neighbourhood.name").(string); ok && name != "" {
+		return name
+	}
+	return ""
 }
 
 // extractBlocksPriceSpread scans the "blocks" array on a raw hotel result

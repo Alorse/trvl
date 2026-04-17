@@ -34,6 +34,8 @@ type HotelResult struct {
 	RoomTypes    []Room        `json:"room_types,omitempty"`   // available rooms with names and prices
 	Lat          float64       `json:"lat"`
 	Lon          float64       `json:"lon"`
+	Neighborhood string        `json:"neighborhood,omitempty"`    // e.g. "Montmartre", "Le Marais"
+	DistanceKm   float64       `json:"distance_km,omitempty"`     // km from city center
 	Amenities    []string      `json:"amenities,omitempty"`
 	BookingURL   string        `json:"booking_url,omitempty"`
 	EcoCertified bool          `json:"eco_certified,omitempty"`
