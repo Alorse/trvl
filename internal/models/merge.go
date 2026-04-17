@@ -83,8 +83,9 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 					continue
 				}
 
-				// Merge: add this provider's price as a source.
-				existing.Sources = append(existing.Sources, buildSources(h)...)
+				// Merge: add this provider's price as a source, deduplicating
+				// entries with the same (provider, price, currency) tuple.
+				existing.Sources = deduplicateSources(append(existing.Sources, buildSources(h)...))
 
 				// Update primary price to the lowest.
 				if h.Price > 0 && (existing.Price == 0 || h.Price < existing.Price) {
@@ -162,6 +163,30 @@ func hotelDisambiguationKey(h HotelResult) string {
 		return fmt.Sprintf("%s|%.5f,%.5f", base, h.Lat, h.Lon)
 	}
 	return base + "|unknown"
+}
+
+// deduplicateSources removes duplicate entries from a Sources slice.
+// Two sources are considered duplicates if they share the same provider,
+// price, and currency. This prevents the same Google Hotels entry from
+// appearing 7-9 times when results arrive from multiple sort orders or
+// pagination pages.
+func deduplicateSources(sources []PriceSource) []PriceSource {
+	type sourceKey struct {
+		provider string
+		price    float64
+		currency string
+	}
+	seen := make(map[sourceKey]struct{}, len(sources))
+	out := make([]PriceSource, 0, len(sources))
+	for _, s := range sources {
+		k := sourceKey{provider: s.Provider, price: s.Price, currency: s.Currency}
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		out = append(out, s)
+	}
+	return out
 }
 
 // buildSources creates a Sources slice from a HotelResult's own price.

@@ -295,6 +295,71 @@ func TestHasExternalProviderSource(t *testing.T) {
 	}
 }
 
+func TestMergeHotelResults_DeduplicatesSources(t *testing.T) {
+	// Simulate Google Hotels returning the same hotel from multiple sort
+	// orders / pagination pages — all with identical provider+price+currency.
+	pages := make([][]HotelResult, 9)
+	for i := range pages {
+		pages[i] = []HotelResult{{
+			Name:     "Clarion Hotel Helsinki",
+			Price:    105,
+			Currency: "EUR",
+			Sources:  []PriceSource{{Provider: "google_hotels", Price: 105, Currency: "EUR"}},
+		}}
+	}
+
+	result := MergeHotelResults(pages...)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 hotel, got %d", len(result))
+	}
+	if len(result[0].Sources) != 1 {
+		t.Errorf("expected 1 deduplicated source, got %d", len(result[0].Sources))
+	}
+}
+
+func TestMergeHotelResults_KeepsDifferentPricesSameProvider(t *testing.T) {
+	// Same provider but different prices should be kept (e.g. price changed
+	// between pages, or different room types).
+	a := []HotelResult{{
+		Name:     "Clarion Hotel Helsinki",
+		Price:    105,
+		Currency: "EUR",
+		Sources:  []PriceSource{{Provider: "google_hotels", Price: 105, Currency: "EUR"}},
+	}}
+	b := []HotelResult{{
+		Name:     "Clarion Hotel Helsinki",
+		Price:    115,
+		Currency: "EUR",
+		Sources:  []PriceSource{{Provider: "google_hotels", Price: 115, Currency: "EUR"}},
+	}}
+
+	result := MergeHotelResults(a, b)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 hotel, got %d", len(result))
+	}
+	if len(result[0].Sources) != 2 {
+		t.Errorf("expected 2 sources (different prices), got %d", len(result[0].Sources))
+	}
+	if result[0].Price != 105 {
+		t.Errorf("expected lowest price 105, got %.0f", result[0].Price)
+	}
+}
+
+func TestDeduplicateSources(t *testing.T) {
+	sources := []PriceSource{
+		{Provider: "google_hotels", Price: 105, Currency: "EUR"},
+		{Provider: "google_hotels", Price: 105, Currency: "EUR"},
+		{Provider: "google_hotels", Price: 105, Currency: "EUR"},
+		{Provider: "booking", Price: 110, Currency: "EUR"},
+		{Provider: "booking", Price: 110, Currency: "EUR"},
+		{Provider: "google_hotels", Price: 120, Currency: "EUR"},
+	}
+	got := deduplicateSources(sources)
+	if len(got) != 3 {
+		t.Errorf("expected 3 unique sources, got %d", len(got))
+	}
+}
+
 func TestHaversineMeters(t *testing.T) {
 	// Helsinki to Tallinn ≈ 80km.
 	dist := haversineMeters(60.1699, 24.9384, 59.4370, 24.7536)

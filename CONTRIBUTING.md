@@ -2,7 +2,7 @@
 
 ## Purpose
 
-trvl is a travel MCP server and CLI: 41 MCP tools and 41 CLI commands stitched
+trvl is a travel MCP server and CLI: 41 MCP tools and 42 CLI commands stitched
 together against flight, hotel, ground-transport, destination, and deals
 providers. Pull requests are welcome from anyone — bug reports, missing
 airlines, parser breakages, new providers, documentation. Because trvl depends
