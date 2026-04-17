@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5] - 2026-04-18
+
+### Fixed
+- All hotel ratings normalized to 0-10 scale (Google 0-5 ×2, Hostelworld 0-100 ×0.1, Airbnb 0-5 ×2)
+- Booking.com probe: replaced stale CSRF extraction with production browser-cookie config
+- Hostelworld probe: corrected Paris city ID (59→14) and field mappings
+- Google EU consent page bypass: detect and retry with pre-seeded consent cookies
+- Rooms command: search-page fallback now works for raw hotel ID lookups
+- macOS Keychain prompt spam during tests: skip kooky lookups in test binaries
+- Preferences auto-migration: MinHotelRating ≤5 auto-doubled to 0-10 scale
+
+### Added
+- Google Hotels live probe test
+- Airbnb description enrichment (PDP fetch from Niobe SSR cache)
+- Booking.com global city coverage (130 cities across all continents)
+- `rating_scale` in provider catalog skeleton (guides LLM config generation)
+- DESIGN.md architecture documentation
+- 83 new test files / test functions covering display formatting, provider edge cases
+
+### Changed
+- Provider runtime split: runtime.go (993 LOC) + enrichment.go (257) + auth.go (583)
+- Provider catalog: updated auth hints for Booking (browser cookies), Airbnb (SSR), Hostelworld (city IDs)
+- MCP tool count: 42→43
+- Coverage: 50%→58%
+
 ## [0.6.1] - 2026-04-16
 
 ### Changed
