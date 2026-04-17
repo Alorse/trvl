@@ -328,6 +328,15 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		if err == nil {
 			opts.CenterLat = lat
 			opts.CenterLon = lon
+		} else {
+			slog.Warn("geocode failed, falling back to hotel median", "location", location, "error", err)
+			// Fallback: use the median of hotel coordinates as the center.
+			// This gives a reasonable approximation when the external geocoder
+			// is unavailable (rate-limited, network error, etc.).
+			if lat, lon, ok := medianHotelCoords(hotels); ok {
+				opts.CenterLat = lat
+				opts.CenterLon = lon
+			}
 		}
 	}
 
@@ -582,6 +591,25 @@ func sortHotels(hotels []models.HotelResult, sortBy string, centerLat, centerLon
 			})
 		}
 	}
+}
+
+// medianHotelCoords computes the median lat/lon from hotels that have
+// coordinates. Used as a fallback center when the geocoder is unavailable.
+func medianHotelCoords(hotels []models.HotelResult) (lat, lon float64, ok bool) {
+	var lats, lons []float64
+	for _, h := range hotels {
+		if h.Lat != 0 || h.Lon != 0 {
+			lats = append(lats, h.Lat)
+			lons = append(lons, h.Lon)
+		}
+	}
+	if len(lats) == 0 {
+		return 0, 0, false
+	}
+	sort.Float64s(lats)
+	sort.Float64s(lons)
+	mid := len(lats) / 2
+	return lats[mid], lons[mid], true
 }
 
 // Haversine returns the great-circle distance in kilometers between two

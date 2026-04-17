@@ -249,6 +249,7 @@ func TestToolRegistration_AllTools(t *testing.T) {
 		"plan_trip",
 		"search_route",
 		"hotel_rooms",
+		"watch_room_availability",
 		"get_preferences",
 		"update_preferences",
 		"detect_travel_hacks",

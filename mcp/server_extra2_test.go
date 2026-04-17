@@ -48,11 +48,11 @@ func TestNewServer(t *testing.T) {
 	if s == nil {
 		t.Fatal("NewServer returned nil")
 	}
-	if len(s.tools) != 41 {
-		t.Errorf("expected 41 tools, got %d", len(s.tools))
+	if len(s.tools) != 42 {
+		t.Errorf("expected 42 tools, got %d", len(s.tools))
 	}
-	if len(s.handlers) != 41 {
-		t.Errorf("expected 41 handlers, got %d", len(s.handlers))
+	if len(s.handlers) != 42 {
+		t.Errorf("expected 42 handlers, got %d", len(s.handlers))
 	}
 }
 
@@ -157,10 +157,16 @@ func TestInitializeCapabilities(t *testing.T) {
 func TestToolAnnotations(t *testing.T) {
 	// Tools that write to disk — ReadOnlyHint is intentionally false.
 	writeTools := map[string]bool{
-		"update_preferences":  true,
-		"configure_provider":  true,
-		"remove_provider":     true,
-		"test_provider":       true,
+		"update_preferences":      true,
+		"configure_provider":      true,
+		"remove_provider":         true,
+		"test_provider":           true,
+		"watch_room_availability": true,
+	}
+
+	// Tools that create new resources on each call — not idempotent.
+	nonIdempotentTools := map[string]bool{
+		"watch_room_availability": true,
 	}
 
 	s := NewServer()
@@ -181,8 +187,14 @@ func TestToolAnnotations(t *testing.T) {
 					t.Error("readOnlyHint should be true")
 				}
 			}
-			if !tool.Annotations.IdempotentHint {
-				t.Error("idempotentHint should be true")
+			if nonIdempotentTools[tool.Name] {
+				if tool.Annotations.IdempotentHint {
+					t.Error("idempotentHint should be false for non-idempotent tool")
+				}
+			} else {
+				if !tool.Annotations.IdempotentHint {
+					t.Error("idempotentHint should be true")
+				}
 			}
 		})
 	}

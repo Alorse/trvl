@@ -61,8 +61,8 @@ func TestHTTPHandler_POST_ToolsList(t *testing.T) {
 	var result ToolsListResult
 	json.Unmarshal(resultJSON, &result)
 
-	if len(result.Tools) != 41 {
-		t.Errorf("expected 41 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 42 {
+		t.Errorf("expected 42 tools, got %d", len(result.Tools))
 	}
 }
 
