@@ -67,6 +67,9 @@ func runRooms(cmd *cobra.Command, args []string) error {
 
 func resolveRoomAvailability(ctx context.Context, hotelQuery, checkIn, checkOut, currency string) (*hotels.RoomAvailability, error) {
 	if looksLikeGoogleHotelID(hotelQuery) {
+		// Direct ID lookup — no location hint available, so the search-page
+		// fallback inside GetRoomAvailability won't fire. The entity page
+		// may still return data if Google serves it inline.
 		return hotels.GetRoomAvailability(ctx, hotelQuery, checkIn, checkOut, currency)
 	}
 
@@ -78,7 +81,18 @@ func resolveRoomAvailability(ctx context.Context, hotelQuery, checkIn, checkOut,
 		return nil, fmt.Errorf("hotel %q found (%s) but has no Google ID", hotelQuery, hotel.Name)
 	}
 
-	result, err := hotels.GetRoomAvailability(ctx, hotel.HotelID, checkIn, checkOut, currency)
+	// Pass the user's original query as a location hint so the search-page
+	// fallback can find the hotel when the entity page has deferred data.
+	// buildLocationCandidates inside the fallback extracts the location
+	// part (e.g. "Paris" from "Hotel Lutetia, Paris").
+	opts := hotels.RoomSearchOptions{
+		HotelID:  hotel.HotelID,
+		CheckIn:  checkIn,
+		CheckOut: checkOut,
+		Currency: currency,
+		Location: hotelQuery,
+	}
+	result, err := hotels.GetRoomAvailabilityWithOpts(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("room availability for %s: %w", hotel.Name, err)
 	}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MikkoParkkola/trvl/internal/batchexec"
+	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
 // RoomType represents a specific room category at a hotel.
@@ -40,6 +40,7 @@ type RoomSearchOptions struct {
 	CheckOut   string // YYYY-MM-DD
 	Currency   string // e.g. "USD", "EUR"
 	BookingURL string // optional Booking.com hotel URL for rich room data
+	Location   string // optional city/area hint for search-based fallback
 }
 
 // GetRoomAvailability fetches room-level pricing for a specific hotel.
@@ -62,6 +63,12 @@ func GetRoomAvailability(ctx context.Context, hotelID, checkIn, checkOut, curren
 
 // GetRoomAvailabilityWithOpts fetches room-level pricing with full options,
 // including optional Booking.com room enrichment.
+//
+// Google's entity page now uses deferred data loading via batchexecute RPCs
+// that require browser session context. The inline AF_initDataCallback blocks
+// are empty. As a fallback, this function searches for the hotel on the
+// Google Hotels search page (which still embeds data inline) and constructs
+// room entries from the search result price data.
 func GetRoomAvailabilityWithOpts(ctx context.Context, opts RoomSearchOptions) (*RoomAvailability, error) {
 	if opts.HotelID == "" {
 		return nil, fmt.Errorf("hotel ID is required")
@@ -73,27 +80,15 @@ func GetRoomAvailabilityWithOpts(ctx context.Context, opts RoomSearchOptions) (*
 		opts.Currency = "USD"
 	}
 
-	client := DefaultClient()
-	entityURL := fmt.Sprintf(
-		"https://www.google.com/travel/hotels/entity/%s?q=&dates=%s,%s&hl=en&currency=%s",
-		opts.HotelID, opts.CheckIn, opts.CheckOut, opts.Currency,
-	)
+	// Try the entity page first (fast path, works when Google serves inline data).
+	rooms, hotelName := tryEntityPage(ctx, opts)
 
-	status, body, err := client.Get(ctx, entityURL)
-	if err != nil {
-		return nil, fmt.Errorf("room availability request: %w", err)
+	// Fallback: search for the hotel on the search page by location extracted
+	// from the hotel ID's geocoded area. The search page still has inline
+	// AF_initDataCallback data.
+	if len(rooms) == 0 {
+		rooms, hotelName = trySearchPageFallback(ctx, opts)
 	}
-	if status == 403 {
-		return nil, batchexec.ErrBlocked
-	}
-	if status != 200 {
-		return nil, fmt.Errorf("room availability page returned status %d", status)
-	}
-	if len(body) < 500 {
-		return nil, fmt.Errorf("room availability page returned empty response")
-	}
-
-	rooms, hotelName := parseRoomsFromPage(string(body), opts.Currency)
 
 	// Enrich with Booking.com room data when a booking URL is provided.
 	if opts.BookingURL != "" {
@@ -114,6 +109,197 @@ func GetRoomAvailabilityWithOpts(ctx context.Context, opts RoomSearchOptions) (*
 		CheckOut: opts.CheckOut,
 		Rooms:    rooms,
 	}, nil
+}
+
+// tryEntityPage attempts to extract room data from the Google Hotels entity
+// page. Returns nil rooms if the page uses deferred loading (common since
+// mid-2026).
+func tryEntityPage(ctx context.Context, opts RoomSearchOptions) ([]RoomType, string) {
+	client := DefaultClient()
+	entityURL := fmt.Sprintf(
+		"https://www.google.com/travel/hotels/entity/%s?q=&dates=%s,%s&hl=en&currency=%s",
+		opts.HotelID, opts.CheckIn, opts.CheckOut, opts.Currency,
+	)
+
+	status, body, err := client.Get(ctx, entityURL)
+	if err != nil || status != 200 || len(body) < 500 {
+		return nil, ""
+	}
+
+	page := string(body)
+	rooms, hotelName := parseRoomsFromPage(page, opts.Currency)
+
+	// If entity page has location data, populate opts.Location for the
+	// search-page fallback (opts is passed by value so this is safe).
+	if opts.Location == "" {
+		opts.Location = extractLocationFromPage(page)
+	}
+
+	return rooms, hotelName
+}
+
+// trySearchPageFallback searches for the hotel on the Google Hotels search
+// page to extract its price data. The search page embeds hotel data in
+// AF_initDataCallback blocks (unlike the entity page which now defers them).
+//
+// This function searches by the location associated with the hotel ID,
+// finds the specific hotel by matching its entity ID, and returns a room
+// entry with the hotel's price from the search results.
+func trySearchPageFallback(ctx context.Context, opts RoomSearchOptions) ([]RoomType, string) {
+	if opts.Location == "" {
+		return nil, ""
+	}
+
+	searchOpts := HotelSearchOptions{
+		CheckIn:  opts.CheckIn,
+		CheckOut: opts.CheckOut,
+		Guests:   2,
+		Currency: opts.Currency,
+		MaxPages: 1, // Single page — just need to find the target hotel.
+	}
+
+	// Try multiple location candidates extracted from the hint (e.g.
+	// "Hotel Lutetia, Paris" yields ["Paris", "Hotel Lutetia Paris"]).
+	client := DefaultClient()
+	candidates := buildLocationCandidates(opts.Location)
+	var result *models.HotelSearchResult
+	for _, loc := range candidates {
+		r, err := SearchHotelsWithClient(ctx, client, loc, searchOpts)
+		if err == nil && len(r.Hotels) > 0 {
+			result = r
+			break
+		}
+	}
+	if result == nil || len(result.Hotels) == 0 {
+		return nil, ""
+	}
+
+	// Find target hotel by ID.
+	var hotel *models.HotelResult
+	for i := range result.Hotels {
+		if result.Hotels[i].HotelID == opts.HotelID {
+			hotel = &result.Hotels[i]
+			break
+		}
+	}
+	if hotel == nil {
+		return nil, ""
+	}
+
+	var rooms []RoomType
+	if hotel.Price > 0 {
+		rooms = append(rooms, RoomType{
+			Name:     "Standard Room",
+			Price:    hotel.Price,
+			Currency: hotel.Currency,
+			Provider: providerFromSources(hotel),
+		})
+	}
+
+	// Add additional provider prices as separate "room" entries.
+	for _, src := range hotel.Sources {
+		if src.Price > 0 && src.Price != hotel.Price {
+			rooms = append(rooms, RoomType{
+				Name:     "Standard Room",
+				Price:    src.Price,
+				Currency: src.Currency,
+				Provider: src.Provider,
+			})
+		}
+	}
+
+	return rooms, hotel.Name
+}
+
+// extractLocationFromSearchData recursively searches parsed callback data
+// for location triplets [null, "CityName", "place_id"], the format
+// Google Hotels uses for location references in search-page data.
+// Returns the city name from the first matching triplet, or "" if none found.
+func extractLocationFromSearchData(v any, depth int) string {
+	if depth > 10 {
+		return ""
+	}
+	arr, ok := v.([]any)
+	if !ok {
+		return ""
+	}
+	// Location triplet: [null, "CityName", "place_id_hex"]
+	if len(arr) == 3 && arr[0] == nil {
+		city, cityOK := arr[1].(string)
+		pid, pidOK := arr[2].(string)
+		if cityOK && pidOK && len(city) >= 2 && len(city) <= 80 {
+			if strings.HasPrefix(pid, "0x") {
+				return city
+			}
+		}
+	}
+	// Recurse into sub-arrays.
+	for _, item := range arr {
+		if loc := extractLocationFromSearchData(item, depth+1); loc != "" {
+			return loc
+		}
+	}
+	return ""
+}
+
+// extractLocationFromPage extracts the city name from the AF_initDataCallback
+// data on a Google Hotels page. The location is at data[6][1][18][1] in
+// organic hotel entries, stored as a triplet [null, "CityName", "placeID"].
+//
+// On search pages this returns the city (e.g. "Paris"). On entity pages
+// with deferred data loading, the callbacks are empty and this returns "".
+//
+// The search-wide params at [6][1][18] contain [null, "CityName", "placeID"].
+// We recursively search all callbacks for this triplet pattern.
+func extractLocationFromPage(page string) string {
+	callbacks := extractCallbacks(page)
+	if len(callbacks) == 0 {
+		return ""
+	}
+
+	// Search each callback for a location triplet.
+	for _, cb := range callbacks {
+		if loc := extractLocationFromCallback(cb); loc != "" {
+			return loc
+		}
+	}
+
+	return ""
+}
+
+// extractLocationFromCallback searches a parsed callback for location data
+// at the path used by the search-wide price parameters: [6][1][18][1].
+// Delegates to the generic extractLocationFromSearchData recursive scanner.
+func extractLocationFromCallback(v any) string {
+	return findLocationTriplet(v, 0)
+}
+
+// findLocationTriplet recursively searches for arrays matching
+// [null, "city_name", "place_id_hex"] which is how Google embeds location
+// references in hotel data.
+// Delegates to the generic extractLocationFromSearchData recursive scanner.
+func findLocationTriplet(v any, depth int) string {
+	return extractLocationFromSearchData(v, depth)
+}
+
+// providerFromSources returns the provider display name from the first source
+// entry, or "Google Hotels" as the default.
+func providerFromSources(h *models.HotelResult) string {
+	if len(h.Sources) > 0 && h.Sources[0].Provider != "" {
+		return displayProvider(h.Sources[0].Provider)
+	}
+	return "Google Hotels"
+}
+
+// displayProvider converts internal provider identifiers (e.g. "google_hotels")
+// to human-readable names (e.g. "Google Hotels").
+func displayProvider(p string) string {
+	switch p {
+	case "google_hotels":
+		return "Google Hotels"
+	default:
+		return p
+	}
 }
 
 // mergeRoomTypes combines Google and Booking room lists. Booking rooms with
