@@ -219,6 +219,15 @@ const browserCookieLookupTimeout = 15 * time.Second
 // browser has already solved any JS challenges and has valid session
 // cookies, which we can read directly from their disk-backed cookie jars.
 func browserCookiesForURL(targetURL string) []*http.Cookie {
+	// Skip browser cookie lookups during `go test` to avoid macOS Keychain
+	// prompts. Every recompiled test binary gets a new code signature, so
+	// "Always Allow" doesn't persist and the user gets prompted repeatedly.
+	// Live probe tests that genuinely need browser cookies set
+	// TRVL_ALLOW_BROWSER_COOKIES=1 explicitly.
+	if os.Getenv("TRVL_ALLOW_BROWSER_COOKIES") == "" && isTestBinary() {
+		return nil
+	}
+
 	u, err := url.Parse(targetURL)
 	if err != nil || u.Host == "" {
 		return nil
@@ -282,6 +291,11 @@ func browserCookiesForURL(targetURL string) []*http.Cookie {
 func browserCookiesForURLWithHint(targetURL, browserHint string) []*http.Cookie {
 	if browserHint == "" {
 		return browserCookiesForURL(targetURL)
+	}
+
+	// Same test-binary guard as browserCookiesForURL.
+	if os.Getenv("TRVL_ALLOW_BROWSER_COOKIES") == "" && isTestBinary() {
+		return nil
 	}
 
 	u, err := url.Parse(targetURL)
@@ -396,4 +410,15 @@ func cookieDomainMatchesHost(cookieDomain, host string) bool {
 		return true
 	}
 	return strings.HasSuffix(h, "."+cd)
+}
+
+// isTestBinary detects if the current process is a Go test binary.
+// Go test binaries have "-test." flags in os.Args (e.g. -test.run, -test.v).
+func isTestBinary() bool {
+	for _, arg := range os.Args {
+		if strings.HasPrefix(arg, "-test.") {
+			return true
+		}
+	}
+	return false
 }

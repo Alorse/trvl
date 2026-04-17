@@ -18,17 +18,16 @@ func skipIfNoLiveProbes(t *testing.T) {
 	if os.Getenv("TRVL_TEST_LIVE_PROBES") != "1" {
 		t.Skip("live probes disabled (set TRVL_TEST_LIVE_PROBES=1)")
 	}
+	// Allow browser cookie access for live probes — needed for Booking.com
+	// and other providers that rely on browser cookies for auth.
+	t.Setenv("TRVL_ALLOW_BROWSER_COOKIES", "1")
 }
 
 func TestLiveProbe_Hostelworld(t *testing.T) {
 	skipIfNoLiveProbes(t)
 
 	// Verified pattern: APIGEE_KEY:"..." in page HTML config block.
-	//
-	// Known limitation: the Hostelworld API requires a city ID in the URL path
-	// (not coordinates). City ID 59 = Paris. In production use the LLM would
-	// need to resolve a city name to an ID first, e.g. via the Hostelworld
-	// autocomplete endpoint /api/search/autocomplete?query=Paris.
+	// Uses ${city_id} resolved via CityLookup — Paris = 14 (production value).
 	cfg := &ProviderConfig{
 		ID:       "hostelworld",
 		Name:     "Hostelworld",
@@ -43,7 +42,7 @@ func TestLiveProbe_Hostelworld(t *testing.T) {
 				},
 			},
 		},
-		Endpoint: "https://prod.apigee.hostelworld.com/legacy-hwapi-service/2.2/cities/59/properties/",
+		Endpoint: "https://prod.apigee.hostelworld.com/legacy-hwapi-service/2.2/cities/${city_id}/properties/",
 		Method:   "GET",
 		Headers: map[string]string{
 			"api-key": "${api_key}",
@@ -53,18 +52,24 @@ func TestLiveProbe_Hostelworld(t *testing.T) {
 			"num-nights": "1",
 			"guests":     "${guests}",
 			"currency":   "${currency}",
-			"per-page":   "10",
+			"per-page":   "30",
 		},
 		ResponseMapping: ResponseMapping{
 			ResultsPath: "properties",
+			RatingScale: 0.1, // Hostelworld returns 0-100, normalize to 0-10
 			Fields: map[string]string{
 				"name":         "name",
 				"hotel_id":     "id",
-				"rating":       "rating.overall",
-				"review_count": "rating.numberOfRatings",
+				"rating":       "overallRating.overall",
+				"review_count": "overallRating.numberOfRatings",
 				"price":        "lowestPricePerNight.value",
 				"currency":     "lowestPricePerNight.currency",
+				"address":      "address1",
+				"neighborhood": "district.name",
 			},
+		},
+		CityLookup: map[string]string{
+			"paris": "14",
 		},
 		RateLimit: RateLimitConfig{RequestsPerSecond: 1},
 		TLS:      TLSConfig{Fingerprint: "standard"},
@@ -206,6 +211,7 @@ func TestLiveProbe_Airbnb(t *testing.T) {
 		}`,
 		ResponseMapping: ResponseMapping{
 			ResultsPath: "data.presentation.staysSearch.results.searchResults",
+			RatingScale: 2.0, // Airbnb returns 0-5, normalize to 0-10
 			Fields: map[string]string{
 				"name":         "subtitle",
 				"hotel_id":     "demandStayListing.id",
@@ -252,51 +258,53 @@ func TestLiveProbe_Airbnb(t *testing.T) {
 func TestLiveProbe_Booking(t *testing.T) {
 	skipIfNoLiveProbes(t)
 
-	// Booking.com uses a frontend GraphQL API with CSRF token protection.
-	// The CSRF token is extracted from the search results page HTML.
-	// Chrome TLS fingerprint is required.
-	//
-	// NOTE: The FullSearch persisted query hash changes frequently. The
-	// placeholder "FILL" will cause the search step to fail, but the test
-	// still validates CSRF extraction and endpoint reachability.
+	// Booking.com uses the dml/graphql endpoint with browser cookies for auth.
+	// No CSRF extraction needed — the production config relies on browser
+	// cookies read from the user's installed browser via kooky.
+	// This probe mirrors the production booking.json config exactly.
 	cfg := &ProviderConfig{
 		ID:       "booking",
 		Name:     "Booking.com",
 		Category: "hotels",
 		Auth: &AuthConfig{
-			Type:         "preflight",
-			PreflightURL: "https://www.booking.com/searchresults.html?dest_id=-1456928&lang=en-us",
-			Extractions: map[string]Extraction{
-				"csrf_token": {
-					Pattern:  `"b_csrf_token":"([^"]+)"`,
-					Variable: "csrf_token",
-				},
-			},
+			Type:               "preflight",
+			PreflightURL:       "https://www.booking.com/searchresults.en-gb.html?dest_id=-1456928&dest_type=city&group_adults=2&no_rooms=1&lang=en-gb",
+			BrowserEscapeHatch: true,
 		},
-		Endpoint: "https://www.booking.com/dml/graphql?lang=en-us",
+		Endpoint: "https://www.booking.com/dml/graphql?lang=en-gb",
 		Method:   "POST",
 		Headers: map[string]string{
+			"Accept":                        "*/*",
 			"Content-Type":                  "application/json",
-			"x-booking-csrf-token":          "${csrf_token}",
-			"x-booking-context-action-name": "searchresults_irene",
-			"x-booking-site-type-id":        "1",
-			"apollographql-client-name":     "b-search-web-searchresults",
+			"Origin":                        "https://www.booking.com",
+			"Referer":                       "https://www.booking.com/searchresults.en-gb.html?dest_id=${city_id}&dest_type=city",
+			"User-Agent":                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+			"x-booking-context-action-name": "searchresults",
+			"x-booking-context-aid":         "304142",
+			"x-booking-topic":               "capla/v1",
 		},
-		BodyTemplate: `{"operationName":"FullSearch","variables":{"input":{"dates":{"checkin":"${checkin}","checkout":"${checkout}"},"location":{"searchString":"${location}","destType":"CITY"},"nbAdults":${guests},"nbRooms":1},"carousels":[],"filters":{"selectedFilters":""},"pagination":{"offset":0,"rowsPerPage":25}},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"FILL"}}}`,
+		BodyTemplate:    `{"operationName":"searchQueries","variables":{"input":{"dates":{"checkin":"${checkin}","checkout":"${checkout}"},"location":{"destId":${city_id},"destType":"CITY"},"nbAdults":${guests},"nbRooms":1,"pagination":{"offset":0,"rowsPerPage":25}}},"query":"query searchQueries($input: SearchQueryInput!) { searchQueries { search(input: $input) { ... on SearchQueryOutput { results { ... on SearchResultProperty { displayName { text } basicPropertyData { id starRating { value } location { address latitude longitude } reviews { totalScore reviewsCount } photos { main { highResUrl { absoluteUrl } } } } priceDisplayInfoIrene { displayPrice { amountPerStay { amountUnformatted currency } } } } } pagination { nbResultsTotal } } } } }"}`,
 		ResponseMapping: ResponseMapping{
 			ResultsPath: "data.searchQueries.search.results",
 			Fields: map[string]string{
-				"name":     "displayName.text",
-				"hotel_id": "basicPropertyData.id",
-				"rating":   "basicPropertyData.reviewScore.score",
-				"price":    "priceDisplayInfoIrene.displayPrice.amountPerStay.amount",
-				"lat":      "basicPropertyData.location.latitude",
-				"lon":      "basicPropertyData.location.longitude",
+				"name":         "displayName.text",
+				"hotel_id":     "basicPropertyData.id",
+				"rating":       "basicPropertyData.reviews.totalScore",
+				"review_count": "basicPropertyData.reviews.reviewsCount",
+				"price":        "priceDisplayInfoIrene.displayPrice.amountPerStay.amountUnformatted",
+				"currency":     "priceDisplayInfoIrene.displayPrice.amountPerStay.currency",
+				"lat":          "basicPropertyData.location.latitude",
+				"lon":          "basicPropertyData.location.longitude",
+				"address":      "basicPropertyData.location.address",
+				"stars":        "basicPropertyData.starRating.value",
 			},
+		},
+		CityLookup: map[string]string{
+			"paris": "-1456928",
 		},
 		RateLimit: RateLimitConfig{RequestsPerSecond: 0.5},
 		TLS:      TLSConfig{Fingerprint: "chrome"},
-		Cookies:  CookieConfig{Source: "preflight"},
+		Cookies:  CookieConfig{Source: "browser"},
 	}
 
 	checkin := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
@@ -309,24 +317,13 @@ func TestLiveProbe_Booking(t *testing.T) {
 	logResult(t, "Booking.com", result)
 
 	if !result.Success {
-		// If CSRF extraction failed, log alternative patterns for discovery.
-		if result.Step == "auth_extraction" {
-			t.Logf("CSRF extraction failed with primary pattern. Body snippet for pattern discovery:\n%s", result.BodySnippet)
-
-			altPatterns := []string{
-				`csrf_token['":\s]+['"]([^'"]+)`,
-				`X-Booking-CSRF['":\s]+['"]([^'"]+)`,
-				`csrf_token\s*=\s*'([^']+)'`,
-				`"csrfToken":"([^"]+)"`,
-			}
-			for _, pat := range altPatterns {
-				t.Logf("Suggested alternative CSRF pattern: %s", pat)
-			}
+		if result.AuthTier == "" || result.AuthTier == "browser-cookies-only" {
+			t.Logf("Booking.com needs browser cookies. Visit booking.com in your browser to seed cookies.")
 		}
 		t.Errorf("Booking.com probe failed at step %q: %s", result.Step, result.Error)
 	}
 	if result.ResultsCount == 0 && result.Success {
-		t.Log("Booking.com returned 0 results (search succeeded but empty — persisted query hash may need updating)")
+		t.Log("Booking.com returned 0 results — browser cookies may be stale")
 	}
 }
 

@@ -26,14 +26,14 @@ var availableProviders = []providerSuggestion{
 		Name:        "Booking.com",
 		Category:    "hotels",
 		Description: "Hotels and apartments worldwide.",
-		AuthPattern: "graphql_csrf",
-		AuthHint: "GraphQL with session CSRF token.\n" +
+		AuthPattern: "graphql_browser_cookies",
+		AuthHint: "GraphQL with browser cookies (no CSRF needed).\n" +
 			"Reference: github.com/opentabs-dev/opentabs\n" +
-			"  - See src/api.ts for the GraphQL endpoint URL and query structure\n" +
-			"  - See src/types.ts for response field names and result schema\n" +
-			"  - Auth: CSRF token from search results page, regex for session token in HTML\n" +
-			"  - Note: WAF-protected (HTTP 202 common), enable browser_escape_hatch: true\n" +
-			"  - Note: GraphQL with persisted queries (sha256Hash in extensions)",
+			"  - Endpoint: https://www.booking.com/dml/graphql?lang=en-gb\n" +
+			"  - Auth: browser cookies from user's installed browser (kooky auto-detect)\n" +
+			"  - Set cookies.source: \"browser\" and auth.browser_escape_hatch: true\n" +
+			"  - Rating: 0-10 natively (totalScore), no rating_scale needed\n" +
+			"  - Note: WAF-protected, standard HTTP client works better with browser cookies",
 		Reference:      "github.com/opentabs-dev/opentabs",
 		TosURL:         "https://www.booking.com/content/terms.html",
 		TLS:            "chrome",
@@ -46,12 +46,13 @@ var availableProviders = []providerSuggestion{
 		Category:    "hotels",
 		Description: "Vacation rentals, apartments, and unique stays.",
 		AuthPattern: "graphql_apikey",
-		AuthHint: "GraphQL with page-embedded API key.\n" +
+		AuthHint: "SSR HTML extraction (Niobe deferred-state-0 cache).\n" +
 			"Reference: github.com/johnbalvin/gobnb\n" +
-			"  - See api/search.go for the search endpoint URL and request structure\n" +
+			"  - See api/search.go for the search URL pattern and request structure\n" +
 			"  - See api/types.go for response field names (ListingResult schema)\n" +
-			"  - Auth: API key extracted from HTML meta tag on airbnb.com homepage\n" +
-			"  - Note: GraphQL-style POST with JSON body containing search variables",
+			"  - Auth: browser-like GET request, extract JSON from HTML data-deferred-state-0 script\n" +
+			"  - Rating: 0-5 scale, set rating_scale: 2.0 to normalize to 0-10\n" +
+			"  - Note: SSR extraction, not GraphQL API — use body_extract_pattern in response_mapping",
 		Reference:      "github.com/johnbalvin/gobnb",
 		TosURL:         "https://www.airbnb.com/terms",
 		TLS:            "chrome",
@@ -84,10 +85,11 @@ var availableProviders = []providerSuggestion{
 		AuthHint: "REST API with API key from page source.\n" +
 			"Reference: search GitHub for 'hostelworld api' or 'hostelworld-api'\n" +
 			"  - Look for src/client.ts or similar for the API base URL and endpoints\n" +
-			"  - Auth: APIGEE API key extracted from homepage HTML via regex\n" +
-			"  - City IDs: numeric (e.g. Paris=59, London=64, Barcelona=33, Berlin=4, Rome=88)\n" +
-			"  - Find city IDs by visiting hostelworld.com/hostels/$city and inspecting API calls\n" +
-			"  - Note: REST API, results typically in .properties[] array",
+			"  - Auth: APIGEE API key extracted from homepage HTML via regex APIGEE_KEY:\"([^\"]+)\"\n" +
+			"  - City IDs: numeric (e.g. Paris=14, London=3, Barcelona=83, Berlin=26, Rome=36)\n" +
+			"  - Resolve city IDs via autocomplete: /api/search/autocomplete?query=CityName\n" +
+			"  - Rating: 0-100 scale, set rating_scale: 0.1 to normalize to 0-10\n" +
+			"  - Note: REST API, results in .properties[] array",
 		Reference:      "search GitHub for hostelworld api",
 		TosURL:         "https://www.hostelworld.com/securityprivacy/terms-and-conditions",
 		TLS:            "standard",
@@ -153,6 +155,7 @@ var availableProviders = []providerSuggestion{
 func skeletonResponseMapping() map[string]any {
 	return map[string]any{
 		"results_path": "FILL: dot-notation path to results array in response JSON",
+		"rating_scale": "FILL: multiply raw rating by this to normalize to 0-10 (e.g. 2.0 for 0-5, 0.1 for 0-100, omit if already 0-10)",
 		"fields": map[string]any{
 			"name":     "FILL: path to hotel/property name",
 			"hotel_id": "FILL: path to unique ID",

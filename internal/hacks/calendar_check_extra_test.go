@@ -89,7 +89,7 @@ func TestDetectCalendarConflict_PeakReturnsAlternativeSuggestion(t *testing.T) {
 		t.Fatal("expected at least one hack for Aug 15")
 	}
 	h := got[0]
-	if h.Steps == nil || len(h.Steps) == 0 {
+	if len(h.Steps) == 0 {
 		t.Error("expected Steps in the hack")
 	}
 	if h.Description == "" {

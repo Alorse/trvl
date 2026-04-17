@@ -740,8 +740,9 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 
 			// Diagnostic: Booking.com moved hotel results to CSR in early 2026.
 			// The Apollo SSR cache has search shell (filters, pagination) but
-			// results[] is empty. Log key counts at debug level for diagnostics.
-			// TODO: switch Booking to GraphQL endpoint or HTML card scraping.
+			// results[] is empty. Production config now uses dml/graphql
+			// endpoint directly (booking.json). This SSR path remains as
+			// fallback for any provider still using Apollo SSR rendering.
 			if cfg.ID == "booking" {
 				if rqMap, ok := cache["ROOT_QUERY"].(map[string]any); ok {
 					slog.Debug("apollo cache diagnostic",
@@ -756,8 +757,8 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 						// Booking moved to CSR in 2026 — SSR results[] is
 						// typically empty. Log at debug level to track when
 						// Booking restores SSR rendering or changes the key
-						// structure again. See also: the TODO above about
-						// switching to GraphQL endpoint or HTML card scraping.
+						// structure again. Production booking.json now uses
+						// dml/graphql directly, bypassing this SSR path.
 						for k, val := range sq {
 							if !strings.HasPrefix(k, "search") {
 								continue

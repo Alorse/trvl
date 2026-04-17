@@ -391,6 +391,10 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		}
 		// Map the first result as a sample.
 		h := mapHotelResult(arr[0], cfg.ResponseMapping.Fields)
+		// Apply rating normalization (mirrors searchProvider behavior).
+		if scale := cfg.ResponseMapping.RatingScale; scale > 0 && h.Rating > 0 {
+			h.Rating = h.Rating * scale
+		}
 		sample := map[string]any{
 			"name":     h.Name,
 			"hotel_id": h.HotelID,

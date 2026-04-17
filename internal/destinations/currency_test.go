@@ -2,7 +2,6 @@ package destinations
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 )
@@ -170,5 +169,5 @@ func TestFetchCurrency_CacheHitUnknownCurrency(t *testing.T) {
 	}
 }
 
-// Ensure currencyCache has the right exported field for testing.
-var _ sync.RWMutex = currencyCache.RWMutex
+// currencyCache type is verified transitively by the test functions above
+// that call currencyCache.Lock/Unlock/RLock directly.
