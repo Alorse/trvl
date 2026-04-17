@@ -45,14 +45,6 @@ func trvlDir() (string, error) {
 	return filepath.Join(home, ".trvl"), nil
 }
 
-// stampPath returns the full path to the version stamp file.
-func stampPath() (string, error) {
-	dir, err := trvlDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "version.stamp"), nil
-}
 
 // stampPathIn returns the stamp path inside a given directory.
 func stampPathIn(dir string) string {
