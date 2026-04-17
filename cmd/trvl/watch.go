@@ -554,7 +554,7 @@ func (c *liveRoomChecker) CheckRooms(ctx context.Context, w watch.Watch) ([]watc
 		currency = "USD"
 	}
 
-	result, err := resolveRoomAvailability(ctx, w.HotelName, w.DepartDate, w.ReturnDate, currency)
+	result, err := resolveRoomAvailability(ctx, w.HotelName, w.DepartDate, w.ReturnDate, currency, "")
 	if err != nil {
 		return nil, err
 	}

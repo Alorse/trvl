@@ -216,6 +216,23 @@ func (c *Client) Get(ctx context.Context, url string) (int, []byte, error) {
 	})
 }
 
+// GetWithCookie performs a GET request like Get but appends the given raw
+// cookie string to the Cookie header. This is used to bypass Google's EU
+// consent page by pre-seeding SOCS/CONSENT cookies on a retry.
+func (c *Client) GetWithCookie(ctx context.Context, url, cookieHeader string) (int, []byte, error) {
+	return c.doWithRetry(ctx, func() (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", chromeUA)
+		if cookieHeader != "" {
+			req.Header.Set("Cookie", cookieHeader)
+		}
+		return req, nil
+	})
+}
+
 // PostForm sends a POST with form-encoded body to the given URL. It sets the
 // Content-Type to application/x-www-form-urlencoded and uses a Chrome User-Agent.
 // The request is subject to rate limiting and automatic retry on 429/5xx.

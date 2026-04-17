@@ -31,6 +31,7 @@ Examples:
 	cmd.Flags().String("checkin", "", "Check-in date (YYYY-MM-DD, required)")
 	cmd.Flags().String("checkout", "", "Check-out date (YYYY-MM-DD, required)")
 	cmd.Flags().String("currency", "USD", "Currency code (e.g. EUR, USD)")
+	cmd.Flags().String("location", "", "City or area hint for raw hotel ID lookups (e.g. Paris)")
 
 	_ = cmd.MarkFlagRequired("checkin")
 	_ = cmd.MarkFlagRequired("checkout")
@@ -44,6 +45,7 @@ func runRooms(cmd *cobra.Command, args []string) error {
 	checkIn, _ := cmd.Flags().GetString("checkin")
 	checkOut, _ := cmd.Flags().GetString("checkout")
 	currency, _ := cmd.Flags().GetString("currency")
+	location, _ := cmd.Flags().GetString("location")
 	format, _ := cmd.Flags().GetString("format")
 
 	if err := models.ValidateDateRange(checkIn, checkOut); err != nil {
@@ -53,7 +55,7 @@ func runRooms(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	result, err := resolveRoomAvailability(ctx, hotelQuery, checkIn, checkOut, currency)
+	result, err := resolveRoomAvailability(ctx, hotelQuery, checkIn, checkOut, currency, location)
 	if err != nil {
 		return fmt.Errorf("hotel rooms: %w", err)
 	}
@@ -65,12 +67,20 @@ func runRooms(cmd *cobra.Command, args []string) error {
 	return formatRoomsTable(result)
 }
 
-func resolveRoomAvailability(ctx context.Context, hotelQuery, checkIn, checkOut, currency string) (*hotels.RoomAvailability, error) {
+func resolveRoomAvailability(ctx context.Context, hotelQuery, checkIn, checkOut, currency, location string) (*hotels.RoomAvailability, error) {
 	if looksLikeGoogleHotelID(hotelQuery) {
-		// Direct ID lookup — no location hint available, so the search-page
-		// fallback inside GetRoomAvailability won't fire. The entity page
-		// may still return data if Google serves it inline.
-		return hotels.GetRoomAvailability(ctx, hotelQuery, checkIn, checkOut, currency)
+		// Direct ID lookup. Pass any caller-provided location hint so the
+		// search-page fallback can fire when the entity page has deferred data.
+		// If no hint is provided, tryEntityPage will attempt to extract one from
+		// the page itself before falling back.
+		opts := hotels.RoomSearchOptions{
+			HotelID:  hotelQuery,
+			CheckIn:  checkIn,
+			CheckOut: checkOut,
+			Currency: currency,
+			Location: location,
+		}
+		return hotels.GetRoomAvailabilityWithOpts(ctx, opts)
 	}
 
 	hotel, err := hotels.SearchHotelByName(ctx, hotelQuery, checkIn, checkOut)

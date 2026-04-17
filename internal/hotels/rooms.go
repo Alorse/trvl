@@ -81,7 +81,13 @@ func GetRoomAvailabilityWithOpts(ctx context.Context, opts RoomSearchOptions) (*
 	}
 
 	// Try the entity page first (fast path, works when Google serves inline data).
-	rooms, hotelName := tryEntityPage(ctx, opts)
+	// Also capture any location hint extracted from the entity page so the
+	// search-page fallback can use it when no Location was provided by the caller
+	// (e.g. raw hotel ID lookups from the CLI or MCP without a name hint).
+	rooms, hotelName, entityLocation := tryEntityPage(ctx, opts)
+	if opts.Location == "" && entityLocation != "" {
+		opts.Location = entityLocation
+	}
 
 	// Fallback: search for the hotel on the search page by location extracted
 	// from the hotel ID's geocoded area. The search page still has inline
@@ -113,8 +119,10 @@ func GetRoomAvailabilityWithOpts(ctx context.Context, opts RoomSearchOptions) (*
 
 // tryEntityPage attempts to extract room data from the Google Hotels entity
 // page. Returns nil rooms if the page uses deferred loading (common since
-// mid-2026).
-func tryEntityPage(ctx context.Context, opts RoomSearchOptions) ([]RoomType, string) {
+// mid-2026). The third return value is a location hint extracted from the page
+// (e.g. "Paris") which callers can use as a fallback when no Location was
+// provided in opts.
+func tryEntityPage(ctx context.Context, opts RoomSearchOptions) ([]RoomType, string, string) {
 	client := DefaultClient()
 	entityURL := fmt.Sprintf(
 		"https://www.google.com/travel/hotels/entity/%s?q=&dates=%s,%s&hl=en&currency=%s",
@@ -123,19 +131,17 @@ func tryEntityPage(ctx context.Context, opts RoomSearchOptions) ([]RoomType, str
 
 	status, body, err := client.Get(ctx, entityURL)
 	if err != nil || status != 200 || len(body) < 500 {
-		return nil, ""
+		return nil, "", ""
 	}
 
 	page := string(body)
 	rooms, hotelName := parseRoomsFromPage(page, opts.Currency)
 
-	// If entity page has location data, populate opts.Location for the
-	// search-page fallback (opts is passed by value so this is safe).
-	if opts.Location == "" {
-		opts.Location = extractLocationFromPage(page)
-	}
+	// Extract location from the entity page so the caller can pass it to the
+	// search-page fallback when opts.Location is empty.
+	location := extractLocationFromPage(page)
 
-	return rooms, hotelName
+	return rooms, hotelName, location
 }
 
 // trySearchPageFallback searches for the hotel on the Google Hotels search

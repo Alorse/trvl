@@ -414,6 +414,30 @@ func fetchHotelPage(ctx context.Context, client *batchexec.Client, location stri
 	return pr.Hotels, nil
 }
 
+// googleConsentCookie is the cookie string sent on consent-bypass retries.
+//
+// Google's EU consent gate is gated by two cookies:
+//   - SOCS: a base64-encoded proto that records the user's consent choice.
+//     The value below decodes to "accept all" with no personalisation (a
+//     valid consent record Google itself generates). It bypasses the redirect
+//     to consent.google.com without granting ad-tracking consent.
+//   - CONSENT: the older fallback cookie still honoured by some Google
+//     front-ends.
+//
+// Both cookies are domain=.google.com and do not carry session secrets; they
+// are safe to pre-seed and contain no personally-identifiable information.
+const googleConsentCookie = "SOCS=CAESNQgDEitib3FfdW5kZWZpbmVkX2NvbnNlbnRfYm9keV9lbl9nYl92M18xNzI2NjI4MDgQlYoBGgYIgJCLsgY; CONSENT=YES+srp.gws-20230810-0-RC1.en+FX"
+
+// isGoogleConsentPage reports whether the response body is Google's EU
+// consent/cookie-wall page rather than a real search-results page.
+func isGoogleConsentPage(body []byte) bool {
+	s := string(body)
+	return strings.Contains(s, "consent.google.com") ||
+		strings.Contains(s, "action=\"https://consent.google.") ||
+		strings.Contains(s, "id=\"SOCS\"") ||
+		(strings.Contains(s, "SOCS") && strings.Contains(s, "consentheading"))
+}
+
 // fetchHotelPageFull fetches a single page and returns the full parseResult
 // including metadata like total available count.
 // googleSort is the Google Hotels &sort= parameter value ("" for default).
@@ -439,6 +463,22 @@ func fetchHotelPageFull(ctx context.Context, client *batchexec.Client, location 
 	}
 	if len(body) < 1000 {
 		return parseResult{}, fmt.Errorf("hotel search returned empty response")
+	}
+
+	// Detect Google's EU consent/cookie-wall page. When Google redirects EU
+	// users to consent.google.com the response body contains distinctive
+	// markers instead of the AF_initDataCallback hotel data. Retry once with
+	// pre-seeded consent cookies to bypass the wall transparently.
+	if isGoogleConsentPage(body) {
+		slog.Info("google consent page detected, retrying with consent cookies")
+		status2, body2, err2 := client.GetWithCookie(ctx, travelURL, googleConsentCookie)
+		if err2 == nil && status2 == 200 && len(body2) >= 1000 && !isGoogleConsentPage(body2) {
+			body = body2
+		} else {
+			slog.Warn("consent cookie retry did not bypass consent page",
+				"status", status2, "err", err2)
+			return parseResult{}, fmt.Errorf("google consent page: unable to bypass (EU cookie wall)")
+		}
 	}
 
 	pr := parseHotelsFromPageFull(string(body), opts.Currency)
