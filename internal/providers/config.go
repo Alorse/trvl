@@ -52,6 +52,10 @@ type ProviderConfig struct {
 	// substitutes the result into ${amenity_ids} as a comma-separated list.
 	AmenityLookup map[string]string `json:"amenity_lookup,omitempty"`
 
+	// SortLookup maps canonical sort names ("price", "rating", "distance")
+	// to provider-specific sort parameter values.
+	SortLookup map[string]string `json:"sort_lookup,omitempty"`
+
 	// FilterComposite builds a compound URL parameter from active filter vars.
 	// Used by providers like Booking.com that combine multiple filters into a
 	// single semicolon-delimited parameter (nflt=ht_id%3D204%3Bfc%3D1%3B...).

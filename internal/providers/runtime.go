@@ -309,7 +309,11 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 			}
 		}
 		if filters.Sort != "" {
-			vars["${sort}"] = filters.Sort
+			if resolved, ok := cfg.SortLookup[strings.ToLower(filters.Sort)]; ok && resolved != "" {
+				vars["${sort}"] = resolved
+			} else {
+				vars["${sort}"] = filters.Sort
+			}
 		}
 		if filters.Stars > 0 {
 			vars["${stars}"] = strconv.Itoa(filters.Stars)
