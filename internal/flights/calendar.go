@@ -416,7 +416,7 @@ func detectSourceCurrencyWithClient(ctx context.Context, client *batchexec.Clien
 		return "EUR"
 	}
 
-	status, body, err := client.SearchFlights(quickCtx, encoded)
+	status, body, err := client.SearchFlightsWithCurrency(quickCtx, encoded, opts.Currency)
 	if err != nil || status != 200 {
 		return "EUR"
 	}

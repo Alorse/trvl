@@ -20,5 +20,6 @@ func (p *DefaultProvider) SearchFlights(ctx context.Context, origin, dest, date 
 		SortBy:     opts.SortBy,
 		Airlines:   opts.Airlines,
 		Adults:     opts.Adults,
+		Currency:   opts.Currency,
 	})
 }

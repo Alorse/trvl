@@ -16,6 +16,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -368,13 +369,24 @@ func backoffSleep(ctx context.Context, attempt int) error {
 // doWithRetry is thoroughly tested (client_test.go, client_extra_test.go).
 // Covered by integration proof tests.
 func (c *Client) SearchFlights(ctx context.Context, encodedFilters string) (int, []byte, error) {
+	return c.SearchFlightsWithCurrency(ctx, encodedFilters, "")
+}
+
+// SearchFlightsWithCurrency is like SearchFlights but appends a curr query
+// parameter to control the currency of returned prices.
+// An empty currency uses Google's IP-based default.
+func (c *Client) SearchFlightsWithCurrency(ctx context.Context, encodedFilters, currency string) (int, []byte, error) {
+	endpoint := FlightsURL
+	if currency != "" {
+		endpoint += "&curr=" + url.QueryEscape(currency)
+	}
 	payload := "f.req=" + encodedFilters
-	if data, ok := c.getCached(FlightsURL, payload); ok {
+	if data, ok := c.getCached(endpoint, payload); ok {
 		return 200, data, nil
 	}
-	status, body, err := c.PostForm(ctx, FlightsURL, payload)
+	status, body, err := c.PostForm(ctx, endpoint, payload)
 	if err == nil && status == 200 {
-		c.setCached(FlightsURL, payload, body, FlightCacheTTL)
+		c.setCached(endpoint, payload, body, FlightCacheTTL)
 	}
 	return status, body, err
 }

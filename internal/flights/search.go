@@ -36,6 +36,10 @@ type SearchOptions struct {
 	Airlines   []string          // Restrict to these airline IATA codes
 	Adults     int               // Number of adult passengers (default: 1)
 
+	// Currency controls server-side pricing via Google's curr query parameter (ISO 4217, e.g. "USD").
+	// When set, prices are returned in this currency. Empty = IP-based default.
+	Currency string
+
 	// Server-side filters passed to Google Flights batchexecute.
 	MaxPrice    int // Max price in whole currency units (0 = no limit)
 	MaxDuration int // Max total flight duration in minutes (0 = no limit)
@@ -151,7 +155,7 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 		}, fmt.Errorf("encode filters: %w", err)
 	}
 
-	status, body, err := client.SearchFlights(ctx, encoded)
+	status, body, err := client.SearchFlightsWithCurrency(ctx, encoded, opts.Currency)
 	if err != nil {
 		return &models.FlightSearchResult{
 			Error: fmt.Sprintf("request failed: %v", err),

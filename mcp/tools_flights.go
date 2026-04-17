@@ -140,6 +140,7 @@ func searchFlightsTool() ToolDef {
 				"carry_on_bags":       {Type: "integer", Description: "Require N carry-on bags included in price (0 = no filter, 1 = require carry-on). Server-side price recalculation."},
 				"checked_bags":        {Type: "integer", Description: "Checked bags pricing hint (0 = default, 1+ = recalculate prices including N checked bags). Changes price display, does not remove flights. Use require_checked_bag for actual filtering."},
 				"require_checked_bag": {Type: "boolean", Description: "Only show flights with ≥1 free checked bag included (default: false). Client-side post-filter on response data."},
+				"currency":            {Type: "string", Description: "Target currency for prices (ISO 4217, e.g. USD, EUR, JPY). Controls server-side pricing via Google's curr parameter. Empty = IP-based default."},
 			},
 			Required: []string{"origin", "destination", "departure_date"},
 		},
@@ -227,6 +228,7 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 		CarryOnBags:       argInt(args, "carry_on_bags", 0),
 		CheckedBags:       argInt(args, "checked_bags", 0),
 		RequireCheckedBag: argBool(args, "require_checked_bag", false),
+		Currency:          argString(args, "currency"),
 	}
 
 	if cc := argString(args, "cabin_class"); cc != "" {

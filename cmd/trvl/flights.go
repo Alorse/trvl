@@ -78,6 +78,7 @@ Examples:
 				SortBy:     sort,
 				Airlines:   airlines,
 				Adults:     adults,
+				Currency:   targetCurrency,
 			}
 
 			// --compare-cabins: search all cabin classes in parallel.
