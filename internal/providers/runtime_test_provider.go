@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/waf"
 	"golang.org/x/time/rate"
 )
@@ -43,12 +42,17 @@ type TestResult struct {
 func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat, lon float64, checkin, checkout, currency string, guests int) *TestResult {
 	result := &TestResult{Step: "init"}
 
-	// Create a fresh client for testing. Always attach a cookie jar so the
-	// browser-cookie fallback can seed session cookies when preflight hits
-	// a JS bot-detection challenge.
+	// Create a fresh client for testing. Mirror searchProvider's client
+	// selection: use the Chrome H2 fingerprinted client only when
+	// tls.fingerprint is "chrome" AND cookies.source is NOT "browser".
+	// When browser cookies are active, the standard Go HTTP client
+	// produces better results — some providers (Booking.com) SSR fewer
+	// results through the fhttp/utls pipeline despite identical cookies,
+	// likely due to subtle HTTP/2 framing differences that trigger a
+	// different server-side rendering path.
 	var httpClient *http.Client
-	if cfg.TLS.Fingerprint == "chrome" {
-		httpClient = batchexec.ChromeHTTPClient()
+	if cfg.TLS.Fingerprint == "chrome" && cfg.Cookies.Source != "browser" {
+		httpClient = newChromeH2Client()
 	} else {
 		httpClient = &http.Client{Timeout: 30 * time.Second}
 	}
@@ -69,162 +73,9 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		authValues: make(map[string]string),
 	}
 
-	// Seed browser cookies unconditionally when configured, same as
-	// searchProvider — carries JS sensor cookies for bot bypass.
-	if cfg.Cookies.Source == "browser" {
-		targetURL := cfg.Endpoint
-		if cfg.Auth != nil && cfg.Auth.PreflightURL != "" {
-			targetURL = cfg.Auth.PreflightURL
-		}
-		applyBrowserCookies(pc.client, targetURL, cfg.Cookies.Browser)
-	}
-
-	// Step 1: Preflight auth.
-	if cfg.Auth != nil && cfg.Auth.Type == "preflight" {
-		result.Step = "preflight"
-
-		if cfg.Auth.PreflightURL == "" {
-			result.Error = "preflight: preflight_url is empty"
-			return result
-		}
-
-		resp, body, err := doPreflightRequest(ctx, pc.client, cfg.Auth)
-		if err != nil {
-			result.Error = fmt.Sprintf("preflight: %v", err)
-			return result
-		}
-		result.HTTPStatus = resp.StatusCode
-
-		snippet := string(body)
-		if len(snippet) > 500 {
-			snippet = snippet[:500]
-		}
-		result.BodySnippet = snippet
-
-		// Run extractions (attempt 1).
-		result.Step = "auth_extraction"
-		matched := applyExtractions(cfg.Auth.Extractions, resp, body, pc.authValues)
-		matched += applyURLExtractions(ctx, pc.client, cfg.Auth.Extractions, pc.authValues)
-		tier := "direct"
-
-		// Fallback cascade: Tier 3 (browser cookies) then Tier 4
-		// (escape hatch — open URL in browser and wait for fresh cookies).
-		if needsBrowserCookieFallback(resp.StatusCode, matched, cfg.Auth.Extractions) {
-			tier = ""
-			if applied := applyBrowserCookies(pc.client, cfg.Auth.PreflightURL, cfg.Cookies.Browser); applied {
-				resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
-				if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
-					resp, body = resp2, body2
-					result.HTTPStatus = resp.StatusCode
-					snippet = string(body)
-					if len(snippet) > 500 {
-						snippet = snippet[:500]
-					}
-					result.BodySnippet = snippet
-					for k := range pc.authValues {
-						delete(pc.authValues, k)
-					}
-					matched = applyExtractions(cfg.Auth.Extractions, resp, body, pc.authValues)
-					matched += applyURLExtractions(ctx, pc.client, cfg.Auth.Extractions, pc.authValues)
-					tier = "browser-cookies"
-				}
-			}
-
-			// Tier 3b: WAF JS solver (sobek).
-			if tier == "" && (resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusForbidden) {
-				cookie, wafErr := waf.SolveAWSWAF(ctx, pc.client, cfg.Auth.PreflightURL, string(body), nil)
-				if wafErr == nil && cookie != nil {
-					u, _ := url.Parse(cfg.Auth.PreflightURL)
-					pc.client.Jar.SetCookies(u, []*http.Cookie{cookie})
-					resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
-					if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
-						resp, body = resp2, body2
-						result.HTTPStatus = resp.StatusCode
-						snippet = string(body)
-						if len(snippet) > 500 {
-							snippet = snippet[:500]
-						}
-						result.BodySnippet = snippet
-						for k := range pc.authValues {
-							delete(pc.authValues, k)
-						}
-						matched = applyExtractions(cfg.Auth.Extractions, resp, body, pc.authValues)
-						matched += applyURLExtractions(ctx, pc.client, cfg.Auth.Extractions, pc.authValues)
-						tier = "waf-solver"
-					}
-				} else if wafErr != nil {
-					slog.Debug("waf solver did not produce a token in test", "error", wafErr.Error())
-				}
-			}
-
-			// Tier 4: only if the provider opted in and the caller marked
-			// the context interactive. Non-interactive callers (this test
-			// harness by default) never spawn a browser.
-			if tier == "" && cfg.Auth.BrowserEscapeHatch && isInteractive(ctx) {
-				if tryBrowserEscapeHatch(ctx, pc, cfg.Auth) {
-					// tryBrowserEscapeHatch already wrote fresh values into
-					// pc.authValues; re-issue preflight once more here only
-					// to capture the body for diagnostics.
-					resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
-					if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
-						resp, body = resp2, body2
-						result.HTTPStatus = resp.StatusCode
-						snippet = string(body)
-						if len(snippet) > 500 {
-							snippet = snippet[:500]
-						}
-						result.BodySnippet = snippet
-					}
-					matched = len(pc.authValues)
-					tier = "browser-escape-hatch"
-				}
-			}
-		}
-		result.AuthTier = tier
-
-		// Build the diagnostic report.
-		result.ExtractionResults = make(map[string]string)
-		for name, extraction := range cfg.Auth.Extractions {
-			varName := extraction.Variable
-			if varName == "" {
-				varName = name
-			}
-			if v, ok := pc.authValues[varName]; ok {
-				suffix := ""
-				switch tier {
-				case "browser-cookies":
-					suffix = " [via browser cookies]"
-				case "waf-solver":
-					suffix = " [via WAF JS solver]"
-				case "browser-escape-hatch":
-					suffix = " [via browser escape hatch]"
-				}
-				result.ExtractionResults[name] = "ok (extracted " + strconv.Itoa(len(v)) + " chars)" + suffix
-			} else {
-				// Detect regex compile errors vs. plain no-match.
-				if _, err := regexp.Compile(extraction.Pattern); err != nil {
-					result.ExtractionResults[name] = fmt.Sprintf("regex error: %v", err)
-				} else {
-					result.ExtractionResults[name] = "no match"
-				}
-			}
-		}
-
-		// Check if any extraction failed.
-		for name, v := range result.ExtractionResults {
-			if !strings.HasPrefix(v, "ok") {
-				result.Error = fmt.Sprintf("auth_extraction: %s: %s", name, v)
-				return result
-			}
-		}
-		_ = matched
-
-		pc.authExpiry = time.Now().Add(authCacheDuration)
-	}
-
-	// Step 2: Build and send search request.
-	result.Step = "request"
-
+	// Build variable map early — the preflight URL may contain ${city_id}
+	// etc. that must be resolved before cookie seeding and preflight.
+	// This mirrors searchProvider's early variable construction.
 	neLat := lat + boundingBoxOffset
 	neLon := lon + boundingBoxOffset
 	swLat := lat - boundingBoxOffset
@@ -250,6 +101,42 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 	if id := resolveCityID(cfg.CityLookup, location); id != "" {
 		vars["${city_id}"] = id
 	}
+
+	// Seed browser cookies unconditionally when configured, same as
+	// searchProvider — carries JS sensor cookies for bot bypass.
+	// Resolve vars in the target URL so ${city_id} etc. produce a
+	// city-specific WAF session.
+	browserCookiesApplied := false
+	if cfg.Cookies.Source == "browser" {
+		targetURL := cfg.Endpoint
+		if cfg.Auth != nil && cfg.Auth.PreflightURL != "" {
+			targetURL = substituteVars(cfg.Auth.PreflightURL, vars)
+		}
+		browserCookiesApplied = applyBrowserCookies(pc.client, targetURL, cfg.Cookies.Browser)
+	}
+
+	// Step 1: Preflight auth.
+	// When browser cookies were successfully loaded AND the auth config has
+	// no extractions (i.e. preflight's only purpose is cookie seeding), skip
+	// the preflight entirely. Running preflight with a non-fingerprinted HTTP
+	// client overwrites the browser's authenticated cookies — the root cause
+	// of Booking.com returning 0 results despite valid browser cookies.
+	if cfg.Auth != nil && cfg.Auth.Type == "preflight" {
+		skipPreflight := browserCookiesApplied && len(cfg.Auth.Extractions) == 0
+		if skipPreflight {
+			slog.Info("test_provider: skipping preflight: browser cookies already loaded, no extractions needed",
+				"provider", cfg.ID)
+			result.AuthTier = "browser-cookies-only"
+		} else {
+			tr := runTestPreflight(ctx, pc, cfg, result)
+			if tr != nil {
+				return tr
+			}
+		}
+	}
+
+	// Step 2: Build and send search request.
+	result.Step = "request"
 
 	// Note: TestProvider does not receive filter params — it uses a fixed
 	// set of test variables. Filter variable substitution is exercised via
@@ -296,8 +183,36 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 		return result
 	}
 
-	for k, v := range cfg.Headers {
-		req.Header.Set(k, substituteEnvVars(substituteVars(v, vars)))
+	// Add headers in deterministic order when header_order is configured.
+	// WAF/bot-detection systems (Booking.com, Akamai) fingerprint header
+	// ordering. Go's map iteration is random, so without explicit ordering
+	// every request has a different header sequence — a bot fingerprint.
+	if len(cfg.HeaderOrder) > 0 {
+		added := make(map[string]bool, len(cfg.HeaderOrder))
+		for _, k := range cfg.HeaderOrder {
+			if v, ok := cfg.Headers[k]; ok {
+				req.Header.Set(k, substituteEnvVars(substituteVars(v, vars)))
+				added[k] = true
+			}
+		}
+		// Append any headers not listed in the order (safety net).
+		for k, v := range cfg.Headers {
+			if !added[k] {
+				req.Header.Set(k, substituteEnvVars(substituteVars(v, vars)))
+			}
+		}
+	} else {
+		for k, v := range cfg.Headers {
+			req.Header.Set(k, substituteEnvVars(substituteVars(v, vars)))
+		}
+	}
+
+	// Transparency header: identify the tool to the operator without
+	// concealing its nature. Skip for browser-cookie providers: adding a
+	// non-standard header breaks the browser-identical request fingerprint
+	// that makes the session cookies valid.
+	if cfg.Cookies.Source != "browser" {
+		req.Header.Set("X-Personal-Use", "trvl personal noncommercial https://github.com/MikkoParkkola/trvl")
 	}
 
 	resp, err := pc.client.Do(req)
@@ -309,7 +224,11 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 
 	result.HTTPStatus = resp.StatusCode
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	// Decompress the response body (handles br, gzip, zstd), mirroring
+	// searchProvider's use of decompressBody. The previous io.ReadAll path
+	// returned raw compressed bytes, causing JSON parse failures for
+	// providers that return Brotli/gzip-encoded responses.
+	body, err := decompressBody(resp, maxResponseBytes)
 	if err != nil {
 		result.Error = fmt.Sprintf("request: read body: %v", err)
 		return result
@@ -384,7 +303,6 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 			cache["ROOT_QUERY"] = denormalizeApollo(rootQuery, cache, nil)
 		}
 	}
-
 
 	// Surface GraphQL-style {"errors":[...]} responses before complaining
 	// about results_path — this makes stale persistedQuery hashes and WAF
@@ -483,6 +401,154 @@ func TestProvider(ctx context.Context, cfg *ProviderConfig, location string, lat
 	result.Step = "complete"
 	result.Success = true
 	return result
+}
+
+// runTestPreflight executes the preflight auth cascade for TestProvider.
+// Returns a non-nil *TestResult if preflight failed (caller should return it
+// immediately). Returns nil on success (auth values populated in pc).
+func runTestPreflight(ctx context.Context, pc *providerClient, cfg *ProviderConfig, result *TestResult) *TestResult {
+	result.Step = "preflight"
+
+	if cfg.Auth.PreflightURL == "" {
+		result.Error = "preflight: preflight_url is empty"
+		return result
+	}
+
+	resp, body, err := doPreflightRequest(ctx, pc.client, cfg.Auth)
+	if err != nil {
+		result.Error = fmt.Sprintf("preflight: %v", err)
+		return result
+	}
+	result.HTTPStatus = resp.StatusCode
+
+	snippet := string(body)
+	if len(snippet) > 500 {
+		snippet = snippet[:500]
+	}
+	result.BodySnippet = snippet
+
+	// Run extractions (attempt 1).
+	result.Step = "auth_extraction"
+	matched := applyExtractions(cfg.Auth.Extractions, resp, body, pc.authValues)
+	matched += applyURLExtractions(ctx, pc.client, cfg.Auth.Extractions, pc.authValues)
+	tier := "direct"
+
+	// Fallback cascade: Tier 3 (browser cookies) then Tier 4
+	// (escape hatch — open URL in browser and wait for fresh cookies).
+	if needsBrowserCookieFallback(resp.StatusCode, matched, cfg.Auth.Extractions) {
+		tier = ""
+		if applied := applyBrowserCookies(pc.client, cfg.Auth.PreflightURL, cfg.Cookies.Browser); applied {
+			resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
+			if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
+				resp, body = resp2, body2
+				result.HTTPStatus = resp.StatusCode
+				snippet = string(body)
+				if len(snippet) > 500 {
+					snippet = snippet[:500]
+				}
+				result.BodySnippet = snippet
+				for k := range pc.authValues {
+					delete(pc.authValues, k)
+				}
+				matched = applyExtractions(cfg.Auth.Extractions, resp, body, pc.authValues)
+				matched += applyURLExtractions(ctx, pc.client, cfg.Auth.Extractions, pc.authValues)
+				tier = "browser-cookies"
+			}
+		}
+
+		// Tier 3b: WAF JS solver (sobek).
+		if tier == "" && (resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusForbidden) {
+			cookie, wafErr := waf.SolveAWSWAF(ctx, pc.client, cfg.Auth.PreflightURL, string(body), nil)
+			if wafErr == nil && cookie != nil {
+				u, _ := url.Parse(cfg.Auth.PreflightURL)
+				pc.client.Jar.SetCookies(u, []*http.Cookie{cookie})
+				resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
+				if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
+					resp, body = resp2, body2
+					result.HTTPStatus = resp.StatusCode
+					snippet = string(body)
+					if len(snippet) > 500 {
+						snippet = snippet[:500]
+					}
+					result.BodySnippet = snippet
+					for k := range pc.authValues {
+						delete(pc.authValues, k)
+					}
+					matched = applyExtractions(cfg.Auth.Extractions, resp, body, pc.authValues)
+					matched += applyURLExtractions(ctx, pc.client, cfg.Auth.Extractions, pc.authValues)
+					tier = "waf-solver"
+				}
+			} else if wafErr != nil {
+				slog.Debug("waf solver did not produce a token in test", "error", wafErr.Error())
+			}
+		}
+
+		// Tier 4: only if the provider opted in and the caller marked
+		// the context interactive. Non-interactive callers (this test
+		// harness by default) never spawn a browser.
+		if tier == "" && cfg.Auth.BrowserEscapeHatch && isInteractive(ctx) {
+			if tryBrowserEscapeHatch(ctx, pc, cfg.Auth) {
+				// tryBrowserEscapeHatch already wrote fresh values into
+				// pc.authValues; re-issue preflight once more here only
+				// to capture the body for diagnostics.
+				resp2, body2, err2 := doPreflightRequest(ctx, pc.client, cfg.Auth)
+				if err2 == nil && resp2.StatusCode >= 200 && resp2.StatusCode < 300 && !isAkamaiChallenge(resp2.StatusCode, body2) {
+					resp, body = resp2, body2
+					result.HTTPStatus = resp.StatusCode
+					snippet = string(body)
+					if len(snippet) > 500 {
+						snippet = snippet[:500]
+					}
+					result.BodySnippet = snippet
+				}
+				matched = len(pc.authValues)
+				tier = "browser-escape-hatch"
+			}
+		}
+	}
+	result.AuthTier = tier
+
+	// Build the diagnostic report.
+	result.ExtractionResults = make(map[string]string)
+	for name, extraction := range cfg.Auth.Extractions {
+		varName := extraction.Variable
+		if varName == "" {
+			varName = name
+		}
+		if v, ok := pc.authValues[varName]; ok {
+			suffix := ""
+			switch tier {
+			case "browser-cookies":
+				suffix = " [via browser cookies]"
+			case "waf-solver":
+				suffix = " [via WAF JS solver]"
+			case "browser-escape-hatch":
+				suffix = " [via browser escape hatch]"
+			}
+			result.ExtractionResults[name] = "ok (extracted " + strconv.Itoa(len(v)) + " chars)" + suffix
+		} else {
+			// Detect regex compile errors vs. plain no-match.
+			if _, err := regexp.Compile(extraction.Pattern); err != nil {
+				result.ExtractionResults[name] = fmt.Sprintf("regex error: %v", err)
+			} else {
+				result.ExtractionResults[name] = "no match"
+			}
+		}
+	}
+
+	// Check if any extraction failed.
+	for name, v := range result.ExtractionResults {
+		if !strings.HasPrefix(v, "ok") {
+			result.Error = fmt.Sprintf("auth_extraction: %s: %s", name, v)
+			return result
+		}
+	}
+	_ = matched
+	_ = resp
+	_ = body
+
+	pc.authExpiry = time.Now().Add(authCacheDuration)
+	return nil // success
 }
 
 func toInt(v any) int {
