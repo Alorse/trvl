@@ -46,6 +46,12 @@ type ProviderConfig struct {
 	//   {"hotel": "204", "apartment": "201", "hostel": "203"}
 	PropertyTypeLookup map[string]string `json:"property_type_lookup,omitempty"`
 
+	// AmenityLookup maps canonical amenity names to provider-specific IDs.
+	// Used to translate "wifi" → "107" (Booking) or "wifi" → "4" (Airbnb).
+	// The runtime resolves each requested amenity through this map and
+	// substitutes the result into ${amenity_ids} as a comma-separated list.
+	AmenityLookup map[string]string `json:"amenity_lookup,omitempty"`
+
 	// FilterComposite builds a compound URL parameter from active filter vars.
 	// Used by providers like Booking.com that combine multiple filters into a
 	// single semicolon-delimited parameter (nflt=ht_id%3D204%3Bfc%3D1%3B...).

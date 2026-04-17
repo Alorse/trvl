@@ -319,6 +319,18 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 		}
 		if len(filters.Amenities) > 0 {
 			vars["${amenities}"] = strings.Join(filters.Amenities, ",")
+			// Resolve amenity names to provider-specific IDs.
+			if len(cfg.AmenityLookup) > 0 {
+				var resolved []string
+				for _, a := range filters.Amenities {
+					if id, ok := cfg.AmenityLookup[strings.ToLower(a)]; ok && id != "" {
+						resolved = append(resolved, id)
+					}
+				}
+				if len(resolved) > 0 {
+					vars["${amenity_ids}"] = strings.Join(resolved, ",")
+				}
+			}
 		}
 		if filters.FreeCancellation {
 			vars["${free_cancellation}"] = "1"
@@ -350,7 +362,19 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 						val = strconv.Itoa(int(f * scale))
 					}
 				}
-				parts = append(parts, prefix+val)
+				// Multi-value support: if the value contains commas (e.g.
+				// amenity_ids "107,433"), expand to separate prefix+id parts
+				// so Booking gets hotelfacility%3D107%3Bhotelfacility%3D433.
+				if strings.Contains(val, ",") {
+					for _, sub := range strings.Split(val, ",") {
+						sub = strings.TrimSpace(sub)
+						if sub != "" {
+							parts = append(parts, prefix+sub)
+						}
+					}
+				} else {
+					parts = append(parts, prefix+val)
+				}
 			}
 		}
 		vars["${"+fc.TargetVar+"}"] = strings.Join(parts, fc.Separator)
