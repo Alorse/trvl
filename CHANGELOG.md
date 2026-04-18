@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.7] - 2026-04-18
+
+### Fixed
+- TestProvider: compute `${num_nights}` from checkin/checkout (fixes Hostelworld 400 errors via `--probe`)
+- TestProvider: apply `${location}` override for URL-based providers (Airbnb slug resolution in probe path)
+
+### Added
+- Google Flights live probe test (HEL→BCN, 143 results verified)
+- Ground transport live probe test (Helsinki→Tallinn, 54 routes from 5 providers)
+- 120+ new test cases: mcp arg parsing, watch notifier, trips monitor, cookies sanitization
+- Coverage: 58.7% → 59.1%
+
 ## [0.6.6] - 2026-04-18
 
 ### Added
