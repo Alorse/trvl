@@ -104,6 +104,28 @@ func registerTools(s *Server) {
 // search in trip state.
 func (s *Server) wrapHandler(inner ToolHandler) ToolHandler {
 	return func(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+		// Enforce a per-tool timeout to prevent hung queries. MCP clients
+		// (especially AI agents) may spawn many parallel tool calls without
+		// timeouts, causing searches to hang indefinitely on slow/blocked
+		// upstream APIs.
+		if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, toolTimeout)
+			defer cancel()
+		}
+
+		// Limit concurrent search tool executions. AI agents can fire 8+
+		// parallel searches simultaneously, overwhelming upstream rate limits
+		// and consuming all available connections. The semaphore ensures at
+		// most maxConcurrentTools searches run at once; excess requests wait
+		// (with timeout) rather than all hitting the network simultaneously.
+		select {
+		case s.toolSem <- struct{}{}:
+			defer func() { <-s.toolSem }()
+		case <-ctx.Done():
+			return nil, nil, fmt.Errorf("tool execution queued but timed out waiting for a slot: %w", ctx.Err())
+		}
+
 		content, structured, err := inner(ctx, args, elicit, sampling, progress)
 		if err != nil {
 			return content, structured, err

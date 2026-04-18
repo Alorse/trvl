@@ -32,6 +32,18 @@ import (
 const (
 	serverName      = "trvl"
 	protocolVersion = "2025-11-25"
+
+	// toolTimeout is the maximum wall-clock time a single tool call may run.
+	// Prevents hung queries from blocking the MCP server indefinitely.
+	// Flights typically complete in 2-5s; hotels in 5-20s; ground in 10-30s.
+	// 90s provides generous headroom for slow providers.
+	toolTimeout = 90 * time.Second
+
+	// maxConcurrentTools limits how many tool calls execute in parallel.
+	// AI agents may spawn 8+ simultaneous searches, overwhelming upstream
+	// rate limits. 4 concurrent searches is a good balance between
+	// throughput and not tripping provider bot detection.
+	maxConcurrentTools = 4
 )
 
 // serverVersion is set at link time for release builds.
@@ -65,6 +77,9 @@ type Server struct {
 	subsMu sync.Mutex
 	subs   map[string]bool
 
+	// Concurrency semaphore: limits parallel tool executions.
+	toolSem chan struct{}
+
 	// External provider support.
 	providerRegistry *providers.Registry
 	providerRuntime  *providers.Runtime
@@ -84,6 +99,7 @@ func NewServer() *Server {
 		handlers:   make(map[string]ToolHandler),
 		priceCache: newPriceCache(),
 		subs:       make(map[string]bool),
+		toolSem:    make(chan struct{}, maxConcurrentTools),
 	}
 
 	// Initialize watch store (best-effort; nil store is handled gracefully).
