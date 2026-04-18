@@ -193,6 +193,7 @@ That's it. Your AI assistant now has 42 travel tools available. Just ask natural
 | Exclude basic economy | `exclude_basic` | Drops BE fares — server-side |
 | Sort | `sort_by` | `cheapest`, `duration`, `departure`, `arrival` |
 | Airlines | `airlines` | Comma-separated IATA codes (e.g. `AY,LH`) |
+| Currency | `currency` | ISO 4217 code (e.g. `USD`, `EUR`, `JPY`) — server-side via Google's `curr` parameter |
 
 ### Hotel Filters (`search_hotels`)
 
@@ -323,7 +324,7 @@ See [Quick Setup step 3](#3-optional-teach-your-ai-about-trvl) above for AGENTS.
 
 trvl also works as a standalone CLI tool with 40 commands:
 
-All search commands accept `--currency <CODE>` (e.g. `--currency EUR`) to convert displayed prices. trvl detects the actual API currency and converts at the display layer — no hardcoded currencies.
+All search commands accept `--currency <CODE>` (e.g. `--currency EUR`) to convert displayed prices. For `search_flights`, this also controls server-side pricing via Google's `curr` parameter, so prices come directly in the requested currency. For other commands, trvl detects the API currency and converts at the display layer.
 
 ### Flights
 

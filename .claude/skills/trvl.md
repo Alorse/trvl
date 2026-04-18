@@ -53,7 +53,7 @@ From?|To?|When?|Flex?|Travelers?|Budget? Check calendar (Google/Apple/manual) fo
 ## CORE TOOLS (selected high-signal tools; trvl exposes 42 MCP tools overall via gateway_invoke server="trvl")
 | Tool | Use | Key params |
 |------|-----|-----------|
-| `search_flights` | Flights A→B | origin,destination,departure_date,[return_date,cabin_class,max_stops] |
+| `search_flights` | Flights A→B | origin,destination,departure_date,[return_date,cabin_class,max_stops,currency] |
 | `search_dates` | Cheapest dates | origin,destination,start_date,end_date |
 | `search_hotels` | Hotels by city | location,check_in,check_out,[guests,stars,eco_certified] |
 | `hotel_prices` | Provider comparison | hotel_id,check_in,check_out |

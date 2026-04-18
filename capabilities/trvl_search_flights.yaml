@@ -31,6 +31,9 @@ schema:
       sort_by:
         type: string
         description: "Sort order: cheapest, duration, departure, or arrival (default: cheapest)"
+      currency:
+        type: string
+        description: "Target currency for prices (ISO 4217, e.g. USD, EUR, JPY). Controls server-side pricing via Google's curr parameter. Empty = IP-based default."
     required: [origin, destination, departure_date]
   output:
     type: object

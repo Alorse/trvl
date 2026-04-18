@@ -239,6 +239,7 @@ Optional parameters:
 - `max_duration`: integer — maximum total duration in minutes — server-side
 - `exclude_basic`: true/false — exclude basic economy fares — server-side
 - `airlines`: comma-separated IATA codes to restrict results (e.g. "AY,LH")
+- `currency`: ISO 4217 currency code (e.g. "USD", "EUR", "JPY") — server-side pricing via Google's `curr` parameter. Overrides IP-based default.
 
 ### search_dates — Find the cheapest day to fly
 ```json
@@ -345,7 +346,7 @@ Returns: effective cents-per-point, floor/ceiling valuation for the program, ver
 
 - Results include `booking_url` — share these with the user for direct Google links
 - Results include `suggestions` — use these to offer follow-up searches
-- Prices reflect the user's IP geolocation currency
+- Prices reflect the user's IP geolocation currency unless `currency` is specified
 - For trip planning: search flights first, then hotels at the destination
 - For budget trips: use `weekend_getaway` or `suggest_dates` to find the cheapest options
 - For multi-city: use `optimize_multi_city` to find the cheapest routing order
@@ -357,7 +358,7 @@ Returns: effective cents-per-point, floor/ceiling valuation for the program, ver
 
 - **"command not found"**: `which trvl` — if empty, the binary isn't in PATH. Re-run Step 1.
 - **No results**: Google may rate-limit. Wait 60 seconds and retry.
-- **Wrong currency**: Normal — currency follows IP geolocation.
+- **Wrong currency**: Use `currency` parameter on `search_flights` to override IP-based default (e.g. `"currency": "USD"`).
 - **MCP tools not showing**: Restart Claude Code / Claude Desktop after Step 2.
 
 ## Source
