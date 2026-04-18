@@ -7,6 +7,7 @@ import (
 )
 
 func TestResourcesList(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "resources/list", 1, nil)
 	if resp == nil {
@@ -57,6 +58,7 @@ func TestResourcesList(t *testing.T) {
 }
 
 func TestResourcesRead_PopularAirports(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := ResourcesReadParams{URI: "trvl://airports/popular"}
 	resp := sendRequest(t, s, "resources/read", 1, params)
@@ -91,6 +93,7 @@ func TestResourcesRead_PopularAirports(t *testing.T) {
 }
 
 func TestResourcesRead_FlightGuide(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := ResourcesReadParams{URI: "trvl://help/flights"}
 	resp := sendRequest(t, s, "resources/read", 1, params)
@@ -117,6 +120,7 @@ func TestResourcesRead_FlightGuide(t *testing.T) {
 }
 
 func TestResourcesRead_HotelGuide(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := ResourcesReadParams{URI: "trvl://help/hotels"}
 	resp := sendRequest(t, s, "resources/read", 1, params)
@@ -140,6 +144,7 @@ func TestResourcesRead_HotelGuide(t *testing.T) {
 }
 
 func TestResourcesRead_NotFound(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := ResourcesReadParams{URI: "trvl://nonexistent"}
 	resp := sendRequest(t, s, "resources/read", 1, params)
@@ -154,6 +159,10 @@ func TestResourcesRead_NotFound(t *testing.T) {
 // --- Innovation 1: Resource Links in Tool Results ---
 
 func TestResourceLinkInFlightResults(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	s := NewServer()
 	params := ToolCallParams{
 		Name: "search_flights",
@@ -199,6 +208,10 @@ func TestResourceLinkInFlightResults(t *testing.T) {
 }
 
 func TestResourceLinkInHotelResults(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	s := NewServer()
 	params := ToolCallParams{
 		Name: "search_hotels",
@@ -237,6 +250,7 @@ func TestResourceLinkInHotelResults(t *testing.T) {
 // --- Innovation 2: Watch Resources ---
 
 func TestWatchResourceURIParsing(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		query   string
 		wantURI string
@@ -256,6 +270,7 @@ func TestWatchResourceURIParsing(t *testing.T) {
 }
 
 func TestWatchResourceInvalidURI(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := ResourcesReadParams{URI: "trvl://watch/invalid"}
 	resp := sendRequest(t, s, "resources/read", 1, params)
@@ -268,6 +283,7 @@ func TestWatchResourceInvalidURI(t *testing.T) {
 }
 
 func TestDynamicResourcesListAfterSearch(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	// Before any search: only static resources.
@@ -298,6 +314,7 @@ func TestDynamicResourcesListAfterSearch(t *testing.T) {
 }
 
 func TestPriceCacheGetSet(t *testing.T) {
+	t.Parallel()
 	c := newPriceCache()
 
 	// Initially empty.
@@ -319,6 +336,7 @@ func TestPriceCacheGetSet(t *testing.T) {
 // --- Innovation 3: Trip Summary Resource ---
 
 func TestTripSummaryEmpty(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := ResourcesReadParams{URI: "trvl://trip/summary"}
 	resp := sendRequest(t, s, "resources/read", 1, params)
@@ -343,6 +361,7 @@ func TestTripSummaryEmpty(t *testing.T) {
 }
 
 func TestTripSummaryAfterSearches(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	// Record some searches directly.
@@ -390,6 +409,7 @@ func TestTripSummaryAfterSearches(t *testing.T) {
 }
 
 func TestRecordSearch(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	s.recordSearch("flight", "HEL->BCN 2026-07-01", 113, "EUR")
@@ -418,6 +438,7 @@ func TestRecordSearch(t *testing.T) {
 }
 
 func TestExtractBestFlightPrice(t *testing.T) {
+	t.Parallel()
 	m := map[string]interface{}{
 		"flights": []interface{}{
 			map[string]interface{}{"price": 500.0, "currency": "EUR"},
@@ -435,6 +456,7 @@ func TestExtractBestFlightPrice(t *testing.T) {
 }
 
 func TestExtractBestFlightPrice_NoFlights(t *testing.T) {
+	t.Parallel()
 	m := map[string]interface{}{}
 	price, _ := extractBestFlightPrice(m)
 	if price != 0 {
@@ -443,6 +465,7 @@ func TestExtractBestFlightPrice_NoFlights(t *testing.T) {
 }
 
 func TestExtractBestHotelPrice(t *testing.T) {
+	t.Parallel()
 	m := map[string]interface{}{
 		"hotels": []interface{}{
 			map[string]interface{}{"price": 200.0, "currency": "EUR"},
@@ -459,6 +482,7 @@ func TestExtractBestHotelPrice(t *testing.T) {
 }
 
 func TestExtractBestHotelPrice_NoHotels(t *testing.T) {
+	t.Parallel()
 	m := map[string]interface{}{}
 	price, _ := extractBestHotelPrice(m)
 	if price != 0 {
@@ -467,6 +491,7 @@ func TestExtractBestHotelPrice_NoHotels(t *testing.T) {
 }
 
 func TestAddResourceLinks_FlightArgs(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	args := map[string]any{
 		"origin":         "HEL",
@@ -486,6 +511,7 @@ func TestAddResourceLinks_FlightArgs(t *testing.T) {
 }
 
 func TestAddResourceLinks_HotelArgs(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	args := map[string]any{
 		"location":  "Helsinki",
@@ -505,6 +531,7 @@ func TestAddResourceLinks_HotelArgs(t *testing.T) {
 }
 
 func TestAddResourceLinks_NoArgs(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	content := s.addResourceLinks(nil, map[string]any{})
 	if len(content) != 0 {
@@ -513,6 +540,7 @@ func TestAddResourceLinks_NoArgs(t *testing.T) {
 }
 
 func TestTripSummaryResourceInList(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resources := s.listResources()
 

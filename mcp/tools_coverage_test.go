@@ -15,6 +15,7 @@ import (
 // ============================================================
 
 func TestArgString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args map[string]any
@@ -42,6 +43,7 @@ func TestArgString(t *testing.T) {
 // ============================================================
 
 func TestArgInt(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args map[string]any
@@ -66,6 +68,7 @@ func TestArgInt(t *testing.T) {
 }
 
 func TestArgInt_JSONNumber2(t *testing.T) {
+	t.Parallel()
 	// Simulate JSON number parsing.
 	var m map[string]any
 	raw := `{"x": 99}`
@@ -80,6 +83,7 @@ func TestArgInt_JSONNumber2(t *testing.T) {
 }
 
 func TestArgInt_JSONNumberInvalid2(t *testing.T) {
+	t.Parallel()
 	// json.Number that is not a valid int64.
 	m := map[string]any{"x": json.Number("3.14")}
 	if got := argInt(m, "x", 7); got != 7 {
@@ -92,6 +96,7 @@ func TestArgInt_JSONNumberInvalid2(t *testing.T) {
 // ============================================================
 
 func TestArgFloat(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args map[string]any
@@ -115,6 +120,7 @@ func TestArgFloat(t *testing.T) {
 }
 
 func TestArgFloat_JSONNumber2(t *testing.T) {
+	t.Parallel()
 	var m map[string]any
 	raw := `{"x": 3.14}`
 	dec := json.NewDecoder(strings.NewReader(raw))
@@ -129,6 +135,7 @@ func TestArgFloat_JSONNumber2(t *testing.T) {
 }
 
 func TestArgFloat_JSONNumberInvalid2(t *testing.T) {
+	t.Parallel()
 	m := map[string]any{"x": json.Number("not-a-number")}
 	if got := argFloat(m, "x", 7.7); got != 7.7 {
 		t.Errorf("argFloat(invalid json.Number) = %f, want 7.7", got)
@@ -140,6 +147,7 @@ func TestArgFloat_JSONNumberInvalid2(t *testing.T) {
 // ============================================================
 
 func TestArgStringSlice(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args map[string]any
@@ -172,6 +180,7 @@ func TestArgStringSlice(t *testing.T) {
 }
 
 func TestArgStringSlice_TrimsWhitespace(t *testing.T) {
+	t.Parallel()
 	args := map[string]any{"x": "  a , b , c  "}
 	got := argStringSlice(args, "x")
 	expected := []string{"a", "b", "c"}
@@ -186,6 +195,7 @@ func TestArgStringSlice_TrimsWhitespace(t *testing.T) {
 }
 
 func TestArgStringSlice_SkipsEmptyParts(t *testing.T) {
+	t.Parallel()
 	args := map[string]any{"x": "a,,b,"}
 	got := argStringSlice(args, "x")
 	expected := []string{"a", "b"}
@@ -199,6 +209,7 @@ func TestArgStringSlice_SkipsEmptyParts(t *testing.T) {
 // ============================================================
 
 func TestArgBool(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		args map[string]any
@@ -227,6 +238,7 @@ func TestArgBool(t *testing.T) {
 // ============================================================
 
 func TestExtractBestFlightPrice_TableDriven(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		m        map[string]interface{}
@@ -301,6 +313,7 @@ func TestExtractBestFlightPrice_TableDriven(t *testing.T) {
 // ============================================================
 
 func TestExtractBestHotelPrice_TableDriven(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		m        map[string]interface{}
@@ -356,6 +369,7 @@ func TestExtractBestHotelPrice_TableDriven(t *testing.T) {
 // ============================================================
 
 func TestBuildAnnotatedContentBlocks_Coverage(t *testing.T) {
+	t.Parallel()
 	data := map[string]string{"key": "value"}
 	blocks, err := buildAnnotatedContentBlocks("summary text", data)
 	if err != nil {
@@ -399,6 +413,7 @@ func TestBuildAnnotatedContentBlocks_Coverage(t *testing.T) {
 // ============================================================
 
 func TestWatchURIFromQuery(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		query string
 		want  string
@@ -423,6 +438,7 @@ func TestWatchURIFromQuery(t *testing.T) {
 // ============================================================
 
 func TestPriceCache(t *testing.T) {
+	t.Parallel()
 	c := newPriceCache()
 
 	// Miss.
@@ -454,6 +470,7 @@ func TestPriceCache(t *testing.T) {
 // ============================================================
 
 func TestToolExecutionError(t *testing.T) {
+	t.Parallel()
 	err := toolExecutionError("Flight search", nil)
 	if err == nil || !strings.Contains(err.Error(), "Flight search failed") {
 		t.Errorf("toolExecutionError = %v", err)
@@ -461,6 +478,7 @@ func TestToolExecutionError(t *testing.T) {
 }
 
 func TestToolResultError(t *testing.T) {
+	t.Parallel()
 	err := toolResultError("Hotel search", "no results")
 	if err == nil || !strings.Contains(err.Error(), "no results") {
 		t.Errorf("toolResultError = %v", err)
@@ -472,6 +490,7 @@ func TestToolResultError(t *testing.T) {
 // ============================================================
 
 func TestFlightProviderSummaryLabel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		provider string
 		want     string
@@ -497,6 +516,7 @@ func TestFlightProviderSummaryLabel(t *testing.T) {
 // ============================================================
 
 func TestPluralSuffix(t *testing.T) {
+	t.Parallel()
 	if got := pluralSuffix(1); got != "" {
 		t.Errorf("pluralSuffix(1) = %q, want empty", got)
 	}
@@ -513,6 +533,7 @@ func TestPluralSuffix(t *testing.T) {
 // ============================================================
 
 func TestBuildVisaSummary_Success(t *testing.T) {
+	t.Parallel()
 	result := visa.Result{
 		Success: true,
 		Requirement: visa.Requirement{
@@ -539,6 +560,7 @@ func TestBuildVisaSummary_Success(t *testing.T) {
 }
 
 func TestBuildVisaSummary_Failure(t *testing.T) {
+	t.Parallel()
 	result := visa.Result{
 		Success: false,
 		Error:   "unknown country",
@@ -553,6 +575,7 @@ func TestBuildVisaSummary_Failure(t *testing.T) {
 }
 
 func TestBuildVisaSummary_NoMaxStay(t *testing.T) {
+	t.Parallel()
 	result := visa.Result{
 		Success: true,
 		Requirement: visa.Requirement{
@@ -572,6 +595,7 @@ func TestBuildVisaSummary_NoMaxStay(t *testing.T) {
 // ============================================================
 
 func TestDestinationSummary(t *testing.T) {
+	t.Parallel()
 	info := &models.DestinationInfo{
 		Location: "Tokyo",
 		Country: models.CountryInfo{
@@ -623,6 +647,7 @@ func TestDestinationSummary(t *testing.T) {
 }
 
 func TestDestinationSummary_Minimal(t *testing.T) {
+	t.Parallel()
 	info := &models.DestinationInfo{Location: "Unknown"}
 	got := destinationSummary(info)
 	if !strings.Contains(got, "Unknown") {
@@ -638,6 +663,7 @@ func TestDestinationSummary_Minimal(t *testing.T) {
 // ============================================================
 
 func TestTripCostSummaryAmount(t *testing.T) {
+	t.Parallel()
 	if got := tripCostSummaryAmount(0, "EUR"); got != "unavailable" {
 		t.Errorf("zero = %q, want unavailable", got)
 	}
@@ -654,11 +680,13 @@ func TestTripCostSummaryAmount(t *testing.T) {
 // ============================================================
 
 func TestSendProgress_NilFunc(t *testing.T) {
+	t.Parallel()
 	// Should not panic.
 	sendProgress(nil, 50, 100, "test")
 }
 
 func TestSendProgress_WithFunc(t *testing.T) {
+	t.Parallel()
 	called := false
 	fn := func(progress, total float64, message string) {
 		called = true
@@ -677,6 +705,7 @@ func TestSendProgress_WithFunc(t *testing.T) {
 // ============================================================
 
 func TestNormalizeTierName(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		in   string
 		want string
@@ -701,6 +730,7 @@ func TestNormalizeTierName(t *testing.T) {
 // ============================================================
 
 func TestTierDisplayName(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		alliance string
 		tier     string
@@ -727,6 +757,7 @@ func TestTierDisplayName(t *testing.T) {
 // ============================================================
 
 func TestFfStatusToCards_Empty(t *testing.T) {
+	t.Parallel()
 	got := ffStatusToCards(nil)
 	if len(got) != 0 {
 		t.Errorf("expected nil for empty programs, got %v", got)
@@ -734,6 +765,7 @@ func TestFfStatusToCards_Empty(t *testing.T) {
 }
 
 func TestFfStatusToCards_OneworldSapphire(t *testing.T) {
+	t.Parallel()
 	programs := []preferences.FrequentFlyerStatus{
 		{AirlineCode: "AY", Alliance: "oneworld", Tier: "Sapphire"},
 	}
@@ -761,6 +793,7 @@ func TestFfStatusToCards_OneworldSapphire(t *testing.T) {
 }
 
 func TestFfStatusToCards_StarAllianceGold(t *testing.T) {
+	t.Parallel()
 	programs := []preferences.FrequentFlyerStatus{
 		{AirlineCode: "LH", Alliance: "star alliance", Tier: "Gold"},
 	}
@@ -784,6 +817,7 @@ func TestFfStatusToCards_StarAllianceGold(t *testing.T) {
 }
 
 func TestFfStatusToCards_NoDuplicates(t *testing.T) {
+	t.Parallel()
 	// Two programs with same alliance + tier should not produce duplicates.
 	programs := []preferences.FrequentFlyerStatus{
 		{AirlineCode: "AY", Alliance: "oneworld", Tier: "Sapphire"},
@@ -806,6 +840,7 @@ func TestFfStatusToCards_NoDuplicates(t *testing.T) {
 // ============================================================
 
 func TestNotifyTripUpdate_NoTripID(t *testing.T) {
+	t.Parallel()
 	s := &Server{
 		handlers: make(map[string]ToolHandler),
 		subs:     make(map[string]bool),
@@ -816,6 +851,7 @@ func TestNotifyTripUpdate_NoTripID(t *testing.T) {
 }
 
 func TestNotifyTripUpdate_WithName(t *testing.T) {
+	t.Parallel()
 	s := &Server{
 		handlers: make(map[string]ToolHandler),
 		subs:     make(map[string]bool),
@@ -825,6 +861,7 @@ func TestNotifyTripUpdate_WithName(t *testing.T) {
 }
 
 func TestNotifyTripUpdate_WithTripID(t *testing.T) {
+	t.Parallel()
 	s := &Server{
 		handlers: make(map[string]ToolHandler),
 		subs:     make(map[string]bool),
@@ -838,6 +875,7 @@ func TestNotifyTripUpdate_WithTripID(t *testing.T) {
 // ============================================================
 
 func TestAddResourceLinks_FlightSearch(t *testing.T) {
+	t.Parallel()
 	s := &Server{
 		handlers: make(map[string]ToolHandler),
 		subs:     make(map[string]bool),
@@ -860,6 +898,7 @@ func TestAddResourceLinks_FlightSearch(t *testing.T) {
 }
 
 func TestAddResourceLinks_HotelSearch(t *testing.T) {
+	t.Parallel()
 	s := &Server{
 		handlers: make(map[string]ToolHandler),
 		subs:     make(map[string]bool),
@@ -879,6 +918,7 @@ func TestAddResourceLinks_HotelSearch(t *testing.T) {
 }
 
 func TestAddResourceLinks_NoMatch(t *testing.T) {
+	t.Parallel()
 	s := &Server{
 		handlers: make(map[string]ToolHandler),
 		subs:     make(map[string]bool),

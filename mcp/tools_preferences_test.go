@@ -22,6 +22,7 @@ func setupTempPrefs(t *testing.T, p *preferences.Preferences) string {
 }
 
 func TestUpdatePreferences_PartialUpdate_PreservesOtherFields(t *testing.T) {
+	t.Parallel()
 	initial := &preferences.Preferences{
 		HomeAirports:    []string{"HEL"},
 		HomeCities:      []string{"Helsinki"},
@@ -82,6 +83,7 @@ func TestUpdatePreferences_PartialUpdate_PreservesOtherFields(t *testing.T) {
 }
 
 func TestUpdatePreferences_AddFamilyMember(t *testing.T) {
+	t.Parallel()
 	initial := preferences.Default()
 	path := setupTempPrefs(t, initial)
 
@@ -118,6 +120,7 @@ func TestUpdatePreferences_AddFamilyMember(t *testing.T) {
 }
 
 func TestUpdatePreferences_FamilyMembersFromJSON(t *testing.T) {
+	t.Parallel()
 	initial := preferences.Default()
 	path := setupTempPrefs(t, initial)
 
@@ -140,6 +143,7 @@ func TestUpdatePreferences_FamilyMembersFromJSON(t *testing.T) {
 }
 
 func TestUpdatePreferences_PreferredDistricts_Merge(t *testing.T) {
+	t.Parallel()
 	initial := &preferences.Preferences{
 		DisplayCurrency: "EUR",
 		Locale:          "en",
@@ -180,6 +184,7 @@ func TestUpdatePreferences_PreferredDistricts_Merge(t *testing.T) {
 }
 
 func TestUpdatePreferences_PreferredDistricts_FromJSON(t *testing.T) {
+	t.Parallel()
 	initial := preferences.Default()
 	path := setupTempPrefs(t, initial)
 
@@ -199,6 +204,7 @@ func TestUpdatePreferences_PreferredDistricts_FromJSON(t *testing.T) {
 }
 
 func TestUpdatePreferences_InvalidFieldsIgnored(t *testing.T) {
+	t.Parallel()
 	initial := &preferences.Preferences{
 		DisplayCurrency: "EUR",
 		Locale:          "en",
@@ -225,6 +231,7 @@ func TestUpdatePreferences_InvalidFieldsIgnored(t *testing.T) {
 }
 
 func TestUpdatePreferences_BooleanFields(t *testing.T) {
+	t.Parallel()
 	initial := &preferences.Preferences{
 		DisplayCurrency: "EUR",
 		Locale:          "en",
@@ -258,6 +265,7 @@ func TestUpdatePreferences_BooleanFields(t *testing.T) {
 }
 
 func TestUpdatePreferences_StringArrayFromJSON(t *testing.T) {
+	t.Parallel()
 	initial := preferences.Default()
 	path := setupTempPrefs(t, initial)
 
@@ -281,6 +289,7 @@ func TestUpdatePreferences_StringArrayFromJSON(t *testing.T) {
 }
 
 func TestUpdatePreferences_EmptyArgs_NoChange(t *testing.T) {
+	t.Parallel()
 	initial := &preferences.Preferences{
 		HomeAirports:    []string{"HEL"},
 		DisplayCurrency: "EUR",
@@ -307,6 +316,7 @@ func TestUpdatePreferences_EmptyArgs_NoChange(t *testing.T) {
 }
 
 func TestUpdatePreferences_NoExistingFile_CreatesNew(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "subdir", "preferences.json")
 
@@ -336,6 +346,7 @@ func TestUpdatePreferences_NoExistingFile_CreatesNew(t *testing.T) {
 }
 
 func TestUpdatePreferencesTool_Annotations(t *testing.T) {
+	t.Parallel()
 	tool := updatePreferencesTool()
 
 	if tool.Annotations == nil {
@@ -356,6 +367,7 @@ func TestUpdatePreferencesTool_Annotations(t *testing.T) {
 }
 
 func TestUpdatePreferences_BudgetFields(t *testing.T) {
+	t.Parallel()
 	initial := &preferences.Preferences{
 		DisplayCurrency: "EUR",
 		Locale:          "en-FI",
@@ -404,6 +416,7 @@ func TestUpdatePreferences_BudgetFields(t *testing.T) {
 }
 
 func TestUpdatePreferences_NationalityAndLanguages(t *testing.T) {
+	t.Parallel()
 	initial := preferences.Default()
 	path := setupTempPrefs(t, initial)
 
@@ -430,6 +443,7 @@ func TestUpdatePreferences_NationalityAndLanguages(t *testing.T) {
 }
 
 func TestUpdatePreferences_TripTypesAndSeat(t *testing.T) {
+	t.Parallel()
 	initial := preferences.Default()
 	path := setupTempPrefs(t, initial)
 
@@ -460,6 +474,7 @@ func TestUpdatePreferences_TripTypesAndSeat(t *testing.T) {
 }
 
 func TestUpdatePreferences_NotesAndContextFields(t *testing.T) {
+	t.Parallel()
 	initial := preferences.Default()
 	path := setupTempPrefs(t, initial)
 
@@ -495,6 +510,7 @@ func TestUpdatePreferences_NotesAndContextFields(t *testing.T) {
 }
 
 func TestUpdatePreferences_FlightPreferences(t *testing.T) {
+	t.Parallel()
 	initial := preferences.Default()
 	path := setupTempPrefs(t, initial)
 
@@ -522,6 +538,7 @@ func TestUpdatePreferences_FlightPreferences(t *testing.T) {
 }
 
 func TestUpdatePreferences_NewFields_PreserveExisting(t *testing.T) {
+	t.Parallel()
 	initial := &preferences.Preferences{
 		HomeAirports:    []string{"HEL"},
 		DisplayCurrency: "EUR",

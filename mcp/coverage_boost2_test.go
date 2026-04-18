@@ -29,6 +29,7 @@ func flightsOptsEmpty() flights.SearchOptions {
 // ============================================================
 
 func TestBuildHacksSummary_NoHacks(t *testing.T) {
+	t.Parallel()
 	got := buildHacksSummary("HEL", "PRG", "2026-07-01", nil)
 	if !strings.Contains(got, "No travel hacks") {
 		t.Errorf("expected 'No travel hacks', got %q", got)
@@ -39,6 +40,7 @@ func TestBuildHacksSummary_NoHacks(t *testing.T) {
 }
 
 func TestBuildHacksSummary_WithHacks(t *testing.T) {
+	t.Parallel()
 	detected := []hacks.Hack{
 		{Title: "Night bus", Savings: 80, Currency: "EUR", Description: "Take overnight bus"},
 		{Title: "Open jaw", Savings: 0, Currency: "EUR", Description: "Fly into different airport"},
@@ -63,6 +65,7 @@ func TestBuildHacksSummary_WithHacks(t *testing.T) {
 // ============================================================
 
 func TestBuildGroundRouteSummary2_Empty(t *testing.T) {
+	t.Parallel()
 	got := buildGroundRouteSummary("Found 0 routes", nil)
 	if !strings.Contains(got, "Found 0 routes") {
 		t.Errorf("should contain header, got %q", got)
@@ -70,6 +73,7 @@ func TestBuildGroundRouteSummary2_Empty(t *testing.T) {
 }
 
 func TestBuildGroundRouteSummary2_WithPriceRange(t *testing.T) {
+	t.Parallel()
 	routes := []models.GroundRoute{
 		{
 			Provider: "regiojet", Type: "bus", Price: 12.00, PriceMax: 18.00, Currency: "EUR",
@@ -85,6 +89,7 @@ func TestBuildGroundRouteSummary2_WithPriceRange(t *testing.T) {
 }
 
 func TestBuildGroundRouteSummary2_MoreThan10(t *testing.T) {
+	t.Parallel()
 	routes := make([]models.GroundRoute, 15)
 	for i := range routes {
 		routes[i] = models.GroundRoute{Provider: "flixbus", Type: "bus", Price: float64(i + 10), Currency: "EUR", Duration: 120, Departure: models.GroundStop{Time: "08:00"}, Arrival: models.GroundStop{Time: "10:00"}}
@@ -100,6 +105,7 @@ func TestBuildGroundRouteSummary2_MoreThan10(t *testing.T) {
 // ============================================================
 
 func TestSafeTimeSlice2(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input string
 		want  string
@@ -122,6 +128,7 @@ func TestSafeTimeSlice2(t *testing.T) {
 // ============================================================
 
 func TestGroundRoutesHaveProvider2_Nil(t *testing.T) {
+	t.Parallel()
 	if groundRoutesHaveProvider(nil, "anything") {
 		t.Error("nil routes should return false")
 	}
@@ -132,6 +139,7 @@ func TestGroundRoutesHaveProvider2_Nil(t *testing.T) {
 // ============================================================
 
 func TestHotelSummary_SameCheapestAndBestRated(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{
 		Success: true, Count: 1,
 		Hotels: []models.HotelResult{{Name: "Only Hotel", Price: 100, Currency: "EUR", Rating: 4.9}},
@@ -147,6 +155,7 @@ func TestHotelSummary_SameCheapestAndBestRated(t *testing.T) {
 }
 
 func TestHotelSummary_AllZeroPrice(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{
 		Success: true, Count: 2,
 		Hotels: []models.HotelResult{{Name: "A", Price: 0, Rating: 4.0}, {Name: "B", Price: 0, Rating: 3.5}},
@@ -162,6 +171,7 @@ func TestHotelSummary_AllZeroPrice(t *testing.T) {
 // ============================================================
 
 func TestFlightSummary_MultiStop(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{
 		Success: true, Count: 1,
 		Flights: []models.FlightResult{{Price: 300, Currency: "EUR", Stops: 2, Legs: []models.FlightLeg{{Airline: "Lufthansa"}}}},
@@ -173,6 +183,7 @@ func TestFlightSummary_MultiStop(t *testing.T) {
 }
 
 func TestFlightSummary_OnlyZeroPriceFlights(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{
 		Success: true, Count: 2,
 		Flights: []models.FlightResult{{Price: 0, Currency: "EUR"}, {Price: 0, Currency: "EUR"}},
@@ -188,6 +199,7 @@ func TestFlightSummary_OnlyZeroPriceFlights(t *testing.T) {
 // ============================================================
 
 func TestHandleDetectTravelHacks_MissingOrigin(t *testing.T) {
+	t.Parallel()
 	content, result, err := handleDetectTravelHacks(context.Background(), map[string]any{
 		"destination": "PRG", "date": "2026-07-01",
 	}, nil, nil, nil)
@@ -200,6 +212,10 @@ func TestHandleDetectTravelHacks_MissingOrigin(t *testing.T) {
 }
 
 func TestHandleDetectTravelHacks_DefaultCurrency(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	content, result, err := handleDetectTravelHacks(context.Background(), map[string]any{
 		"origin": "HEL", "destination": "PRG", "date": "2026-07-01",
 	}, nil, nil, nil)
@@ -216,6 +232,10 @@ func TestHandleDetectTravelHacks_DefaultCurrency(t *testing.T) {
 // ============================================================
 
 func TestHandleDetectAccommodationHacks_Minimal(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	content, result, err := handleDetectAccommodationHacks(context.Background(), map[string]any{
 		"city": "Prague", "checkin": "2026-07-01", "checkout": "2026-07-05",
 	}, nil, nil, nil)
@@ -232,6 +252,7 @@ func TestHandleDetectAccommodationHacks_Minimal(t *testing.T) {
 // ============================================================
 
 func TestHandleGetBaggageRules_EmptyCodeReturnsAll(t *testing.T) {
+	t.Parallel()
 	content, result, err := handleGetBaggageRules(context.Background(), map[string]any{"airline_code": ""}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -245,6 +266,7 @@ func TestHandleGetBaggageRules_EmptyCodeReturnsAll(t *testing.T) {
 }
 
 func TestHandleGetBaggageRules_SpecificAirline(t *testing.T) {
+	t.Parallel()
 	content, result, err := handleGetBaggageRules(context.Background(), map[string]any{"airline_code": "KL"}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -258,6 +280,7 @@ func TestHandleGetBaggageRules_SpecificAirline(t *testing.T) {
 }
 
 func TestHandleGetBaggageRules_UnknownAirline(t *testing.T) {
+	t.Parallel()
 	content, result, err := handleGetBaggageRules(context.Background(), map[string]any{"airline_code": "ZZ"}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -278,6 +301,7 @@ func TestHandleGetBaggageRules_UnknownAirline(t *testing.T) {
 // ============================================================
 
 func TestHandleHotelRooms_MissingAll(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleHotelRooms(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
@@ -285,6 +309,7 @@ func TestHandleHotelRooms_MissingAll(t *testing.T) {
 }
 
 func TestHandleHotelRooms_MissingHotelName(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleHotelRooms(context.Background(), map[string]any{"check_in": "2026-07-01", "check_out": "2026-07-05"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing hotel_name")
@@ -292,6 +317,7 @@ func TestHandleHotelRooms_MissingHotelName(t *testing.T) {
 }
 
 func TestHandleHotelRooms_InvalidDateRange(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleHotelRooms(context.Background(), map[string]any{"hotel_name": "Hilton Helsinki", "check_in": "2026-07-10", "check_out": "2026-07-05"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for reversed dates")
@@ -303,6 +329,7 @@ func TestHandleHotelRooms_InvalidDateRange(t *testing.T) {
 // ============================================================
 
 func TestHandleSearchRoute2_MissingOrigin(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchRoute(context.Background(), map[string]any{"destination": "BCN", "date": "2026-07-01"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing origin")
@@ -310,6 +337,7 @@ func TestHandleSearchRoute2_MissingOrigin(t *testing.T) {
 }
 
 func TestHandleSearchRoute2_MissingDate(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchRoute(context.Background(), map[string]any{"origin": "HEL", "destination": "BCN"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing date")
@@ -321,6 +349,7 @@ func TestHandleSearchRoute2_MissingDate(t *testing.T) {
 // ============================================================
 
 func TestHotelSuggestions_WithStarFilter(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{Success: true, Count: 1, Hotels: []models.HotelResult{{Name: "Hotel", Price: 100}}}
 	suggestions := hotelSuggestions(result, hotelsOptsWithStars(4))
 	for _, s := range suggestions {
@@ -331,6 +360,7 @@ func TestHotelSuggestions_WithStarFilter(t *testing.T) {
 }
 
 func TestHotelSuggestions_ExpensiveResults(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{
 		Success: true, Count: 4,
 		Hotels: []models.HotelResult{{Name: "A", Price: 400}, {Name: "B", Price: 500}, {Name: "C", Price: 350}, {Name: "D", Price: 100}},
@@ -348,6 +378,7 @@ func TestHotelSuggestions_ExpensiveResults(t *testing.T) {
 }
 
 func TestHotelSuggestions_ManyReviews(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{
 		Success: true, Count: 1,
 		Hotels: []models.HotelResult{{Name: "Popular Hotel", Price: 100, ReviewCount: 500, HotelID: "/g/123"}},
@@ -369,6 +400,7 @@ func TestHotelSuggestions_ManyReviews(t *testing.T) {
 // ============================================================
 
 func TestFlightSuggestions_WithMultiStop(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{
 		Success: true, Count: 2,
 		Flights: []models.FlightResult{{Price: 300, Stops: 0}, {Price: 200, Stops: 2}},
@@ -386,6 +418,7 @@ func TestFlightSuggestions_WithMultiStop(t *testing.T) {
 }
 
 func TestFlightSuggestions_WidelyVaryingPrices(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{
 		Success: true, Count: 3,
 		Flights: []models.FlightResult{{Price: 100}, {Price: 500}, {Price: 300}},

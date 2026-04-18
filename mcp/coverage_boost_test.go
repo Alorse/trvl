@@ -13,6 +13,7 @@ import (
 // --- ping ---
 
 func TestPing(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := s.HandleRequest(&Request{JSONRPC: "2.0", ID: 1, Method: "ping"})
 	if resp == nil {
@@ -26,6 +27,7 @@ func TestPing(t *testing.T) {
 // --- notifications/cancelled ---
 
 func TestNotificationsCancelled(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := s.HandleRequest(&Request{JSONRPC: "2.0", Method: "notifications/cancelled"})
 	if resp != nil {
@@ -61,6 +63,7 @@ func TestLoggingSetLevel_EmptyLevel(t *testing.T) {
 // --- completion/complete ---
 
 func TestCompletionComplete_Airport(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params, _ := json.Marshal(map[string]any{
 		"ref":      map[string]any{"type": "ref/prompt", "name": "plan-trip"},
@@ -82,6 +85,7 @@ func TestCompletionComplete_Airport(t *testing.T) {
 }
 
 func TestCompletionComplete_CabinClass(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params, _ := json.Marshal(map[string]any{
 		"ref":      map[string]any{"type": "ref/prompt", "name": "x"},
@@ -97,6 +101,7 @@ func TestCompletionComplete_CabinClass(t *testing.T) {
 }
 
 func TestCompletionComplete_Unknown(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params, _ := json.Marshal(map[string]any{
 		"ref":      map[string]any{"type": "ref/prompt", "name": "x"},
@@ -114,6 +119,7 @@ func TestCompletionComplete_Unknown(t *testing.T) {
 // --- completeAirport ---
 
 func TestCompleteAirport(t *testing.T) {
+	t.Parallel()
 	tests := []struct{ prefix, expect string }{
 		{"HEL", "HEL"}, {"hel", "HEL"}, {"AM", "AMS"}, {"PR", "PRG"}, {"", ""},
 	}
@@ -140,6 +146,7 @@ func TestCompleteAirport(t *testing.T) {
 // --- toUpper ---
 
 func TestToUpper(t *testing.T) {
+	t.Parallel()
 	tests := []struct{ in, want string }{
 		{"hello", "HELLO"}, {"HEL", "HEL"}, {"", ""}, {"123abc", "123ABC"},
 	}
@@ -153,6 +160,7 @@ func TestToUpper(t *testing.T) {
 // --- safeTimeSlice ---
 
 func TestSafeTimeSlice(t *testing.T) {
+	t.Parallel()
 	tests := []struct{ in, want string }{
 		{"2026-04-10T14:25:00+02:00", "14:25"},
 		{"2026-04-10T09:00:00Z", "09:00"},
@@ -169,6 +177,7 @@ func TestSafeTimeSlice(t *testing.T) {
 // --- restaurantSummary ---
 
 func TestRestaurantSummary_Empty(t *testing.T) {
+	t.Parallel()
 	got := restaurantSummary(nil, "Helsinki")
 	if !strings.Contains(got, "No restaurants") {
 		t.Errorf("got %q", got)
@@ -176,6 +185,7 @@ func TestRestaurantSummary_Empty(t *testing.T) {
 }
 
 func TestRestaurantSummary_WithData(t *testing.T) {
+	t.Parallel()
 	places := []models.RatedPlace{
 		{Name: "Pizzeria", Rating: 4.5, Category: "Italian", Address: "Via Roma 1"},
 	}
@@ -188,6 +198,7 @@ func TestRestaurantSummary_WithData(t *testing.T) {
 // --- weekendSummary ---
 
 func TestWeekendSummary(t *testing.T) {
+	t.Parallel()
 	result := &trip.WeekendResult{
 		Success: true, Origin: "HEL", Month: "july-2026", Nights: 2, Count: 1,
 		Destinations: []trip.WeekendDestination{
@@ -201,6 +212,7 @@ func TestWeekendSummary(t *testing.T) {
 }
 
 func TestWeekendSummary_Empty(t *testing.T) {
+	t.Parallel()
 	result := &trip.WeekendResult{Success: true, Count: 0}
 	got := weekendSummary(result)
 	if !strings.Contains(got, "No weekend") {
@@ -211,6 +223,7 @@ func TestWeekendSummary_Empty(t *testing.T) {
 // --- tripCostSummary ---
 
 func TestTripCostSummary(t *testing.T) {
+	t.Parallel()
 	result := &trip.TripCostResult{
 		Success:   true,
 		Flights:   trip.FlightCost{Outbound: 100, Return: 100, Currency: "EUR"},
@@ -228,6 +241,7 @@ func TestTripCostSummary(t *testing.T) {
 }
 
 func TestTripCostSummary_Failed(t *testing.T) {
+	t.Parallel()
 	result := &trip.TripCostResult{Success: false, Error: "no flights"}
 	got := tripCostSummary(result, "HEL", "BCN", 1)
 	if !strings.Contains(got, "failed") {
@@ -236,6 +250,7 @@ func TestTripCostSummary_Failed(t *testing.T) {
 }
 
 func TestTripCostSummary_PartialWarning(t *testing.T) {
+	t.Parallel()
 	result := &trip.TripCostResult{
 		Success:   true,
 		Flights:   trip.FlightCost{Outbound: 100, Return: 120, Currency: "EUR"},
@@ -254,6 +269,7 @@ func TestTripCostSummary_PartialWarning(t *testing.T) {
 }
 
 func TestTripCostSummary_UnavailableComponents(t *testing.T) {
+	t.Parallel()
 	result := &trip.TripCostResult{
 		Success:   true,
 		Flights:   trip.FlightCost{Outbound: 100, Currency: "EUR"},
@@ -279,6 +295,7 @@ func TestTripCostSummary_UnavailableComponents(t *testing.T) {
 // --- nearbyPlacesSummary ---
 
 func TestNearbyPlacesSummary(t *testing.T) {
+	t.Parallel()
 	result := &destinations.NearbyResult{
 		POIs: []models.NearbyPOI{
 			{Name: "Sagrada Familia", Type: "attraction", Distance: 500},
@@ -291,6 +308,7 @@ func TestNearbyPlacesSummary(t *testing.T) {
 }
 
 func TestNearbyPlacesSummary_Empty(t *testing.T) {
+	t.Parallel()
 	result := &destinations.NearbyResult{}
 	got := nearbyPlacesSummary(result, "")
 	if !strings.Contains(got, "0") {
@@ -301,6 +319,7 @@ func TestNearbyPlacesSummary_Empty(t *testing.T) {
 // --- travelGuideSummary ---
 
 func TestTravelGuideSummary(t *testing.T) {
+	t.Parallel()
 	guide := &models.WikivoyageGuide{
 		Location: "Barcelona",
 		Summary:  "Beautiful city",
@@ -313,6 +332,7 @@ func TestTravelGuideSummary(t *testing.T) {
 }
 
 func TestTravelGuideSummary_Empty(t *testing.T) {
+	t.Parallel()
 	guide := &models.WikivoyageGuide{Location: "Nowhere"}
 	got := travelGuideSummary(guide)
 	if got == "" {
@@ -323,6 +343,7 @@ func TestTravelGuideSummary_Empty(t *testing.T) {
 // --- localEventsSummary ---
 
 func TestLocalEventsSummary(t *testing.T) {
+	t.Parallel()
 	events := []models.Event{
 		{Name: "Jazz Fest", Date: "2026-07-01", Venue: "Square"},
 	}
@@ -333,6 +354,7 @@ func TestLocalEventsSummary(t *testing.T) {
 }
 
 func TestLocalEventsSummary_Empty(t *testing.T) {
+	t.Parallel()
 	got := localEventsSummary(nil, "Nowhere", "2026-07-01", "2026-07-05")
 	if !strings.Contains(got, "No events") && !strings.Contains(got, "0") {
 		t.Errorf("got %q", got)
@@ -342,6 +364,7 @@ func TestLocalEventsSummary_Empty(t *testing.T) {
 // --- suggestDatesSummary ---
 
 func TestSuggestDatesSummary(t *testing.T) {
+	t.Parallel()
 	result := &trip.SmartDateResult{
 		Success: true,
 		CheapestDates: []trip.CheapDate{
@@ -359,6 +382,7 @@ func TestSuggestDatesSummary(t *testing.T) {
 // --- multiCitySummary ---
 
 func TestMultiCitySummary(t *testing.T) {
+	t.Parallel()
 	result := &trip.MultiCityResult{
 		Success: true, TotalCost: 450, Currency: "EUR",
 		Segments: []trip.Segment{
@@ -375,6 +399,7 @@ func TestMultiCitySummary(t *testing.T) {
 // --- Unknown method ---
 
 func TestUnknownMethod_Coverage(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := s.HandleRequest(&Request{JSONRPC: "2.0", ID: 99, Method: "nonexistent/method"})
 	if resp.Error == nil || resp.Error.Code != -32601 {

@@ -11,6 +11,7 @@ import (
 )
 
 func TestJoinStrings(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		parts []string
@@ -34,6 +35,7 @@ func TestJoinStrings(t *testing.T) {
 }
 
 func TestGroundRoutesHaveProvider(t *testing.T) {
+	t.Parallel()
 	routes := []models.GroundRoute{
 		{Provider: "flixbus"},
 		{Provider: "RegioJet"},
@@ -62,6 +64,7 @@ func TestGroundRoutesHaveProvider(t *testing.T) {
 }
 
 func TestGroundRoutesHaveProvider_Empty(t *testing.T) {
+	t.Parallel()
 	got := groundRoutesHaveProvider(nil, "flixbus")
 	if got {
 		t.Error("should return false for nil routes")
@@ -69,6 +72,7 @@ func TestGroundRoutesHaveProvider_Empty(t *testing.T) {
 }
 
 func TestBuildGroundRouteSummary(t *testing.T) {
+	t.Parallel()
 	routes := []models.GroundRoute{
 		{
 			Provider:  "FlixBus",
@@ -115,6 +119,7 @@ func TestBuildGroundRouteSummary(t *testing.T) {
 }
 
 func TestBuildGroundRouteSummary_ZeroPrice(t *testing.T) {
+	t.Parallel()
 	routes := []models.GroundRoute{
 		{
 			Provider:  "test",
@@ -131,6 +136,7 @@ func TestBuildGroundRouteSummary_ZeroPrice(t *testing.T) {
 }
 
 func TestBuildGroundRouteSummary_SeatsLeft(t *testing.T) {
+	t.Parallel()
 	seats := 3
 	routes := []models.GroundRoute{
 		{
@@ -150,6 +156,7 @@ func TestBuildGroundRouteSummary_SeatsLeft(t *testing.T) {
 }
 
 func TestBuildGroundRouteSummary_Amenities(t *testing.T) {
+	t.Parallel()
 	routes := []models.GroundRoute{
 		{
 			Provider:  "test",
@@ -168,6 +175,7 @@ func TestBuildGroundRouteSummary_Amenities(t *testing.T) {
 }
 
 func TestBuildGroundRouteSummary_TruncatesAt10(t *testing.T) {
+	t.Parallel()
 	routes := make([]models.GroundRoute, 15)
 	for i := range routes {
 		routes[i] = models.GroundRoute{
@@ -186,6 +194,7 @@ func TestBuildGroundRouteSummary_TruncatesAt10(t *testing.T) {
 }
 
 func TestBuildWeatherSummary_Success(t *testing.T) {
+	t.Parallel()
 	result := &weather.WeatherResult{
 		Success: true,
 		City:    "Prague",
@@ -207,6 +216,7 @@ func TestBuildWeatherSummary_Success(t *testing.T) {
 }
 
 func TestBuildWeatherSummary_Failure(t *testing.T) {
+	t.Parallel()
 	result := &weather.WeatherResult{
 		Success: false,
 		City:    "Nowhere",
@@ -222,6 +232,7 @@ func TestBuildWeatherSummary_Failure(t *testing.T) {
 }
 
 func TestBuildWeatherSummary_Empty(t *testing.T) {
+	t.Parallel()
 	result := &weather.WeatherResult{
 		Success:   true,
 		City:      "Empty",
@@ -234,6 +245,7 @@ func TestBuildWeatherSummary_Empty(t *testing.T) {
 }
 
 func TestBuildAccomHacksSummary_NoHacks(t *testing.T) {
+	t.Parallel()
 	got := buildAccomHacksSummary("Prague", "2026-05-01", "2026-05-07", nil)
 	if !strings.Contains(got, "No accommodation split") {
 		t.Error("should indicate no opportunities found")
@@ -244,6 +256,7 @@ func TestBuildAccomHacksSummary_NoHacks(t *testing.T) {
 }
 
 func TestBuildBaggageSummaryOne(t *testing.T) {
+	t.Parallel()
 	ab := baggage.AirlineBaggage{
 		Code:              "FR",
 		Name:              "Ryanair",
@@ -271,6 +284,7 @@ func TestBuildBaggageSummaryOne(t *testing.T) {
 }
 
 func TestBuildBaggageSummaryOne_FullService(t *testing.T) {
+	t.Parallel()
 	ab := baggage.AirlineBaggage{
 		Code:            "KL",
 		Name:            "KLM",
@@ -288,6 +302,7 @@ func TestBuildBaggageSummaryOne_FullService(t *testing.T) {
 }
 
 func TestBuildBaggageSummaryAll(t *testing.T) {
+	t.Parallel()
 	airlines := []baggage.AirlineBaggage{
 		{Code: "KL", Name: "KLM", CarryOnMaxKg: 12, CheckedIncluded: 1},
 		{Code: "FR", Name: "Ryanair", CarryOnMaxKg: 10, CheckedFee: 25, OverheadOnly: true},
@@ -305,6 +320,7 @@ func TestBuildBaggageSummaryAll(t *testing.T) {
 }
 
 func TestBuildAccomHacksSummary_WithHacks(t *testing.T) {
+	t.Parallel()
 	detected := []hacks.Hack{
 		{
 			Title:       "Split stay: budget + premium",

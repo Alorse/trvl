@@ -14,6 +14,7 @@ import (
 // --- argString ---
 
 func TestArgString_NilArgs(t *testing.T) {
+	t.Parallel()
 	got := argString(nil, "key")
 	if got != "" {
 		t.Errorf("expected empty, got %q", got)
@@ -21,6 +22,7 @@ func TestArgString_NilArgs(t *testing.T) {
 }
 
 func TestArgString_MissingKey(t *testing.T) {
+	t.Parallel()
 	got := argString(map[string]any{"other": "val"}, "key")
 	if got != "" {
 		t.Errorf("expected empty, got %q", got)
@@ -28,6 +30,7 @@ func TestArgString_MissingKey(t *testing.T) {
 }
 
 func TestArgString_NonStringValue(t *testing.T) {
+	t.Parallel()
 	got := argString(map[string]any{"key": 42}, "key")
 	if got != "" {
 		t.Errorf("expected empty for non-string, got %q", got)
@@ -35,6 +38,7 @@ func TestArgString_NonStringValue(t *testing.T) {
 }
 
 func TestArgString_BoolValue(t *testing.T) {
+	t.Parallel()
 	got := argString(map[string]any{"key": true}, "key")
 	if got != "" {
 		t.Errorf("expected empty for bool, got %q", got)
@@ -42,6 +46,7 @@ func TestArgString_BoolValue(t *testing.T) {
 }
 
 func TestArgString_ValidString(t *testing.T) {
+	t.Parallel()
 	got := argString(map[string]any{"key": "hello"}, "key")
 	if got != "hello" {
 		t.Errorf("got %q, want hello", got)
@@ -49,6 +54,7 @@ func TestArgString_ValidString(t *testing.T) {
 }
 
 func TestArgString_EmptyString(t *testing.T) {
+	t.Parallel()
 	got := argString(map[string]any{"key": ""}, "key")
 	if got != "" {
 		t.Errorf("expected empty, got %q", got)
@@ -56,6 +62,7 @@ func TestArgString_EmptyString(t *testing.T) {
 }
 
 func TestArgString_NilValue(t *testing.T) {
+	t.Parallel()
 	got := argString(map[string]any{"key": nil}, "key")
 	if got != "" {
 		t.Errorf("expected empty for nil value, got %q", got)
@@ -65,6 +72,7 @@ func TestArgString_NilValue(t *testing.T) {
 // --- argInt ---
 
 func TestArgInt_NilArgs(t *testing.T) {
+	t.Parallel()
 	got := argInt(nil, "key", 42)
 	if got != 42 {
 		t.Errorf("expected 42, got %d", got)
@@ -72,6 +80,7 @@ func TestArgInt_NilArgs(t *testing.T) {
 }
 
 func TestArgInt_MissingKey(t *testing.T) {
+	t.Parallel()
 	got := argInt(map[string]any{}, "key", 10)
 	if got != 10 {
 		t.Errorf("expected 10, got %d", got)
@@ -79,6 +88,7 @@ func TestArgInt_MissingKey(t *testing.T) {
 }
 
 func TestArgInt_Float64Value(t *testing.T) {
+	t.Parallel()
 	got := argInt(map[string]any{"key": float64(7)}, "key", 0)
 	if got != 7 {
 		t.Errorf("expected 7, got %d", got)
@@ -86,6 +96,7 @@ func TestArgInt_Float64Value(t *testing.T) {
 }
 
 func TestArgInt_IntValue(t *testing.T) {
+	t.Parallel()
 	got := argInt(map[string]any{"key": 5}, "key", 0)
 	if got != 5 {
 		t.Errorf("expected 5, got %d", got)
@@ -93,6 +104,7 @@ func TestArgInt_IntValue(t *testing.T) {
 }
 
 func TestArgInt_JSONNumber(t *testing.T) {
+	t.Parallel()
 	got := argInt(map[string]any{"key": json.Number("99")}, "key", 0)
 	if got != 99 {
 		t.Errorf("expected 99, got %d", got)
@@ -100,6 +112,7 @@ func TestArgInt_JSONNumber(t *testing.T) {
 }
 
 func TestArgInt_JSONNumberInvalid(t *testing.T) {
+	t.Parallel()
 	got := argInt(map[string]any{"key": json.Number("not-a-number")}, "key", 42)
 	if got != 42 {
 		t.Errorf("expected default 42, got %d", got)
@@ -107,6 +120,7 @@ func TestArgInt_JSONNumberInvalid(t *testing.T) {
 }
 
 func TestArgInt_StringValue(t *testing.T) {
+	t.Parallel()
 	got := argInt(map[string]any{"key": "not a number"}, "key", 42)
 	if got != 42 {
 		t.Errorf("expected default 42, got %d", got)
@@ -114,6 +128,7 @@ func TestArgInt_StringValue(t *testing.T) {
 }
 
 func TestArgInt_NilValue(t *testing.T) {
+	t.Parallel()
 	got := argInt(map[string]any{"key": nil}, "key", 42)
 	if got != 42 {
 		t.Errorf("expected default 42, got %d", got)
@@ -123,6 +138,7 @@ func TestArgInt_NilValue(t *testing.T) {
 // --- argBool ---
 
 func TestArgBool_NilArgs(t *testing.T) {
+	t.Parallel()
 	got := argBool(nil, "key", true)
 	if !got {
 		t.Error("expected true default")
@@ -130,6 +146,7 @@ func TestArgBool_NilArgs(t *testing.T) {
 }
 
 func TestArgBool_MissingKey(t *testing.T) {
+	t.Parallel()
 	got := argBool(map[string]any{}, "key", false)
 	if got {
 		t.Error("expected false default")
@@ -137,6 +154,7 @@ func TestArgBool_MissingKey(t *testing.T) {
 }
 
 func TestArgBool_TrueValue(t *testing.T) {
+	t.Parallel()
 	got := argBool(map[string]any{"key": true}, "key", false)
 	if !got {
 		t.Error("expected true")
@@ -144,6 +162,7 @@ func TestArgBool_TrueValue(t *testing.T) {
 }
 
 func TestArgBool_FalseValue(t *testing.T) {
+	t.Parallel()
 	got := argBool(map[string]any{"key": false}, "key", true)
 	if got {
 		t.Error("expected false")
@@ -151,6 +170,7 @@ func TestArgBool_FalseValue(t *testing.T) {
 }
 
 func TestArgBool_NonBoolValue(t *testing.T) {
+	t.Parallel()
 	got := argBool(map[string]any{"key": "true"}, "key", false)
 	if got {
 		t.Error("expected default false for non-bool value")
@@ -158,6 +178,7 @@ func TestArgBool_NonBoolValue(t *testing.T) {
 }
 
 func TestArgBool_IntValue(t *testing.T) {
+	t.Parallel()
 	got := argBool(map[string]any{"key": 1}, "key", false)
 	if got {
 		t.Error("expected default false for int value")
@@ -167,6 +188,7 @@ func TestArgBool_IntValue(t *testing.T) {
 // --- handleDestinationInfo ---
 
 func TestHandleDestinationInfo_MissingLocation(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleDestinationInfo(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing location")
@@ -174,6 +196,7 @@ func TestHandleDestinationInfo_MissingLocation(t *testing.T) {
 }
 
 func TestHandleDestinationInfo_NilArgs(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleDestinationInfo(context.Background(), nil, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for nil args")
@@ -181,6 +204,7 @@ func TestHandleDestinationInfo_NilArgs(t *testing.T) {
 }
 
 func TestHandleDestinationInfo_EmptyLocation(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleDestinationInfo(context.Background(), map[string]any{"location": ""}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for empty location")
@@ -190,6 +214,7 @@ func TestHandleDestinationInfo_EmptyLocation(t *testing.T) {
 // --- destinationSummary ---
 
 func TestDestinationSummary_MinimalInfo(t *testing.T) {
+	t.Parallel()
 	info := &models.DestinationInfo{Location: "Helsinki"}
 	summary := destinationSummary(info)
 	if !strings.Contains(summary, "Helsinki") {
@@ -198,6 +223,7 @@ func TestDestinationSummary_MinimalInfo(t *testing.T) {
 }
 
 func TestDestinationSummary_FullInfo(t *testing.T) {
+	t.Parallel()
 	info := &models.DestinationInfo{
 		Location: "Tokyo",
 		Country:  models.CountryInfo{Name: "Japan", Region: "Asia"},
@@ -236,6 +262,7 @@ func TestDestinationSummary_FullInfo(t *testing.T) {
 }
 
 func TestDestinationSummary_NoCurrency(t *testing.T) {
+	t.Parallel()
 	info := &models.DestinationInfo{Location: "Unknown"}
 	summary := destinationSummary(info)
 	if strings.Contains(summary, "Currency:") {
@@ -244,6 +271,7 @@ func TestDestinationSummary_NoCurrency(t *testing.T) {
 }
 
 func TestDestinationSummary_NoWeather(t *testing.T) {
+	t.Parallel()
 	info := &models.DestinationInfo{
 		Location: "Unknown",
 		Country:  models.CountryInfo{Name: "Test", Region: "Test"},
@@ -255,6 +283,7 @@ func TestDestinationSummary_NoWeather(t *testing.T) {
 }
 
 func TestDestinationSummary_NoSafety(t *testing.T) {
+	t.Parallel()
 	info := &models.DestinationInfo{Location: "Unknown"}
 	summary := destinationSummary(info)
 	if strings.Contains(summary, "Safety:") {
@@ -265,6 +294,7 @@ func TestDestinationSummary_NoSafety(t *testing.T) {
 // --- flightSummary ---
 
 func TestFlightSummary_NoResults(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{Success: true, Count: 0}
 	summary := flightSummary(result, "HEL", "NRT")
 	if !strings.Contains(summary, "No flights found") {
@@ -273,6 +303,7 @@ func TestFlightSummary_NoResults(t *testing.T) {
 }
 
 func TestFlightSummary_WithError(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{Success: false, Error: "blocked"}
 	summary := flightSummary(result, "HEL", "NRT")
 	if !strings.Contains(summary, "blocked") {
@@ -281,6 +312,7 @@ func TestFlightSummary_WithError(t *testing.T) {
 }
 
 func TestFlightSummary_WithFlights(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{
 		Success: true,
 		Count:   2,
@@ -299,6 +331,7 @@ func TestFlightSummary_WithFlights(t *testing.T) {
 }
 
 func TestFlightSummary_NonstopOption(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{
 		Success: true,
 		Count:   2,
@@ -314,6 +347,7 @@ func TestFlightSummary_NonstopOption(t *testing.T) {
 }
 
 func TestFlightSummary_SelfConnectWarning(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{
 		Success: true,
 		Count:   1,
@@ -331,6 +365,7 @@ func TestFlightSummary_SelfConnectWarning(t *testing.T) {
 // --- hotelSummary ---
 
 func TestHotelSummary_NoResults(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{Success: true, Count: 0}
 	summary := hotelSummary(result, "Helsinki")
 	if !strings.Contains(summary, "No hotels found") {
@@ -339,6 +374,7 @@ func TestHotelSummary_NoResults(t *testing.T) {
 }
 
 func TestHotelSummary_WithError(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{Success: false, Error: "search failed"}
 	summary := hotelSummary(result, "Helsinki")
 	if !strings.Contains(summary, "search failed") {
@@ -347,6 +383,7 @@ func TestHotelSummary_WithError(t *testing.T) {
 }
 
 func TestHotelSummary_WithHotels(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{
 		Success: true,
 		Count:   2,
@@ -368,6 +405,7 @@ func TestHotelSummary_WithHotels(t *testing.T) {
 }
 
 func TestHotelSummary_WithBookingMatches(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{
 		Success: true,
 		Count:   1,
@@ -391,6 +429,7 @@ func TestHotelSummary_WithBookingMatches(t *testing.T) {
 // --- flightSuggestions ---
 
 func TestFlightSuggestions_NoResults(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{Success: false, Count: 0}
 	suggestions := flightSuggestions(result, "HEL", "NRT", "2026-06-15", flights.SearchOptions{})
 	if suggestions != nil {
@@ -399,6 +438,7 @@ func TestFlightSuggestions_NoResults(t *testing.T) {
 }
 
 func TestFlightSuggestions_OneWay(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{
 		Success: true,
 		Count:   1,
@@ -418,6 +458,7 @@ func TestFlightSuggestions_OneWay(t *testing.T) {
 }
 
 func TestFlightSuggestions_Economy(t *testing.T) {
+	t.Parallel()
 	result := &models.FlightSearchResult{
 		Success: true,
 		Count:   1,
@@ -439,6 +480,7 @@ func TestFlightSuggestions_Economy(t *testing.T) {
 // --- hotelSuggestions ---
 
 func TestHotelSuggestions_NoResults(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{Success: false, Count: 0}
 	suggestions := hotelSuggestions(result, hotels.HotelSearchOptions{})
 	if suggestions != nil {
@@ -447,6 +489,7 @@ func TestHotelSuggestions_NoResults(t *testing.T) {
 }
 
 func TestHotelSuggestions_NoStarFilter(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{
 		Success: true,
 		Count:   1,
@@ -465,6 +508,7 @@ func TestHotelSuggestions_NoStarFilter(t *testing.T) {
 }
 
 func TestHotelSuggestions_HighRatedHotel(t *testing.T) {
+	t.Parallel()
 	result := &models.HotelSearchResult{
 		Success: true,
 		Count:   1,
@@ -490,6 +534,7 @@ func TestHotelSuggestions_HighRatedHotel(t *testing.T) {
 // --- handleSearchFlights validation ---
 
 func TestHandleSearchFlights_MissingOriginDest(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"departure_date": "2026-06-15",
 	}, nil, nil, nil)
@@ -499,6 +544,7 @@ func TestHandleSearchFlights_MissingOriginDest(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidIATA(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "XX", // too short, even uppercased
 		"destination":    "NRT",
@@ -510,6 +556,7 @@ func TestHandleSearchFlights_InvalidIATA(t *testing.T) {
 }
 
 func TestHandleSearchFlights_MissingDate(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "NRT",
@@ -520,6 +567,7 @@ func TestHandleSearchFlights_MissingDate(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidCabinClass(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
@@ -532,6 +580,7 @@ func TestHandleSearchFlights_InvalidCabinClass(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidMaxStops(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
@@ -544,6 +593,7 @@ func TestHandleSearchFlights_InvalidMaxStops(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidSortBy(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
@@ -556,6 +606,7 @@ func TestHandleSearchFlights_InvalidSortBy(t *testing.T) {
 }
 
 func TestHandleSearchFlights_PastDate(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
@@ -567,6 +618,7 @@ func TestHandleSearchFlights_PastDate(t *testing.T) {
 }
 
 func TestHandleSearchFlights_InvalidReturnDate(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchFlights(context.Background(), map[string]any{
 		"origin":         "HEL",
 		"destination":    "NRT",
@@ -581,6 +633,7 @@ func TestHandleSearchFlights_InvalidReturnDate(t *testing.T) {
 // --- handleSearchDates validation ---
 
 func TestHandleSearchDates_MissingParams(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchDates(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
@@ -588,6 +641,7 @@ func TestHandleSearchDates_MissingParams(t *testing.T) {
 }
 
 func TestHandleSearchDates_InvalidIATA(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchDates(context.Background(), map[string]any{
 		"origin":      "XX", // too short, even uppercased
 		"destination": "NRT",
@@ -600,6 +654,7 @@ func TestHandleSearchDates_InvalidIATA(t *testing.T) {
 }
 
 func TestHandleSearchDates_InvalidDestIATA(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchDates(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "12", // too short, even uppercased
@@ -612,6 +667,7 @@ func TestHandleSearchDates_InvalidDestIATA(t *testing.T) {
 }
 
 func TestHandleSearchDates_InvalidDateRange(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchDates(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "NRT",
@@ -626,6 +682,7 @@ func TestHandleSearchDates_InvalidDateRange(t *testing.T) {
 // --- handleSearchHotels validation ---
 
 func TestHandleSearchHotels_MissingParams(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchHotels(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
@@ -633,6 +690,7 @@ func TestHandleSearchHotels_MissingParams(t *testing.T) {
 }
 
 func TestHandleSearchHotels_InvalidDateRange(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchHotels(context.Background(), map[string]any{
 		"location":  "Helsinki",
 		"check_in":  "2026-06-22",
@@ -644,6 +702,7 @@ func TestHandleSearchHotels_InvalidDateRange(t *testing.T) {
 }
 
 func TestHandleSearchHotels_MissingLocation(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchHotels(context.Background(), map[string]any{
 		"check_in":  "2026-06-15",
 		"check_out": "2026-06-18",
@@ -656,6 +715,7 @@ func TestHandleSearchHotels_MissingLocation(t *testing.T) {
 // --- handleHotelPrices validation ---
 
 func TestHandleHotelPrices_MissingParams(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleHotelPrices(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
@@ -663,6 +723,7 @@ func TestHandleHotelPrices_MissingParams(t *testing.T) {
 }
 
 func TestHandleHotelPrices_InvalidDateRange(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleHotelPrices(context.Background(), map[string]any{
 		"hotel_id":  "/g/123",
 		"check_in":  "2026-06-22",
@@ -674,6 +735,7 @@ func TestHandleHotelPrices_InvalidDateRange(t *testing.T) {
 }
 
 func TestHandleHotelPrices_MissingHotelID(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleHotelPrices(context.Background(), map[string]any{
 		"check_in":  "2026-06-15",
 		"check_out": "2026-06-18",
@@ -684,6 +746,7 @@ func TestHandleHotelPrices_MissingHotelID(t *testing.T) {
 }
 
 func TestHandleHotelPrices_DefaultCurrency(t *testing.T) {
+	t.Parallel()
 	// Empty currency should default to "USD", not error.
 	_, _, err := handleHotelPrices(context.Background(), map[string]any{
 		"hotel_id":  "/g/abc",
@@ -699,6 +762,7 @@ func TestHandleHotelPrices_DefaultCurrency(t *testing.T) {
 // --- isLocalhostOrigin ---
 
 func TestIsLocalhostOrigin(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		origin string
 		want   bool

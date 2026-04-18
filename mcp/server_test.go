@@ -68,6 +68,7 @@ func sendRequest(t *testing.T, s *Server, method string, id any, params any) *Re
 }
 
 func TestInitialize(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "initialize", 1, nil)
 	if resp == nil {
@@ -108,6 +109,7 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestToolsList(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "tools/list", 2, nil)
 	if resp == nil {
@@ -201,6 +203,7 @@ func TestToolsList(t *testing.T) {
 }
 
 func TestToolsCallSearchFlights(t *testing.T) {
+	t.Parallel()
 	testutil.RequireLiveIntegration(t)
 	s := NewServer()
 	params := ToolCallParams{
@@ -237,6 +240,7 @@ func TestToolsCallSearchFlights(t *testing.T) {
 }
 
 func TestToolsCallSearchDates(t *testing.T) {
+	t.Parallel()
 	testutil.RequireLiveIntegration(t)
 	s := NewServer()
 	params := ToolCallParams{
@@ -258,6 +262,7 @@ func TestToolsCallSearchDates(t *testing.T) {
 }
 
 func TestToolsCallSearchHotels(t *testing.T) {
+	t.Parallel()
 	testutil.RequireLiveIntegration(t)
 	s := NewServer()
 	params := ToolCallParams{
@@ -278,6 +283,7 @@ func TestToolsCallSearchHotels(t *testing.T) {
 }
 
 func TestToolsCallHotelPrices(t *testing.T) {
+	t.Parallel()
 	testutil.RequireLiveIntegration(t)
 	s := NewServer()
 	params := ToolCallParams{
@@ -298,6 +304,7 @@ func TestToolsCallHotelPrices(t *testing.T) {
 }
 
 func TestToolsCallUnknownTool(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := ToolCallParams{
 		Name:      "nonexistent",
@@ -316,6 +323,7 @@ func TestToolsCallUnknownTool(t *testing.T) {
 }
 
 func TestUnknownMethod(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "unknown/method", 8, nil)
 	if resp == nil {
@@ -330,6 +338,7 @@ func TestUnknownMethod(t *testing.T) {
 }
 
 func TestNotificationNoResponse(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	// notifications/initialized should produce no response line.
 	req := Request{
@@ -350,6 +359,7 @@ func TestNotificationNoResponse(t *testing.T) {
 }
 
 func TestParseError(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	in := bytes.NewBufferString("not valid json\n")
 	out := &bytes.Buffer{}
@@ -372,6 +382,7 @@ func TestParseError(t *testing.T) {
 }
 
 func TestMultipleRequests(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	// Send initialize + tools/list in sequence.
@@ -417,6 +428,7 @@ func TestMultipleRequests(t *testing.T) {
 }
 
 func TestEmptyLinesIgnored(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	req := Request{JSONRPC: "2.0", ID: float64(1), Method: "initialize"}

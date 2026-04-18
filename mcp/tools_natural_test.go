@@ -8,6 +8,7 @@ import (
 // TestHeuristicParse_RouteIntent verifies that a generic route query produces
 // intent="route" (the default) and leaves origin/destination blank when not mentioned.
 func TestHeuristicParse_RouteIntent(t *testing.T) {
+	t.Parallel()
 	p := heuristicParse("cheapest way from Helsinki to Tallinn next weekend", "2026-05-01")
 	if p.Intent != "route" {
 		t.Errorf("intent = %q, want route", p.Intent)
@@ -18,6 +19,7 @@ func TestHeuristicParse_RouteIntent(t *testing.T) {
 
 // TestHeuristicParse_FlightIntent verifies flight keyword detection.
 func TestHeuristicParse_FlightIntent(t *testing.T) {
+	t.Parallel()
 	cases := []string{
 		"find me a flight from HEL to PRG",
 		"flying to Tokyo next month",
@@ -33,6 +35,7 @@ func TestHeuristicParse_FlightIntent(t *testing.T) {
 
 // TestHeuristicParse_HotelIntent verifies hotel keyword detection.
 func TestHeuristicParse_HotelIntent(t *testing.T) {
+	t.Parallel()
 	cases := []string{
 		"hotels in Prague for 3 nights",
 		"find accommodation in Berlin",
@@ -49,6 +52,7 @@ func TestHeuristicParse_HotelIntent(t *testing.T) {
 
 // TestHeuristicParse_NextWeekend verifies relative date resolution.
 func TestHeuristicParse_NextWeekend(t *testing.T) {
+	t.Parallel()
 	// 2026-05-01 is a Friday; next Saturday = 2026-05-02, Monday = 2026-05-04.
 	p := heuristicParse("route next weekend", "2026-05-01")
 	if p.Date == "" {
@@ -64,6 +68,7 @@ func TestHeuristicParse_NextWeekend(t *testing.T) {
 
 // TestHeuristicParse_DealsIntent verifies deals keyword detection.
 func TestHeuristicParse_DealsIntent(t *testing.T) {
+	t.Parallel()
 	p := heuristicParse("show me travel deals to anywhere", "2026-05-01")
 	if p.Intent != "deals" {
 		t.Errorf("intent = %q, want deals", p.Intent)
@@ -72,6 +77,7 @@ func TestHeuristicParse_DealsIntent(t *testing.T) {
 
 // TestHeuristicParse_EmptyQuery verifies that an empty query returns a default struct.
 func TestHeuristicParse_EmptyQuery(t *testing.T) {
+	t.Parallel()
 	p := heuristicParse("", "2026-05-01")
 	// Should not panic; intent defaults to "route".
 	if p.Intent != "route" {

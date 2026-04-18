@@ -13,6 +13,7 @@ import (
 // --- HTTP handler tests ---
 
 func TestHTTPHandler_POST_Initialize(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	req := Request{JSONRPC: "2.0", ID: float64(1), Method: "initialize"}
@@ -41,6 +42,7 @@ func TestHTTPHandler_POST_Initialize(t *testing.T) {
 }
 
 func TestHTTPHandler_POST_ToolsList(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	req := Request{JSONRPC: "2.0", ID: float64(2), Method: "tools/list"}
@@ -67,6 +69,10 @@ func TestHTTPHandler_POST_ToolsList(t *testing.T) {
 }
 
 func TestHTTPHandler_POST_ToolsCall(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	hs := NewHTTPServer(0)
 
 	params := ToolCallParams{
@@ -95,6 +101,7 @@ func TestHTTPHandler_POST_ToolsCall(t *testing.T) {
 }
 
 func TestHTTPHandler_GET_NotAllowed(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	rr := httptest.NewRecorder()
@@ -108,6 +115,7 @@ func TestHTTPHandler_GET_NotAllowed(t *testing.T) {
 }
 
 func TestHTTPHandler_OPTIONS_CORS(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	rr := httptest.NewRecorder()
@@ -129,6 +137,7 @@ func TestHTTPHandler_OPTIONS_CORS(t *testing.T) {
 }
 
 func TestHTTPHandler_CORS_RejectsNonLocalhost(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	rr := httptest.NewRecorder()
@@ -143,6 +152,7 @@ func TestHTTPHandler_CORS_RejectsNonLocalhost(t *testing.T) {
 }
 
 func TestHTTPHandler_POST_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	rr := httptest.NewRecorder()
@@ -168,6 +178,7 @@ func TestHTTPHandler_POST_InvalidJSON(t *testing.T) {
 }
 
 func TestHTTPHandler_POST_Notification(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	req := Request{JSONRPC: "2.0", Method: "notifications/initialized"}
@@ -185,6 +196,7 @@ func TestHTTPHandler_POST_Notification(t *testing.T) {
 }
 
 func TestHTTPHandler_Health(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	rr := httptest.NewRecorder()
@@ -218,6 +230,7 @@ func TestHTTPHandler_Health(t *testing.T) {
 // --- Tool parameter validation ---
 
 func TestToolsCall_InvalidParams(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	req := &Request{
@@ -237,6 +250,7 @@ func TestToolsCall_InvalidParams(t *testing.T) {
 }
 
 func TestToolsCall_UnknownToolDirect(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	params := ToolCallParams{Name: "nonexistent"}
@@ -261,6 +275,7 @@ func TestToolsCall_UnknownToolDirect(t *testing.T) {
 // --- Multiple sequential HTTP requests ---
 
 func TestHTTPHandler_SequentialRequests(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	// Initialize -> tools/list -> tools/call.
@@ -284,6 +299,7 @@ func TestHTTPHandler_SequentialRequests(t *testing.T) {
 // --- Large payload ---
 
 func TestHTTPHandler_LargePayload(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(0)
 
 	// Create a tool call with a large arguments map.
@@ -316,6 +332,10 @@ func TestHTTPHandler_LargePayload(t *testing.T) {
 // --- All four tool handlers ---
 
 func TestAllToolHandlers(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	handlers := []struct {
 		name     string
 		args     map[string]any
@@ -373,6 +393,7 @@ func TestAllToolHandlers(t *testing.T) {
 }
 
 func TestAllToolHandlers_NilArgs(t *testing.T) {
+	t.Parallel()
 	tools := []string{"search_flights", "search_dates", "search_hotels", "hotel_prices", "hotel_reviews"}
 	s := NewServer()
 
@@ -391,6 +412,7 @@ func TestAllToolHandlers_NilArgs(t *testing.T) {
 // --- Tool definitions ---
 
 func TestToolDefinitions(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	for _, tool := range s.tools {
@@ -420,6 +442,7 @@ func TestToolDefinitions(t *testing.T) {
 // --- marshalResult (via buildAnnotatedContentBlocks) ---
 
 func TestBuildAnnotatedContentBlocks(t *testing.T) {
+	t.Parallel()
 	blocks, err := buildAnnotatedContentBlocks("Test summary", map[string]string{"key": "value"})
 	if err != nil {
 		t.Fatalf("error: %v", err)
@@ -460,6 +483,7 @@ func TestBuildAnnotatedContentBlocks(t *testing.T) {
 // --- Stdio edge cases ---
 
 func TestServeStdio_EmptyInput(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	in := bytes.NewBufferString("")
 	out := &bytes.Buffer{}
@@ -474,6 +498,7 @@ func TestServeStdio_EmptyInput(t *testing.T) {
 }
 
 func TestServeStdio_ManyEmptyLines(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	in := bytes.NewBufferString("\n\n\n\n\n")
 	out := &bytes.Buffer{}

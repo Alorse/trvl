@@ -16,6 +16,7 @@ import (
 // notifications/progress notifications during a (mocked) run.
 // In short mode we just verify the progress func mechanics without network I/O.
 func TestProgressNotifications_SendProgress(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	// Set up a notification writer so makeProgressFunc returns non-nil.
@@ -60,6 +61,7 @@ func TestProgressNotifications_SendProgress(t *testing.T) {
 
 // TestProgressNotifications_NilSafe verifies that sendProgress with nil func does not panic.
 func TestProgressNotifications_NilSafe(t *testing.T) {
+	t.Parallel()
 	// Must not panic.
 	sendProgress(nil, 10, 100, "test")
 }
@@ -67,6 +69,7 @@ func TestProgressNotifications_NilSafe(t *testing.T) {
 // TestProgressNotifications_NoWriterReturnsNil verifies makeProgressFunc returns nil
 // when no notifyWriter is set (HTTP transport simulation).
 func TestProgressNotifications_NoWriterReturnsNil(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	// notifyWriter is nil by default.
 	progress := s.makeProgressFunc("token")
@@ -79,6 +82,7 @@ func TestProgressNotifications_NoWriterReturnsNil(t *testing.T) {
 
 // TestSearchNaturalTool_Registered verifies the tool appears in tools/list.
 func TestSearchNaturalTool_Registered(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "tools/list", 1, nil)
 	if resp == nil || resp.Error != nil {
@@ -108,6 +112,7 @@ func TestSearchNaturalTool_Registered(t *testing.T) {
 
 // TestSearchNatural_EmptyQuery returns an error for missing query.
 func TestSearchNatural_EmptyQuery(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchNatural(context.Background(), map[string]any{"query": ""}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for empty query, got nil")
@@ -116,6 +121,7 @@ func TestSearchNatural_EmptyQuery(t *testing.T) {
 
 // TestSearchNatural_MissingQuery returns an error for absent query key.
 func TestSearchNatural_MissingQuery(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchNatural(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing query, got nil")
@@ -124,6 +130,7 @@ func TestSearchNatural_MissingQuery(t *testing.T) {
 
 // TestSearchNatural_HeuristicWeekend verifies heuristicParse resolves "next weekend".
 func TestSearchNatural_HeuristicWeekend(t *testing.T) {
+	t.Parallel()
 	// Monday 2026-01-05.
 	p := heuristicParse("hotels next weekend in Prague", "2026-01-05")
 	if p.Intent != "hotel" {
@@ -140,6 +147,7 @@ func TestSearchNatural_HeuristicWeekend(t *testing.T) {
 
 // TestSearchNatural_HeuristicFlight verifies intent detection for flight queries.
 func TestSearchNatural_HeuristicFlight(t *testing.T) {
+	t.Parallel()
 	p := heuristicParse("cheapest flight from Helsinki to Tokyo next month", "2026-01-01")
 	if p.Intent != "flight" {
 		t.Errorf("intent: got %q, want flight", p.Intent)
@@ -148,6 +156,7 @@ func TestSearchNatural_HeuristicFlight(t *testing.T) {
 
 // TestSearchNatural_HeuristicFlight2 verifies "flying" keyword maps to flight.
 func TestSearchNatural_HeuristicFlight2(t *testing.T) {
+	t.Parallel()
 	p := heuristicParse("I am flying from HEL to PRG on Friday", "2026-01-01")
 	if p.Intent != "flight" {
 		t.Errorf("intent: got %q, want flight", p.Intent)
@@ -156,6 +165,7 @@ func TestSearchNatural_HeuristicFlight2(t *testing.T) {
 
 // TestSearchNatural_HeuristicRoute verifies default route intent for train query.
 func TestSearchNatural_HeuristicRoute(t *testing.T) {
+	t.Parallel()
 	// Avoid any hotel/flight keywords in the query.
 	p := heuristicParse("how to travel from Helsinki to Dubrovnik by train or bus", "2026-01-01")
 	if p.Intent != "route" {
@@ -165,6 +175,7 @@ func TestSearchNatural_HeuristicRoute(t *testing.T) {
 
 // TestSearchNatural_HeuristicHotel verifies hotel keyword detection.
 func TestSearchNatural_HeuristicHotel(t *testing.T) {
+	t.Parallel()
 	p := heuristicParse("find me a hotel in Prague for 3 nights", "2026-01-01")
 	if p.Intent != "hotel" {
 		t.Errorf("intent: got %q, want hotel", p.Intent)
@@ -173,6 +184,7 @@ func TestSearchNatural_HeuristicHotel(t *testing.T) {
 
 // TestSearchNatural_SamplingNilFallback verifies heuristic fallback when sampling is nil.
 func TestSearchNatural_SamplingNilFallback(t *testing.T) {
+	t.Parallel()
 	// A query with no recognizable destination should return a fallback message,
 	// not panic.
 	content, _, err := handleSearchNatural(
@@ -194,6 +206,7 @@ func TestSearchNatural_SamplingNilFallback(t *testing.T) {
 
 // TestResourcesSubscribe verifies subscribe/unsubscribe round-trip.
 func TestResourcesSubscribe(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	uri := "trvl://trips/abc123"
 
@@ -229,6 +242,7 @@ func TestResourcesSubscribe(t *testing.T) {
 // TestSendResourceUpdated_FiresOnlyForSubscribed verifies notifications are only
 // sent for URIs that have active subscriptions.
 func TestSendResourceUpdated_FiresOnlyForSubscribed(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	var buf bytes.Buffer
 	s.notifyWriter = &buf
@@ -268,6 +282,7 @@ func TestSendResourceUpdated_FiresOnlyForSubscribed(t *testing.T) {
 
 // TestResourcesCapability_Subscribe verifies the server advertises Subscribe: true.
 func TestResourcesCapability_Subscribe(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "initialize", 1, nil)
 	if resp == nil || resp.Error != nil {
@@ -295,6 +310,7 @@ func TestResourcesCapability_Subscribe(t *testing.T) {
 
 // TestToolsList_IncludesNewTools verifies all newly added tools appear in tools/list.
 func TestToolsList_IncludesNewTools(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "tools/list", 1, nil)
 	if resp == nil || resp.Error != nil {
@@ -330,6 +346,7 @@ func TestToolsList_IncludesNewTools(t *testing.T) {
 
 // TestDetectHacks_ProgressEmitted verifies that handleDetectTravelHacks calls progress.
 func TestDetectHacks_ProgressEmitted(t *testing.T) {
+	t.Parallel()
 	var calls []string
 	mockProgress := func(progress, total float64, message string) {
 		calls = append(calls, message)
@@ -362,6 +379,7 @@ func TestDetectHacks_ProgressEmitted(t *testing.T) {
 
 // TestSearchRoute_ProgressEmitted verifies that handleSearchRoute calls progress.
 func TestSearchRoute_ProgressEmitted(t *testing.T) {
+	t.Parallel()
 	var calls []float64
 	mockProgress := func(progress, total float64, message string) {
 		calls = append(calls, progress)
@@ -391,6 +409,7 @@ func TestSearchRoute_ProgressEmitted(t *testing.T) {
 
 // TestDetectHacks_ProgressCalls_Unit verifies progress is fired even with missing fields.
 func TestDetectHacks_ProgressCalls_Unit(t *testing.T) {
+	t.Parallel()
 	var count int
 	mockProgress := func(progress, total float64, message string) {
 		count++

@@ -23,11 +23,23 @@ var (
 
 // externalProviderRuntime is set by the MCP server when providers are configured.
 // It is nil when no external providers are available.
-var externalProviderRuntime *providers.Runtime
+var (
+	externalProviderRuntime   *providers.Runtime
+	externalProviderRuntimeMu sync.RWMutex
+)
 
 // SetExternalProviderRuntime configures the external provider runtime for hotel searches.
 func SetExternalProviderRuntime(rt *providers.Runtime) {
+	externalProviderRuntimeMu.Lock()
 	externalProviderRuntime = rt
+	externalProviderRuntimeMu.Unlock()
+}
+
+// getExternalProviderRuntime returns the current external provider runtime.
+func getExternalProviderRuntime() *providers.Runtime {
+	externalProviderRuntimeMu.RLock()
+	defer externalProviderRuntimeMu.RUnlock()
+	return externalProviderRuntime
 }
 
 // DefaultClient returns a shared batchexec.Client for the hotels package.
@@ -266,7 +278,7 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 	// External providers (user-configured via configure_provider MCP tool).
 	// This includes any provider the user has set up: Booking.com, Airbnb,
 	// Hostelworld, VRBO, etc. — all configured through the provider system.
-	if externalProviderRuntime != nil {
+	if eprt := getExternalProviderRuntime(); eprt != nil {
 		auxWg.Add(1)
 		go func() {
 			defer auxWg.Done()
@@ -295,7 +307,7 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 				MealPlan:         opts.MealPlan,
 				IncludeSoldOut:   opts.IncludeSoldOut,
 			}
-			res, statuses, err := externalProviderRuntime.SearchHotels(ctx, location, lat, lon,
+			res, statuses, err := eprt.SearchHotels(ctx, location, lat, lon,
 				auxOpts.CheckIn, auxOpts.CheckOut, auxOpts.Currency, auxOpts.Guests, filters)
 			if err != nil {
 				slog.Warn("external providers search failed", "error", err)

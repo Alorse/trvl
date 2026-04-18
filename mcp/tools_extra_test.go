@@ -10,6 +10,7 @@ import (
 // --- argFloat ---
 
 func TestArgFloat_NilArgs(t *testing.T) {
+	t.Parallel()
 	got := argFloat(nil, "key", 3.14)
 	if got != 3.14 {
 		t.Errorf("expected 3.14, got %f", got)
@@ -17,6 +18,7 @@ func TestArgFloat_NilArgs(t *testing.T) {
 }
 
 func TestArgFloat_MissingKey(t *testing.T) {
+	t.Parallel()
 	got := argFloat(map[string]any{}, "key", 1.5)
 	if got != 1.5 {
 		t.Errorf("expected 1.5, got %f", got)
@@ -24,6 +26,7 @@ func TestArgFloat_MissingKey(t *testing.T) {
 }
 
 func TestArgFloat_Float64Value(t *testing.T) {
+	t.Parallel()
 	got := argFloat(map[string]any{"key": float64(42.5)}, "key", 0)
 	if got != 42.5 {
 		t.Errorf("expected 42.5, got %f", got)
@@ -31,6 +34,7 @@ func TestArgFloat_Float64Value(t *testing.T) {
 }
 
 func TestArgFloat_IntValue(t *testing.T) {
+	t.Parallel()
 	got := argFloat(map[string]any{"key": 7}, "key", 0)
 	if got != 7.0 {
 		t.Errorf("expected 7.0, got %f", got)
@@ -38,6 +42,7 @@ func TestArgFloat_IntValue(t *testing.T) {
 }
 
 func TestArgFloat_JSONNumber(t *testing.T) {
+	t.Parallel()
 	got := argFloat(map[string]any{"key": json.Number("99.9")}, "key", 0)
 	if got != 99.9 {
 		t.Errorf("expected 99.9, got %f", got)
@@ -45,6 +50,7 @@ func TestArgFloat_JSONNumber(t *testing.T) {
 }
 
 func TestArgFloat_JSONNumberInvalid(t *testing.T) {
+	t.Parallel()
 	got := argFloat(map[string]any{"key": json.Number("not-a-number")}, "key", 1.0)
 	if got != 1.0 {
 		t.Errorf("expected default 1.0, got %f", got)
@@ -52,6 +58,7 @@ func TestArgFloat_JSONNumberInvalid(t *testing.T) {
 }
 
 func TestArgFloat_StringValue(t *testing.T) {
+	t.Parallel()
 	got := argFloat(map[string]any{"key": "not a number"}, "key", 2.0)
 	if got != 2.0 {
 		t.Errorf("expected default 2.0, got %f", got)
@@ -61,6 +68,7 @@ func TestArgFloat_StringValue(t *testing.T) {
 // --- argStringSlice ---
 
 func TestArgStringSlice_NilArgs(t *testing.T) {
+	t.Parallel()
 	got := argStringSlice(nil, "key")
 	if got != nil {
 		t.Errorf("expected nil, got %v", got)
@@ -68,6 +76,7 @@ func TestArgStringSlice_NilArgs(t *testing.T) {
 }
 
 func TestArgStringSlice_MissingKey(t *testing.T) {
+	t.Parallel()
 	got := argStringSlice(map[string]any{}, "key")
 	if got != nil {
 		t.Errorf("expected nil, got %v", got)
@@ -75,6 +84,7 @@ func TestArgStringSlice_MissingKey(t *testing.T) {
 }
 
 func TestArgStringSlice_CommaString(t *testing.T) {
+	t.Parallel()
 	got := argStringSlice(map[string]any{"key": "BCN,ROM,PAR"}, "key")
 	if len(got) != 3 {
 		t.Fatalf("len = %d, want 3", len(got))
@@ -85,6 +95,7 @@ func TestArgStringSlice_CommaString(t *testing.T) {
 }
 
 func TestArgStringSlice_JSONArray(t *testing.T) {
+	t.Parallel()
 	got := argStringSlice(map[string]any{"key": []any{"A", "B"}}, "key")
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2", len(got))
@@ -95,6 +106,7 @@ func TestArgStringSlice_JSONArray(t *testing.T) {
 }
 
 func TestArgStringSlice_EmptyString(t *testing.T) {
+	t.Parallel()
 	got := argStringSlice(map[string]any{"key": ""}, "key")
 	if got != nil {
 		t.Errorf("expected nil for empty string, got %v", got)
@@ -104,6 +116,7 @@ func TestArgStringSlice_EmptyString(t *testing.T) {
 // --- handleWeekendGetaway validation ---
 
 func TestHandleWeekendGetaway_MissingOrigin(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleWeekendGetaway(context.Background(), map[string]any{"month": "july-2026"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing origin")
@@ -111,6 +124,7 @@ func TestHandleWeekendGetaway_MissingOrigin(t *testing.T) {
 }
 
 func TestHandleWeekendGetaway_MissingMonth(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleWeekendGetaway(context.Background(), map[string]any{"origin": "HEL"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing month")
@@ -118,6 +132,7 @@ func TestHandleWeekendGetaway_MissingMonth(t *testing.T) {
 }
 
 func TestHandleWeekendGetaway_InvalidIATA(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleWeekendGetaway(context.Background(), map[string]any{"origin": "XX", "month": "july-2026"}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for invalid IATA")
@@ -127,6 +142,7 @@ func TestHandleWeekendGetaway_InvalidIATA(t *testing.T) {
 // --- handleSuggestDates validation ---
 
 func TestHandleSuggestDates_MissingParams(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSuggestDates(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing params")
@@ -134,6 +150,7 @@ func TestHandleSuggestDates_MissingParams(t *testing.T) {
 }
 
 func TestHandleSuggestDates_MissingTargetDate(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSuggestDates(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "BCN",
@@ -144,6 +161,7 @@ func TestHandleSuggestDates_MissingTargetDate(t *testing.T) {
 }
 
 func TestHandleSuggestDates_InvalidOrigin(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSuggestDates(context.Background(), map[string]any{
 		"origin":      "XX",
 		"destination": "BCN",
@@ -155,6 +173,7 @@ func TestHandleSuggestDates_InvalidOrigin(t *testing.T) {
 }
 
 func TestHandleSuggestDates_InvalidDest(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSuggestDates(context.Background(), map[string]any{
 		"origin":      "HEL",
 		"destination": "12",
@@ -168,6 +187,7 @@ func TestHandleSuggestDates_InvalidDest(t *testing.T) {
 // --- handleOptimizeMultiCity validation ---
 
 func TestHandleOptimizeMultiCity_MissingHome(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleOptimizeMultiCity(context.Background(), map[string]any{
 		"cities":      "BCN,ROM",
 		"depart_date": "2026-07-01",
@@ -178,6 +198,7 @@ func TestHandleOptimizeMultiCity_MissingHome(t *testing.T) {
 }
 
 func TestHandleOptimizeMultiCity_MissingCities(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleOptimizeMultiCity(context.Background(), map[string]any{
 		"home_airport": "HEL",
 		"depart_date":  "2026-07-01",
@@ -188,6 +209,7 @@ func TestHandleOptimizeMultiCity_MissingCities(t *testing.T) {
 }
 
 func TestHandleOptimizeMultiCity_MissingDate(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleOptimizeMultiCity(context.Background(), map[string]any{
 		"home_airport": "HEL",
 		"cities":       "BCN,ROM",
@@ -198,6 +220,7 @@ func TestHandleOptimizeMultiCity_MissingDate(t *testing.T) {
 }
 
 func TestHandleOptimizeMultiCity_InvalidHome(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleOptimizeMultiCity(context.Background(), map[string]any{
 		"home_airport": "XX",
 		"cities":       "BCN,ROM",
@@ -211,6 +234,7 @@ func TestHandleOptimizeMultiCity_InvalidHome(t *testing.T) {
 // --- weekendSummary ---
 
 func TestWeekendSummary_NoResults(t *testing.T) {
+	t.Parallel()
 	result := &weekendResultType{Success: false, Error: "test error"}
 	// Use the struct directly since we can't import trip types in this package.
 	// Instead, test the string output of the summary function indirectly.
@@ -226,6 +250,7 @@ type weekendResultType struct {
 // --- suggestDatesSummary ---
 
 func TestSuggestDatesSummary_Success(t *testing.T) {
+	t.Parallel()
 	// Test via the tools handler is in TestHandleSuggestDates_* above.
 	// This tests just the summary function.
 }
@@ -233,12 +258,14 @@ func TestSuggestDatesSummary_Success(t *testing.T) {
 // --- multiCitySummary ---
 
 func TestMultiCitySummary_Strings(t *testing.T) {
+	t.Parallel()
 	// Covered by integration through handler tests.
 }
 
 // --- tool registration ---
 
 func TestToolRegistration_AllTools(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	expectedTools := []string{
 		"search_flights", "search_dates", "search_hotels", "hotel_prices",
@@ -297,12 +324,14 @@ func TestToolRegistration_AllTools(t *testing.T) {
 // --- summary builders ---
 
 func TestTripCostSummary_Strings(t *testing.T) {
+	t.Parallel()
 	// Already covered in tools_test.go
 }
 
 // --- buildAnnotatedContentBlocks ---
 
 func TestBuildAnnotatedContentBlocks_Basic(t *testing.T) {
+	t.Parallel()
 	blocks, err := buildAnnotatedContentBlocks("summary text", map[string]string{"key": "val"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -321,6 +350,7 @@ func TestBuildAnnotatedContentBlocks_Basic(t *testing.T) {
 // --- searchHotelsTool schema ---
 
 func TestSearchHotelsTool_FilterProperties(t *testing.T) {
+	t.Parallel()
 	tool := searchHotelsTool()
 
 	// Verify new filter properties exist in the schema.
@@ -350,6 +380,7 @@ func TestSearchHotelsTool_FilterProperties(t *testing.T) {
 }
 
 func TestSearchHotelsTool_RequiredUnchanged(t *testing.T) {
+	t.Parallel()
 	tool := searchHotelsTool()
 	required := map[string]bool{"location": false, "check_in": false, "check_out": false}
 	for _, r := range tool.InputSchema.Required {
@@ -373,6 +404,10 @@ func TestSearchHotelsTool_RequiredUnchanged(t *testing.T) {
 // --- handleSearchHotels filter args parsing ---
 
 func TestHandleSearchHotels_FilterArgsDefaults(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	_, _, err := handleSearchHotels(context.Background(), map[string]any{
 		"location":  "Helsinki",
 		"check_in":  "2026-06-15",
@@ -384,6 +419,10 @@ func TestHandleSearchHotels_FilterArgsDefaults(t *testing.T) {
 }
 
 func TestHandleSearchHotels_FilterArgsFloat(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	_, _, err := handleSearchHotels(context.Background(), map[string]any{
 		"location":     "Helsinki",
 		"check_in":     "2026-06-15",

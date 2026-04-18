@@ -10,6 +10,7 @@ import (
 )
 
 func TestHandleCalculatePointsValue_Success(t *testing.T) {
+	t.Parallel()
 	content, structured, err := handleCalculatePointsValue(context.Background(), map[string]any{
 		"cash_price":      450.0,
 		"points_required": 20000,
@@ -41,6 +42,7 @@ func TestHandleCalculatePointsValue_Success(t *testing.T) {
 }
 
 func TestHandleCalculatePointsValue_MissingProgram(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleCalculatePointsValue(context.Background(), map[string]any{
 		"cash_price":      450.0,
 		"points_required": 20000,
@@ -54,6 +56,7 @@ func TestHandleCalculatePointsValue_MissingProgram(t *testing.T) {
 }
 
 func TestHandleCalculatePointsValue_InvalidCashPrice(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleCalculatePointsValue(context.Background(), map[string]any{
 		"cash_price":      0.0,
 		"points_required": 20000,
@@ -68,6 +71,7 @@ func TestHandleCalculatePointsValue_InvalidCashPrice(t *testing.T) {
 }
 
 func TestHandleCalculatePointsValue_UnknownProgram(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleCalculatePointsValue(context.Background(), map[string]any{
 		"cash_price":      450.0,
 		"points_required": 20000,
@@ -82,6 +86,7 @@ func TestHandleCalculatePointsValue_UnknownProgram(t *testing.T) {
 }
 
 func TestToolsCallCalculatePointsValue(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "tools/call", 42, ToolCallParams{
 		Name: "calculate_points_value",

@@ -9,6 +9,7 @@ import (
 )
 
 func TestWriteJSON(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	resp := Response{JSONRPC: "2.0", ID: float64(1)}
 	err := writeJSON(&buf, resp)
@@ -27,6 +28,7 @@ func TestWriteJSON(t *testing.T) {
 }
 
 func TestWriteJSON_Error(t *testing.T) {
+	t.Parallel()
 	// Write to a writer that always fails.
 	w := &failWriter{}
 	err := writeJSON(w, Response{JSONRPC: "2.0"})
@@ -44,6 +46,7 @@ func (f *failWriter) Write(p []byte) (int, error) {
 // --- NewServer ---
 
 func TestNewServer(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	if s == nil {
 		t.Fatal("NewServer returned nil")
@@ -59,6 +62,7 @@ func TestNewServer(t *testing.T) {
 // --- NewHTTPServer ---
 
 func TestNewHTTPServer(t *testing.T) {
+	t.Parallel()
 	hs := NewHTTPServer(8080)
 	if hs == nil {
 		t.Fatal("NewHTTPServer returned nil")
@@ -74,6 +78,7 @@ func TestNewHTTPServer(t *testing.T) {
 // --- HandleRequest all methods ---
 
 func TestHandleRequest_AllMethods(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	tests := []struct {
@@ -119,12 +124,14 @@ func TestHandleRequest_AllMethods(t *testing.T) {
 // --- Protocol version 2025-11-25 features ---
 
 func TestProtocolVersion(t *testing.T) {
+	t.Parallel()
 	if protocolVersion != "2025-11-25" {
 		t.Errorf("protocol version = %q, want 2025-11-25", protocolVersion)
 	}
 }
 
 func TestInitializeCapabilities(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "initialize", 1, nil)
 	if resp == nil {
@@ -155,6 +162,7 @@ func TestInitializeCapabilities(t *testing.T) {
 }
 
 func TestToolAnnotations(t *testing.T) {
+	t.Parallel()
 	// Tools that write to disk — ReadOnlyHint is intentionally false.
 	writeTools := map[string]bool{
 		"update_preferences":      true,
@@ -201,6 +209,7 @@ func TestToolAnnotations(t *testing.T) {
 }
 
 func TestToolOutputSchema(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	for _, tool := range s.tools {
 		t.Run(tool.Name, func(t *testing.T) {
@@ -224,6 +233,7 @@ func TestToolOutputSchema(t *testing.T) {
 }
 
 func TestToolTitle(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	for _, tool := range s.tools {
 		t.Run(tool.Name, func(t *testing.T) {
@@ -235,6 +245,10 @@ func TestToolTitle(t *testing.T) {
 }
 
 func TestStructuredContent(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	s := NewServer()
 
 	// Call a tool via HandleRequest and verify structuredContent is present.
@@ -280,6 +294,10 @@ func TestStructuredContent(t *testing.T) {
 }
 
 func TestContentAnnotations(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	s := NewServer()
 
 	params := ToolCallParams{
@@ -337,6 +355,7 @@ func TestContentAnnotations(t *testing.T) {
 }
 
 func TestHandleToolsCall_PlanTripExecutionFailureSetsIsError(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	params := ToolCallParams{
@@ -391,6 +410,7 @@ func TestHandleToolsCall_PlanTripExecutionFailureSetsIsError(t *testing.T) {
 }
 
 func TestInitializeTracksClientCapabilities(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 
 	// Send initialize with elicitation capability.
@@ -424,6 +444,7 @@ func TestInitializeTracksClientCapabilities(t *testing.T) {
 }
 
 func TestSendLog(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	var buf bytes.Buffer
 	s.notifyWriter = &buf
@@ -458,6 +479,7 @@ func TestSendLog(t *testing.T) {
 }
 
 func TestSendProgress(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	var buf bytes.Buffer
 	s.notifyWriter = &buf
@@ -492,6 +514,7 @@ func TestSendProgress(t *testing.T) {
 }
 
 func TestSendNotification_NilWriter(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	// Should not panic or error when no writer is set.
 	err := s.SendNotification("notifications/message", LogParams{Level: "info", Logger: "trvl", Data: "test"})
@@ -501,6 +524,7 @@ func TestSendNotification_NilWriter(t *testing.T) {
 }
 
 func TestMakeElicitFunc_NilWithoutCapability(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	// Client does not declare elicitation capability.
 	fn := s.makeElicitFunc()
@@ -510,6 +534,7 @@ func TestMakeElicitFunc_NilWithoutCapability(t *testing.T) {
 }
 
 func TestMakeElicitFunc_NilWithoutWriter(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	s.clientCapabilities.Elicitation = &ElicitationCapability{}
 	// No writer set.

@@ -7,6 +7,7 @@ import (
 )
 
 func TestPromptsList(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	resp := sendRequest(t, s, "prompts/list", 1, nil)
 	if resp == nil {
@@ -52,6 +53,7 @@ func TestPromptsList(t *testing.T) {
 }
 
 func TestPromptsGet_PlanTrip(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "plan-trip",
@@ -93,6 +95,7 @@ func TestPromptsGet_PlanTrip(t *testing.T) {
 }
 
 func TestPromptsGet_PlanTrip_MissingArgs(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name:      "plan-trip",
@@ -108,6 +111,7 @@ func TestPromptsGet_PlanTrip_MissingArgs(t *testing.T) {
 }
 
 func TestPromptsGet_FindCheapestDates(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "find-cheapest-dates",
@@ -138,6 +142,7 @@ func TestPromptsGet_FindCheapestDates(t *testing.T) {
 }
 
 func TestPromptsGet_CompareHotels(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "compare-hotels",
@@ -169,6 +174,7 @@ func TestPromptsGet_CompareHotels(t *testing.T) {
 }
 
 func TestPromptsGet_UnknownPrompt(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{Name: "nonexistent"}
 	resp := sendRequest(t, s, "prompts/get", 1, params)
@@ -183,6 +189,7 @@ func TestPromptsGet_UnknownPrompt(t *testing.T) {
 // --- promptWhereShouldIGo ---
 
 func TestPromptsGet_WhereShouldIGo_Basic(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "where-should-i-go",
@@ -215,6 +222,7 @@ func TestPromptsGet_WhereShouldIGo_Basic(t *testing.T) {
 }
 
 func TestPromptsGet_WhereShouldIGo_WithMonth(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "where-should-i-go",
@@ -245,6 +253,7 @@ func TestPromptsGet_WhereShouldIGo_WithMonth(t *testing.T) {
 }
 
 func TestPromptsGet_WhereShouldIGo_WithBudget(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "where-should-i-go",
@@ -272,6 +281,7 @@ func TestPromptsGet_WhereShouldIGo_WithBudget(t *testing.T) {
 }
 
 func TestPromptsGet_WhereShouldIGo_MissingOrigin(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name:      "where-should-i-go",
@@ -287,6 +297,7 @@ func TestPromptsGet_WhereShouldIGo_MissingOrigin(t *testing.T) {
 }
 
 func TestPromptsGet_WhereShouldIGo_AllArgs(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "where-should-i-go",
@@ -322,6 +333,7 @@ func TestPromptsGet_WhereShouldIGo_AllArgs(t *testing.T) {
 // --- promptPlanTrip without budget ---
 
 func TestPromptsGet_PlanTrip_NoBudget(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "plan-trip",
@@ -357,6 +369,7 @@ func TestPromptsGet_PlanTrip_NoBudget(t *testing.T) {
 // --- promptCompareHotels missing args ---
 
 func TestPromptsGet_CompareHotels_MissingArgs(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name:      "compare-hotels",
@@ -374,6 +387,7 @@ func TestPromptsGet_CompareHotels_MissingArgs(t *testing.T) {
 // --- promptCompareHotels default priorities ---
 
 func TestPromptsGet_CompareHotels_DefaultPriorities(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "compare-hotels",
@@ -405,6 +419,7 @@ func TestPromptsGet_CompareHotels_DefaultPriorities(t *testing.T) {
 // --- getPrompt unknown prompt ---
 
 func TestGetPrompt_Unknown(t *testing.T) {
+	t.Parallel()
 	_, err := getPrompt("nonexistent", nil)
 	if err == nil {
 		t.Error("expected error for unknown prompt")
@@ -416,6 +431,7 @@ func TestGetPrompt_Unknown(t *testing.T) {
 // --- promptPackingList ---
 
 func TestPromptsGet_PackingList_Basic(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "packing-list",
@@ -455,6 +471,7 @@ func TestPromptsGet_PackingList_Basic(t *testing.T) {
 }
 
 func TestPromptsGet_PackingList_AllArgs(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name: "packing-list",
@@ -496,6 +513,7 @@ func TestPromptsGet_PackingList_AllArgs(t *testing.T) {
 }
 
 func TestPromptsGet_PackingList_MissingArgs(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name:      "packing-list",
@@ -511,6 +529,7 @@ func TestPromptsGet_PackingList_MissingArgs(t *testing.T) {
 }
 
 func TestArgOr_NilArgs(t *testing.T) {
+	t.Parallel()
 	got := argOr(nil, "key", "fallback")
 	if got != "fallback" {
 		t.Errorf("got %q, want fallback", got)
@@ -518,6 +537,7 @@ func TestArgOr_NilArgs(t *testing.T) {
 }
 
 func TestArgOr_MissingKey(t *testing.T) {
+	t.Parallel()
 	got := argOr(map[string]any{"other": "val"}, "key", "fallback")
 	if got != "fallback" {
 		t.Errorf("got %q, want fallback", got)
@@ -525,6 +545,7 @@ func TestArgOr_MissingKey(t *testing.T) {
 }
 
 func TestArgOr_EmptyStringValue(t *testing.T) {
+	t.Parallel()
 	got := argOr(map[string]any{"key": ""}, "key", "fallback")
 	if got != "fallback" {
 		t.Errorf("got %q, want fallback for empty string", got)
@@ -532,6 +553,7 @@ func TestArgOr_EmptyStringValue(t *testing.T) {
 }
 
 func TestArgOr_NonStringValue(t *testing.T) {
+	t.Parallel()
 	got := argOr(map[string]any{"key": 42}, "key", "fallback")
 	if got != "fallback" {
 		t.Errorf("got %q, want fallback for non-string value", got)
@@ -539,6 +561,7 @@ func TestArgOr_NonStringValue(t *testing.T) {
 }
 
 func TestArgOr_ValidValue(t *testing.T) {
+	t.Parallel()
 	got := argOr(map[string]any{"key": "value"}, "key", "fallback")
 	if got != "value" {
 		t.Errorf("got %q, want value", got)
@@ -548,6 +571,7 @@ func TestArgOr_ValidValue(t *testing.T) {
 // --- promptFindCheapestDates missing args ---
 
 func TestPromptsGet_FindCheapestDates_MissingArgs(t *testing.T) {
+	t.Parallel()
 	s := NewServer()
 	params := PromptsGetParams{
 		Name:      "find-cheapest-dates",

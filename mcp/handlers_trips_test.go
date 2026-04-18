@@ -14,6 +14,7 @@ import (
 // ============================================================
 
 func TestHandleGetTrip_MissingID(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleGetTrip(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing id")
@@ -21,6 +22,7 @@ func TestHandleGetTrip_MissingID(t *testing.T) {
 }
 
 func TestHandleGetTrip_NilArgs(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleGetTrip(context.Background(), nil, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for nil args")
@@ -28,6 +30,7 @@ func TestHandleGetTrip_NilArgs(t *testing.T) {
 }
 
 func TestHandleCreateTrip_MissingName(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleCreateTrip(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing name")
@@ -35,6 +38,7 @@ func TestHandleCreateTrip_MissingName(t *testing.T) {
 }
 
 func TestHandleCreateTrip_EmptyName(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleCreateTrip(context.Background(), map[string]any{"name": ""}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for empty name")
@@ -42,6 +46,7 @@ func TestHandleCreateTrip_EmptyName(t *testing.T) {
 }
 
 func TestHandleAddTripLeg_MissingTripID(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleAddTripLeg(context.Background(), map[string]any{
 		"type": "flight", "from": "HEL", "to": "BCN",
 	}, nil, nil, nil)
@@ -51,6 +56,7 @@ func TestHandleAddTripLeg_MissingTripID(t *testing.T) {
 }
 
 func TestHandleAddTripLeg_NilArgs(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleAddTripLeg(context.Background(), nil, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for nil args (trip_id missing)")
@@ -58,6 +64,7 @@ func TestHandleAddTripLeg_NilArgs(t *testing.T) {
 }
 
 func TestHandleMarkTripBooked_MissingAll(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleMarkTripBooked(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing trip_id/provider/reference")
@@ -65,6 +72,7 @@ func TestHandleMarkTripBooked_MissingAll(t *testing.T) {
 }
 
 func TestHandleMarkTripBooked_MissingProvider(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleMarkTripBooked(context.Background(), map[string]any{
 		"trip_id": "trip_1", "reference": "ABC123",
 	}, nil, nil, nil)
@@ -74,6 +82,7 @@ func TestHandleMarkTripBooked_MissingProvider(t *testing.T) {
 }
 
 func TestHandleMarkTripBooked_MissingReference(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleMarkTripBooked(context.Background(), map[string]any{
 		"trip_id": "trip_1", "provider": "KLM",
 	}, nil, nil, nil)
@@ -87,6 +96,7 @@ func TestHandleMarkTripBooked_MissingReference(t *testing.T) {
 // ============================================================
 
 func TestHandleSearchDeals_MissingOrigins(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchDeals(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing origins")
@@ -94,6 +104,7 @@ func TestHandleSearchDeals_MissingOrigins(t *testing.T) {
 }
 
 func TestHandleSearchDeals_NilArgs(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchDeals(context.Background(), nil, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for nil args")
@@ -101,6 +112,7 @@ func TestHandleSearchDeals_NilArgs(t *testing.T) {
 }
 
 func TestHandleSearchDeals_EmptyOrigins(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchDeals(context.Background(), map[string]any{"origins": ""}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for empty origins")
@@ -112,6 +124,7 @@ func TestHandleSearchDeals_EmptyOrigins(t *testing.T) {
 // ============================================================
 
 func TestHandleSearchRoute_MissingAll(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchRoute(context.Background(), map[string]any{}, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for missing origin/destination/date")
@@ -119,6 +132,7 @@ func TestHandleSearchRoute_MissingAll(t *testing.T) {
 }
 
 func TestHandleSearchRoute_MissingDest(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchRoute(context.Background(), map[string]any{
 		"origin": "HEL", "date": "2026-07-01",
 	}, nil, nil, nil)
@@ -128,6 +142,7 @@ func TestHandleSearchRoute_MissingDest(t *testing.T) {
 }
 
 func TestHandleSearchRoute_NilArgs(t *testing.T) {
+	t.Parallel()
 	_, _, err := handleSearchRoute(context.Background(), nil, nil, nil, nil)
 	if err == nil {
 		t.Error("expected error for nil args")
@@ -139,6 +154,7 @@ func TestHandleSearchRoute_NilArgs(t *testing.T) {
 // ============================================================
 
 func TestBuildRouteSummary_NoItineraries(t *testing.T) {
+	t.Parallel()
 	result := &models.RouteSearchResult{
 		Success:     true,
 		Origin:      "Helsinki",
@@ -156,6 +172,7 @@ func TestBuildRouteSummary_NoItineraries(t *testing.T) {
 }
 
 func TestBuildRouteSummary_DirectRoute(t *testing.T) {
+	t.Parallel()
 	result := &models.RouteSearchResult{
 		Success:     true,
 		Origin:      "Helsinki",
@@ -184,6 +201,7 @@ func TestBuildRouteSummary_DirectRoute(t *testing.T) {
 }
 
 func TestBuildRouteSummary_TruncatesAt10(t *testing.T) {
+	t.Parallel()
 	itineraries := make([]models.RouteItinerary, 15)
 	for i := range itineraries {
 		itineraries[i] = models.RouteItinerary{
@@ -203,6 +221,7 @@ func TestBuildRouteSummary_TruncatesAt10(t *testing.T) {
 }
 
 func TestBuildRouteSummary_LegWithZeroPrice(t *testing.T) {
+	t.Parallel()
 	result := &models.RouteSearchResult{
 		Success: true, Origin: "A", Destination: "B", Date: "2026-07-01",
 		Count: 1,

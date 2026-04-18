@@ -19,6 +19,7 @@ func testRegistry(t *testing.T) *providers.Registry {
 }
 
 func TestHandleConfigureProvider_NoElicitation(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	args := map[string]any{
 		"id":           "test-provider",
@@ -58,6 +59,7 @@ func TestHandleConfigureProvider_NoElicitation(t *testing.T) {
 }
 
 func TestHandleConfigureProvider_ElicitDecline(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	args := map[string]any{
 		"id":           "test-decline",
@@ -91,6 +93,7 @@ func TestHandleConfigureProvider_ElicitDecline(t *testing.T) {
 }
 
 func TestHandleConfigureProvider_ElicitNo(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	args := map[string]any{
 		"id":           "test-no",
@@ -120,6 +123,7 @@ func TestHandleConfigureProvider_ElicitNo(t *testing.T) {
 }
 
 func TestHandleConfigureProvider_ElicitYes(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	args := map[string]any{
 		"id":           "agoda-hotels",
@@ -190,6 +194,7 @@ func TestHandleConfigureProvider_ElicitYes(t *testing.T) {
 }
 
 func TestHandleConfigureProvider_ValidationError(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	args := map[string]any{
 		"id":       "bad-provider",
@@ -212,6 +217,7 @@ func TestHandleConfigureProvider_ValidationError(t *testing.T) {
 }
 
 func TestHandleListProviders_Empty(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	content, _, err := handleListProviders(context.Background(), nil, nil, nil, nil, reg, nil)
 	if err != nil {
@@ -226,6 +232,7 @@ func TestHandleListProviders_Empty(t *testing.T) {
 }
 
 func TestHandleListProviders_WithProviders(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 
 	// Add a provider directly.
@@ -297,6 +304,7 @@ func TestHandleListProviders_WithProviders(t *testing.T) {
 }
 
 func TestHandleRemoveProvider_Success(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 
 	// Add a provider.
@@ -331,6 +339,7 @@ func TestHandleRemoveProvider_Success(t *testing.T) {
 }
 
 func TestHandleRemoveProvider_NotFound(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	args := map[string]any{"id": "non-existent"}
 	_, _, err := handleRemoveProvider(context.Background(), args, nil, nil, nil, reg, nil)
@@ -340,6 +349,7 @@ func TestHandleRemoveProvider_NotFound(t *testing.T) {
 }
 
 func TestHandleRemoveProvider_MissingID(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	_, _, err := handleRemoveProvider(context.Background(), map[string]any{}, nil, nil, nil, reg, nil)
 	if err == nil {
@@ -348,6 +358,7 @@ func TestHandleRemoveProvider_MissingID(t *testing.T) {
 }
 
 func TestExtractDomain(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		endpoint string
 		want     string
@@ -369,6 +380,7 @@ func TestExtractDomain(t *testing.T) {
 }
 
 func TestParseStringMap(t *testing.T) {
+	t.Parallel()
 	// From map[string]any.
 	m := parseStringMap(map[string]any{
 		"Accept":       "application/json",
@@ -398,6 +410,7 @@ func TestParseStringMap(t *testing.T) {
 }
 
 func TestParseAuthExtractions(t *testing.T) {
+	t.Parallel()
 	// From map.
 	m := parseAuthExtractions(map[string]any{
 		"token": map[string]any{
@@ -432,6 +445,7 @@ func TestParseAuthExtractions(t *testing.T) {
 }
 
 func TestTextContent(t *testing.T) {
+	t.Parallel()
 	blocks := textContent("hello world")
 	if len(blocks) != 1 {
 		t.Fatalf("expected 1 block, got %d", len(blocks))
@@ -445,6 +459,7 @@ func TestTextContent(t *testing.T) {
 }
 
 func TestConfigureProviderTool_Definition(t *testing.T) {
+	t.Parallel()
 	tool := configureProviderTool()
 	if tool.Name != "configure_provider" {
 		t.Errorf("Name = %q", tool.Name)
@@ -461,6 +476,7 @@ func TestConfigureProviderTool_Definition(t *testing.T) {
 }
 
 func TestListProvidersTool_Definition(t *testing.T) {
+	t.Parallel()
 	tool := listProvidersTool()
 	if tool.Name != "list_providers" {
 		t.Errorf("Name = %q", tool.Name)
@@ -474,6 +490,7 @@ func TestListProvidersTool_Definition(t *testing.T) {
 }
 
 func TestRemoveProviderTool_Definition(t *testing.T) {
+	t.Parallel()
 	tool := removeProviderTool()
 	if tool.Name != "remove_provider" {
 		t.Errorf("Name = %q", tool.Name)
@@ -487,6 +504,7 @@ func TestRemoveProviderTool_Definition(t *testing.T) {
 }
 
 func TestTestProviderTool_Definition(t *testing.T) {
+	t.Parallel()
 	tool := testProviderTool()
 	if tool.Name != "test_provider" {
 		t.Errorf("Name = %q", tool.Name)
@@ -509,6 +527,7 @@ func TestTestProviderTool_Definition(t *testing.T) {
 }
 
 func TestHandleTestProvider_MissingID(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	_, _, err := handleTestProvider(context.Background(), map[string]any{}, nil, nil, nil, reg, nil)
 	if err == nil {
@@ -520,6 +539,7 @@ func TestHandleTestProvider_MissingID(t *testing.T) {
 }
 
 func TestHandleTestProvider_NotFound(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	_, _, err := handleTestProvider(context.Background(), map[string]any{"id": "nonexistent"}, nil, nil, nil, reg, nil)
 	if err == nil {
@@ -531,6 +551,7 @@ func TestHandleTestProvider_NotFound(t *testing.T) {
 }
 
 func TestSuggestProviders_ConfigSkeletons(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	content, structured, err := handleSuggestProviders(context.Background(), map[string]any{}, nil, nil, nil, reg, nil)
 	if err != nil {
@@ -553,6 +574,7 @@ func TestSuggestProviders_ConfigSkeletons(t *testing.T) {
 }
 
 func TestSuggestProviders_SkeletonHasResponseMapping(t *testing.T) {
+	t.Parallel()
 	reg := testRegistry(t)
 	_, structured, err := handleSuggestProviders(context.Background(), map[string]any{}, nil, nil, nil, reg, nil)
 	if err != nil {
@@ -584,6 +606,7 @@ func TestSuggestProviders_SkeletonHasResponseMapping(t *testing.T) {
 }
 
 func TestParseProviderConfig_BodyTemplateObjectAutoStringify(t *testing.T) {
+	t.Parallel()
 	// Simulate the Qwen3.5 failure mode: body_template sent as a JSON object
 	// instead of a string. The type guard should auto-stringify it.
 	args := map[string]any{
@@ -619,6 +642,7 @@ func TestParseProviderConfig_BodyTemplateObjectAutoStringify(t *testing.T) {
 }
 
 func TestParseProviderConfig_BodyTemplateStringPassthrough(t *testing.T) {
+	t.Parallel()
 	// Normal case: body_template as a string should pass through unchanged.
 	args := map[string]any{
 		"id":            "test-str",
