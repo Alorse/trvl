@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.10] - 2026-04-18
+
+### Fixed
+- **Root cause of hung queries**: server context was 120s, overriding the 60s tool timeout — every search got 2 minutes before timing out
+- Per-provider 30s timeout prevents any single provider from blocking the search
+- Hotel pagination properly bails on context cancellation (was silently continuing)
+- Browser cookie lookup reduced from 15s to 5s (keychain is <1s when cached)
+- Browser escape hatch wait reduced from 15s to 10s
+- Panic recovery in MCP tool handlers (converts crash to error)
+- Circuit breaker skips providers with 5+ consecutive failures
+- Ferryhopper graceful handling of non-JSON MCP responses
+- Flight parse failures logged at debug level
+
 ## [0.6.9] - 2026-04-18
 
 ### Fixed
