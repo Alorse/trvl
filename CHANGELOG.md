@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-04-19
+
+### Added
+- **CLI `trvl optimize`**: unified optimizer command — searches all combinations of origins, destinations, dates, airlines, and transport modes to find the cheapest booking strategy
+- **Self-Transfer detector**: 10 LCC hub airports (BGY, STN, BVA, CRL, CIA, BCN, BUD, DUB, LTN, AMS) with minimum connection times
+- **Regional Pass Calculator**: 7 European passes (Deutschlandticket, Klimaticket, Swiss Half Fare, OV-chipkaart, ÖBB Vorteilscard, BahnCard 25/50)
+- **Optimizer: date flexibility** via CalendarGraph (1 API call for entire ±N day range)
+- **Optimizer: hidden city candidates** — searches beyond airline hub destinations for connecting discounts
+
+## [0.8.0] - 2026-04-19
+
+### Added
+- **Unified trip optimizer engine** (`optimize_booking`, 45th MCP tool): 4-phase architecture (expand→search→price→rank) that composes all pricing primitives into optimal booking strategies
+- **Return rail skip**: KLM train legs safely skippable both directions (user-confirmed)
+- **Throwaway ground segment**: book bus/train past destination, exit early (no enforcement)
+- **Eurostar return pricing**: return premium often just €5-10 over one-way
+- **Cross-border rail arbitrage**: same train cheaper on ÖBB/DB/CD vs SNCF/Trenitalia
+- **Ferry cabin as hotel**: overnight ferry cabin replaces hotel night (HEL→ARN €35 vs €120 hotel)
+- **EU261 awareness**: €250-600 compensation rights on EU-departing flights
+- **Complete pricing fundamentals** documented for airlines, trains, buses, ferries, hotels, Airbnb — the systematic framework for discovering hacks from discount primitives
+- **Composite hack patterns** documented (rail+fly + hidden city + return skip stacking)
+- Now 45 MCP tools, 43 CLI commands, 34 hack detectors
+
+## [0.7.1] - 2026-04-19
+
+### Added
+- **Auto-trigger hacks on flight search**: CLI shows up to 3 hack tips after every `trvl flights` search; MCP `search_flights` includes hacks array in response
+- **Miles tracking**: estimates miles earned per flight (Flying Blue revenue-based, Oneworld distance-based), shows balance updates in CLI
+- **Miles redemption value**: calculates cents-per-mile, flags good redemption opportunities
+- `internal/baggage` test coverage: 0% → 100% (37 tests)
+
 ## [0.7.0] - 2026-04-19
 
 ### Added
