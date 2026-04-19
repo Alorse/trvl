@@ -150,7 +150,8 @@ func buildHiddenCityHack(in DetectorInput, beyond string, beyondPrice, directPri
 		Currency: currency,
 		Savings:  roundSavings(directPrice - beyondPrice),
 		Description: fmt.Sprintf(
-			"A ticket %s→%s (via %s) costs %s %.0f, cheaper than %s→%s direct at %.0f. Disembark at %s and skip the final leg.",
+			"A ticket %s→%s (via %s) costs %s %.0f, cheaper than %s→%s direct at %.0f. Disembark at %s and skip the final leg. "+
+				"Airline hub cities (AMS, FRA, MUC, CDG, CPH, ZRH) are prime candidates — they are expensive as destinations but cheap as connections because connecting fares are discounted vs direct.",
 			in.Origin, beyond, in.Destination, currency, beyondPrice,
 			in.Origin, in.Destination, directPrice, in.Destination,
 		),
@@ -160,6 +161,7 @@ func buildHiddenCityHack(in DetectorInput, beyond string, beyondPrice, directPri
 			fmt.Sprintf("Confirm the routing stops at %s", in.Destination),
 			"Book a carry-on-only ticket",
 			fmt.Sprintf("Disembark at %s; do not board the onward connection to %s", in.Destination, beyond),
+			"Tip: booking from Eastern European origins (PRG, KRK, BUD, WAW) to hub cities via cheap beyond-destinations leverages lower market pricing",
 		},
 		Citations: []string{
 			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", beyond, in.Origin, in.Date),

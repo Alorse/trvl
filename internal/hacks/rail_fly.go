@@ -157,26 +157,50 @@ func buildRailFlyHack(origin, destination string, basePrice float64, baseCurrenc
 		tripType = "round-trip"
 	}
 
+	// KLM Air&Rail has no enforcement — train boarding is not linked to
+	// flight check-in at Schiphol.  Lufthansa AIRail may enforce outbound.
+	isKLM := station.Airline == "KL"
+
+	steps := []string{
+		fmt.Sprintf("Direct from %s: %.0f %s (%s)", origin, basePrice, baseCurrency, tripType),
+		fmt.Sprintf("Via %s (%s): %.0f %s (%s) — %.0f %s cheaper", station.City, station.IATA, railPrice, railCurrency, tripType, savings, baseCurrency),
+		fmt.Sprintf("Take %s from %s to %s (%d min, included in ticket)", station.TrainProvider, station.City, origin, station.TrainMinutes),
+		"Train ticket appears as a flight segment in the booking — board with your airline booking reference",
+		"On return: you can skip the train leg back to " + station.City + " — nobody checks if you board the return train",
+	}
+
+	var risks []string
+	if isKLM {
+		steps = append(steps, "KLM Air&Rail: train segments can be skipped in practice — go directly to/from Schiphol")
+		steps = append(steps, "The fare zone savings apply regardless of whether you use the train")
+		risks = []string{
+			"LOW risk (KLM): Skipping is against T&C but no enforcement mechanism exists",
+			"RETURN: Safe to skip the train from " + origin + " to " + station.City + " (last leg, no enforcement)",
+			fmt.Sprintf("Allow %d+ minutes for the train journey plus airport transfer if you choose to ride", station.TrainMinutes+30),
+		}
+	} else {
+		risks = []string{
+			"OUTBOUND: You MUST board the train to " + origin + " — skipping cancels the entire booking",
+			"MEDIUM risk (Lufthansa AIRail): outbound train boarding may be enforced — reports vary",
+			"RETURN: Safe to skip the train from " + origin + " to " + station.City + " (last leg, no enforcement)",
+			fmt.Sprintf("Allow %d+ minutes for the train journey plus airport transfer", station.TrainMinutes+30),
+			"Train is flexible within the travel day (any departure, not fixed to one schedule)",
+		}
+	}
+
 	return Hack{
 		Type:  "rail_fly_arbitrage",
 		Title: fmt.Sprintf("Book via %s — train to %s is free, saves %.0f %s", station.City, station.HubIATA, savings, baseCurrency),
 		Description: fmt.Sprintf(
-			"Book %s %s→%s instead of %s→%s. The %s train from %s to %s airport (%d min) is included free in the ticket. Different fare zone (%s) triggers a cheaper price.",
+			"Book %s %s→%s instead of %s→%s. The %s train from %s to %s airport (%d min) is included free in the ticket. "+
+				"Different fare zone (%s) triggers cheaper market pricing — airlines price by origin country/region. "+
+				"Can be combined with hidden-city ticketing (book via rail station to hub, exit at hub, skip onward flight) for maximum savings.",
 			station.AirlineName, station.IATA, destination, origin, destination,
 			station.TrainProvider, station.City, origin, station.TrainMinutes, station.FareZone),
 		Savings:  roundSavings(savings),
 		Currency: baseCurrency,
-		Steps: []string{
-			fmt.Sprintf("Direct from %s: %.0f %s (%s)", origin, basePrice, baseCurrency, tripType),
-			fmt.Sprintf("Via %s (%s): %.0f %s (%s) — %.0f %s cheaper", station.City, station.IATA, railPrice, railCurrency, tripType, savings, baseCurrency),
-			fmt.Sprintf("Take %s from %s to %s (%d min, included in ticket)", station.TrainProvider, station.City, origin, station.TrainMinutes),
-			"Train ticket appears as a flight segment in the booking — board with your airline booking reference",
-		},
-		Risks: []string{
-			"You MUST board the train — skipping the first segment cancels the entire booking",
-			fmt.Sprintf("Allow %d+ minutes for the train journey plus airport transfer", station.TrainMinutes+30),
-			"Train is flexible within the travel day (any departure, not fixed to one schedule)",
-		},
+		Steps:    steps,
+		Risks:    risks,
 		Citations: []string{
 			fmt.Sprintf("https://www.google.com/travel/flights?q=%s%%20to%%20%s", station.IATA, destination),
 			fmt.Sprintf("https://www.google.com/travel/flights?q=%s%%20to%%20%s", origin, destination),

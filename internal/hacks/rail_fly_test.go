@@ -182,18 +182,19 @@ func TestBuildRailFlyHack_oneWay(t *testing.T) {
 	if !strings.Contains(h.Description, "Belgian market") {
 		t.Error("description should mention fare zone")
 	}
-	if len(h.Steps) != 4 {
-		t.Errorf("expected 4 steps, got %d", len(h.Steps))
+	if len(h.Steps) < 5 {
+		t.Errorf("expected at least 5 steps (KLM with skip notes), got %d", len(h.Steps))
 	}
 	// Check one-way trip type in steps
 	if !strings.Contains(h.Steps[0], "one-way") {
 		t.Error("step 0 should mention one-way")
 	}
-	if len(h.Risks) != 3 {
-		t.Errorf("expected 3 risks, got %d", len(h.Risks))
+	if len(h.Risks) < 3 {
+		t.Errorf("expected at least 3 risks, got %d", len(h.Risks))
 	}
-	if !strings.Contains(h.Risks[0], "MUST board") {
-		t.Error("first risk should warn about boarding the train")
+	// KLM stations should note LOW risk (no enforcement)
+	if !strings.Contains(h.Risks[0], "LOW risk") {
+		t.Error("first risk for KLM should note LOW risk")
 	}
 	if len(h.Citations) != 2 {
 		t.Errorf("expected 2 citations, got %d", len(h.Citations))

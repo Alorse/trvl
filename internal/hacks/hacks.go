@@ -1,5 +1,104 @@
 // Package hacks detects travel optimization opportunities alongside normal
 // flight and route searches. Each detector is independent and runs in parallel.
+//
+// # Airline Pricing Fundamentals
+//
+// Detectors exploit systematic pricing patterns in how airlines construct fares:
+//
+// Airlines discount: return flights (guarantees hub traffic), connecting flights
+// (competing for transfer passengers vs point-to-point LCCs), Saturday night
+// stays (separates leisure from business), advance purchase (demand certainty),
+// origin market pricing (purchasing power of departure country), and off-peak
+// days (Tue/Wed/Sat seat fill).
+//
+// Airlines charge premium for: one-way (uncertainty premium), direct/nonstop
+// (convenience), last-minute (desperation), hub-as-destination (business demand
+// = inelastic), peak days (Fri/Sun = business), monopoly routes (no competition).
+//
+// Fare construction zones (IATA TC1/TC2/TC3), fare basis codes, married segments,
+// and routing rules create arbitrage when the fare construction model diverges
+// from actual travel patterns. Adding segments can change applicable fare rules.
+// Routing via certain hubs triggers different fare zones. Rail integration adds
+// additional fare zone flexibility (e.g., Belgian vs Dutch market for KLM).
+//
+// # Composite Hack Patterns
+//
+// Maximum savings come from stacking multiple arbitrage vectors:
+//   - Rail fare zone + hidden city: book via rail station to hub, exit at hub, skip flight
+//   - Origin market + return discount: buy round-trip from cheap origin, use only return
+//   - Connecting discount + hidden city: book cheap connection, exit at expensive hub
+//   - Throwaway + fare zone: buy longer route in cheaper fare zone, discard excess segments
+//
+// New detectors should be built by identifying which pricing fundamental they exploit.
+//
+// # Accommodation Pricing Fundamentals
+//
+// Hotels, hostels, and short-term rentals have their own systematic pricing
+// patterns that create arbitrage opportunities:
+//
+// Hotels discount for:
+//   - Long stays (fewer check-in/check-out operations, guaranteed occupancy)
+//   - Weekdays in city hotels (business travel gone, rooms empty Mon-Thu)
+//   - Weekends in resort/rural hotels (opposite pattern — empty Fri-Sun)
+//   - Off-season (fixed costs regardless of occupancy — staff, mortgage, utilities)
+//   - Advance booking (certainty of demand, revenue forecasting)
+//   - Last-minute (distressed inventory — rather sell at 50% than leave empty)
+//   - Loyalty members (retention + direct booking saves 15-25% OTA commission)
+//   - Direct bookings (saves OTA commission — often passed as price match + perks)
+//   - Package deals (flight+hotel bundles use contracted/wholesale rates)
+//
+// Hotels charge premium for:
+//   - Short stays in peak periods (high demand, limited supply)
+//   - Event dates (conferences, festivals, sports — demand spike)
+//   - Refundable/flexible rates (insurance premium built into the rate)
+//   - OTA bookings (15-25% commission passed to consumer or absorbed at margin loss)
+//   - Single-night stays (high operational cost per check-in/checkout cycle)
+//   - Room-only vs package (packages lock revenue across departments: restaurant, spa)
+//   - Premium room types when standard is available (upsell margin)
+//
+// Airbnb / short-term rental pricing:
+//   - Monthly discount (28+ nights) — often 20-50% off nightly rate (hosts prefer stability)
+//   - Weekly discount (7+ nights) — 10-30% off (reduced turnover cost)
+//   - New listing discount — hosts undercharge to build initial review count
+//   - Superhosts charge premium — but verified quality and reliability
+//   - Off-platform rebooking — returning guests book direct, save 15% Airbnb service fee
+//   - Cleaning fee amortisation — fixed fee spreads across more nights on longer stays
+//   - Gap-night pricing — hosts discount nights between bookings to avoid empty gaps
+//
+// # Accommodation Arbitrage Patterns
+//
+// Exploitable pricing gaps in accommodation:
+//   - Accommodation split (implemented: detectAccommodationSplit) — move between
+//     cheaper weekday and weekend properties in the same city
+//   - Book refundable, rebook cheaper — hotels drop prices as event cancels or
+//     demand softens; refundable rate is free optionality
+//   - Monthly rate overstay — book 28 nights on Airbnb at monthly discount even
+//     for 21-night stay (monthly discount makes it cheaper than 21 × nightly rate)
+//   - OTA price match — find hotel on Booking.com, book direct for 5-15% less
+//     plus loyalty points; most chains have explicit "best rate guarantee"
+//   - Event date avoidance — conference in town = 2-3x hotel prices; shift dates
+//     by 1-2 days or stay in adjacent city with train access
+//   - Flight+hotel package — opaque/bundled rates use wholesale hotel inventory
+//     not available for standalone booking; sometimes cheaper than hotel alone
+//   - Status match between chains — free upgrades, breakfast, late checkout across
+//     competing loyalty programs (Marriott↔Hilton, IHG↔Hyatt promotions)
+//   - Hostel private room vs budget hotel — often same quality at 40-60% less;
+//     Hostelworld private rooms are not dormitories
+//   - Cleaning fee arbitrage — Airbnb cleaning fees are fixed regardless of stay
+//     length; a €80 cleaning fee on a 1-night stay is €80/night overhead, but on
+//     a 7-night stay it's €11/night; always compare total cost including fees
+//
+// # Cross-Domain Composite Patterns
+//
+// Maximum savings combine flight and accommodation arbitrage:
+//   - Ferry cabin as hotel (implemented: detectFerryCabin) — overnight transport
+//     replaces a hotel night entirely
+//   - Night train/bus as hotel (implemented: detectNightTransport) — same concept
+//     for land transport
+//   - Positioning flight + cheap accommodation — fly to cheaper origin city,
+//     stay one night in budget hotel, fly onward at lower fare; total still saves
+//   - Destination airport + suburb hotel — fly into secondary airport (cheaper),
+//     stay in suburb near that airport instead of city center
 package hacks
 
 import (
@@ -94,6 +193,11 @@ func DetectAll(ctx context.Context, in DetectorInput) []Hack {
 		detectRailFlyArbitrage,
 		detectFareBreakpoint,
 		detectDestinationAirport,
+		detectThrowawayGround,
+		detectEurostarReturn,
+		detectCrossBorderRail,
+		detectFerryCabin,
+		detectEU261,
 	}
 
 	// Each detector gets a child context with a per-detector timeout so a
