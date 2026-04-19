@@ -1,6 +1,6 @@
 {
   "name": "trvl",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "AI Travel Agent — 45 MCP tools for flights, hotels (Google Hotels + Trivago + user-configured providers), trains, buses, ferries (20 ground providers incl. 8 ferry operators + night-train specialists European Sleeper & Snälltåget), deals, price alerts, and destination intel. Free, no API keys required.",
   "author": {
     "name": "Mikko Parkkola",
