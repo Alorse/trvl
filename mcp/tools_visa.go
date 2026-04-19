@@ -36,18 +36,18 @@ func visaOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success": map[string]interface{}{"type": "boolean"},
+			"success": schemaBool(),
 			"requirement": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"passport":    map[string]interface{}{"type": "string"},
-					"destination": map[string]interface{}{"type": "string"},
+					"passport":    schemaString(),
+					"destination": schemaString(),
 					"status":      map[string]interface{}{"type": "string", "enum": []string{"visa-free", "visa-required", "visa-on-arrival", "e-visa", "freedom-of-movement"}},
-					"max_stay":    map[string]interface{}{"type": "string"},
-					"notes":       map[string]interface{}{"type": "string"},
+					"max_stay":    schemaString(),
+					"notes":       schemaString(),
 				},
 			},
-			"error": map[string]interface{}{"type": "string"},
+			"error": schemaString(),
 		},
 		"required": []string{"success", "requirement"},
 	}

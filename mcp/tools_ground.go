@@ -43,34 +43,31 @@ func groundSearchOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success": map[string]interface{}{"type": "boolean"},
-			"count":   map[string]interface{}{"type": "integer"},
+			"success": schemaBool(),
+			"count":   schemaInt(),
 			"routes":  groundRoutesOutputSchema(),
-			"error":   map[string]interface{}{"type": "string"},
+			"error":   schemaString(),
 		},
 		"required": []string{"success", "count"},
 	}
 }
 
 func groundRoutesOutputSchema() interface{} {
-	return map[string]interface{}{
-		"type": "array",
-		"items": map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"provider":         map[string]interface{}{"type": "string"},
-				"type":             map[string]interface{}{"type": "string"},
-				"price":            map[string]interface{}{"type": "number"},
-				"price_max":        map[string]interface{}{"type": "number"},
-				"currency":         map[string]interface{}{"type": "string"},
-				"duration_minutes": map[string]interface{}{"type": "integer"},
-				"transfers":        map[string]interface{}{"type": "integer"},
-				"amenities":        map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-				"seats_left":       map[string]interface{}{"type": "integer"},
-				"booking_url":      map[string]interface{}{"type": "string"},
-			},
+	return schemaArray(map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"provider":         schemaString(),
+			"type":             schemaString(),
+			"price":            schemaNum(),
+			"price_max":        schemaNum(),
+			"currency":         schemaString(),
+			"duration_minutes": schemaInt(),
+			"transfers":        schemaInt(),
+			"amenities":        schemaStringArray(),
+			"seats_left":       schemaInt(),
+			"booking_url":      schemaString(),
 		},
-	}
+	})
 }
 
 func searchAirportTransfersTool() ToolDef {
@@ -106,19 +103,19 @@ func airportTransferOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":          map[string]interface{}{"type": "boolean"},
-			"airport_code":     map[string]interface{}{"type": "string"},
-			"airport":          map[string]interface{}{"type": "string"},
-			"airport_city":     map[string]interface{}{"type": "string"},
-			"destination":      map[string]interface{}{"type": "string"},
-			"destination_city": map[string]interface{}{"type": "string"},
-			"date":             map[string]interface{}{"type": "string"},
-			"arrival_time":     map[string]interface{}{"type": "string"},
-			"count":            map[string]interface{}{"type": "integer"},
-			"exact_matches":    map[string]interface{}{"type": "integer"},
-			"city_matches":     map[string]interface{}{"type": "integer"},
+			"success":          schemaBool(),
+			"airport_code":     schemaString(),
+			"airport":          schemaString(),
+			"airport_city":     schemaString(),
+			"destination":      schemaString(),
+			"destination_city": schemaString(),
+			"date":             schemaString(),
+			"arrival_time":     schemaString(),
+			"count":            schemaInt(),
+			"exact_matches":    schemaInt(),
+			"city_matches":     schemaInt(),
 			"routes":           groundRoutesOutputSchema(),
-			"error":            map[string]interface{}{"type": "string"},
+			"error":            schemaString(),
 		},
 		"required": []string{"success", "airport_code", "airport", "airport_city", "destination", "date", "count", "exact_matches", "city_matches"},
 	}

@@ -29,25 +29,22 @@ func assessTripTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"success":    map[string]interface{}{"type": "boolean"},
-				"verdict":    map[string]interface{}{"type": "string", "description": "GO, WAIT, or NO_GO"},
-				"reason":     map[string]interface{}{"type": "string"},
-				"total_cost": map[string]interface{}{"type": "number"},
-				"currency":   map[string]interface{}{"type": "string"},
-				"nights":     map[string]interface{}{"type": "integer"},
-				"checks": map[string]interface{}{
-					"type": "array",
-					"items": map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"dimension": map[string]interface{}{"type": "string"},
-							"status":    map[string]interface{}{"type": "string"},
-							"summary":   map[string]interface{}{"type": "string"},
-							"cost":      map[string]interface{}{"type": "number"},
-							"currency":  map[string]interface{}{"type": "string"},
-						},
+				"success":    schemaBool(),
+				"verdict":    schemaStringDesc("GO, WAIT, or NO_GO"),
+				"reason":     schemaString(),
+				"total_cost": schemaNum(),
+				"currency":   schemaString(),
+				"nights":     schemaInt(),
+				"checks": schemaArray(map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"dimension": schemaString(),
+						"status":    schemaString(),
+						"summary":   schemaString(),
+						"cost":      schemaNum(),
+						"currency":  schemaString(),
 					},
-				},
+				}),
 			},
 			"required": []string{"success", "verdict"},
 		},

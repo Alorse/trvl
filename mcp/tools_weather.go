@@ -38,23 +38,20 @@ func weatherOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success": map[string]interface{}{"type": "boolean"},
-			"city":    map[string]interface{}{"type": "string"},
-			"forecasts": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"city":          map[string]interface{}{"type": "string"},
-						"date":          map[string]interface{}{"type": "string"},
-						"temp_max":      map[string]interface{}{"type": "number"},
-						"temp_min":      map[string]interface{}{"type": "number"},
-						"precipitation": map[string]interface{}{"type": "number"},
-						"description":   map[string]interface{}{"type": "string"},
-					},
+			"success": schemaBool(),
+			"city":    schemaString(),
+			"forecasts": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"city":          schemaString(),
+					"date":          schemaString(),
+					"temp_max":      schemaNum(),
+					"temp_min":      schemaNum(),
+					"precipitation": schemaNum(),
+					"description":   schemaString(),
 				},
-			},
-			"error": map[string]interface{}{"type": "string"},
+			}),
+			"error": schemaString(),
 		},
 		"required": []string{"success", "city", "forecasts"},
 	}

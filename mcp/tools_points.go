@@ -13,15 +13,15 @@ func calculatePointsValueOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"program_slug":    map[string]interface{}{"type": "string"},
-			"program_name":    map[string]interface{}{"type": "string"},
-			"cash_price":      map[string]interface{}{"type": "number"},
-			"points_required": map[string]interface{}{"type": "integer"},
-			"cpp":             map[string]interface{}{"type": "number", "description": "Effective cents per point for this redemption"},
-			"floor_cpp":       map[string]interface{}{"type": "number", "description": "Conservative baseline CPP for this program"},
-			"ceiling_cpp":     map[string]interface{}{"type": "number", "description": "Sweet-spot CPP for this program"},
+			"program_slug":    schemaString(),
+			"program_name":    schemaString(),
+			"cash_price":      schemaNum(),
+			"points_required": schemaInt(),
+			"cpp":             schemaNumDesc("Effective cents per point for this redemption"),
+			"floor_cpp":       schemaNumDesc("Conservative baseline CPP for this program"),
+			"ceiling_cpp":     schemaNumDesc("Sweet-spot CPP for this program"),
 			"verdict":         map[string]interface{}{"type": "string", "enum": []string{"use points", "pay cash", "borderline"}},
-			"explanation":     map[string]interface{}{"type": "string"},
+			"explanation":     schemaString(),
 		},
 		"required": []string{"program_slug", "program_name", "cpp", "floor_cpp", "ceiling_cpp", "verdict", "explanation"},
 	}

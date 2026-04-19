@@ -97,26 +97,23 @@ func findTripWindowOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"candidates": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"start":              map[string]interface{}{"type": "string"},
-						"end":                map[string]interface{}{"type": "string"},
-						"nights":             map[string]interface{}{"type": "integer"},
-						"estimated_cost":     map[string]interface{}{"type": "number"},
-						"currency":           map[string]interface{}{"type": "string"},
-						"overlaps_preferred": map[string]interface{}{"type": "boolean"},
-						"reasoning":          map[string]interface{}{"type": "string"},
-					},
-					"required": []string{"start", "end", "nights"},
+			"candidates": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"start":              schemaString(),
+					"end":                schemaString(),
+					"nights":             schemaInt(),
+					"estimated_cost":     schemaNum(),
+					"currency":           schemaString(),
+					"overlaps_preferred": schemaBool(),
+					"reasoning":          schemaString(),
 				},
-			},
-			"count":       map[string]interface{}{"type": "integer"},
-			"origin":      map[string]interface{}{"type": "string"},
-			"destination": map[string]interface{}{"type": "string"},
-			"error":       map[string]interface{}{"type": "string"},
+				"required": []string{"start", "end", "nights"},
+			}),
+			"count":       schemaInt(),
+			"origin":      schemaString(),
+			"destination": schemaString(),
+			"error":       schemaString(),
 		},
 		"required": []string{"count"},
 	}

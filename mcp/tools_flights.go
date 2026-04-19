@@ -22,101 +22,78 @@ func flightSearchOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":   map[string]interface{}{"type": "boolean"},
-			"count":     map[string]interface{}{"type": "integer"},
-			"trip_type": map[string]interface{}{"type": "string"},
-			"flights": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"price":        map[string]interface{}{"type": "number"},
-						"currency":     map[string]interface{}{"type": "string"},
-						"duration":     map[string]interface{}{"type": "integer"},
-						"stops":        map[string]interface{}{"type": "integer"},
-						"provider":     map[string]interface{}{"type": "string"},
-						"booking_url":    map[string]interface{}{"type": "string"},
-						"all_in_cost":    map[string]interface{}{"type": "number", "description": "Total cost including baggage fees adjusted for FF status"},
-						"bag_breakdown":  map[string]interface{}{"type": "string", "description": "Baggage cost explanation, e.g. '+€35 checked bag' or 'bags included'"},
-						"self_connect":   map[string]interface{}{"type": "boolean"},
-						"miles_earned": map[string]interface{}{
-							"type":        "array",
-							"description": "Estimated miles/points earned per FF programme",
-							"items": map[string]interface{}{
+			"success":   schemaBool(),
+			"count":     schemaInt(),
+			"trip_type": schemaString(),
+			"flights": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"price":          schemaNum(),
+					"currency":       schemaString(),
+					"duration":       schemaInt(),
+					"stops":          schemaInt(),
+					"provider":       schemaString(),
+					"booking_url":    schemaString(),
+					"all_in_cost":    schemaNumDesc("Total cost including baggage fees adjusted for FF status"),
+					"bag_breakdown":  schemaStringDesc("Baggage cost explanation, e.g. '+€35 checked bag' or 'bags included'"),
+					"self_connect":   schemaBool(),
+					"miles_earned": schemaArrayDesc("Estimated miles/points earned per FF programme", map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"program":      schemaString(),
+							"miles_earned": schemaInt(),
+							"method":       schemaStringDesc("'revenue' or 'distance'"),
+						},
+					}),
+					"miles_value": schemaNumDesc("Cents-per-mile value if this flight were redeemed with points"),
+					"warnings":   schemaStringArray(),
+					"legs": schemaArray(map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"departure_airport": map[string]interface{}{
 								"type": "object",
 								"properties": map[string]interface{}{
-									"program":      map[string]interface{}{"type": "string"},
-									"miles_earned": map[string]interface{}{"type": "integer"},
-									"method":       map[string]interface{}{"type": "string", "description": "'revenue' or 'distance'"},
+									"code": schemaString(),
+									"name": schemaString(),
 								},
 							},
-						},
-						"miles_value": map[string]interface{}{"type": "number", "description": "Cents-per-mile value if this flight were redeemed with points"},
-						"warnings": map[string]interface{}{
-							"type":  "array",
-							"items": map[string]interface{}{"type": "string"},
-						},
-						"legs": map[string]interface{}{
-							"type": "array",
-							"items": map[string]interface{}{
+							"arrival_airport": map[string]interface{}{
 								"type": "object",
 								"properties": map[string]interface{}{
-									"departure_airport": map[string]interface{}{
-										"type": "object",
-										"properties": map[string]interface{}{
-											"code": map[string]interface{}{"type": "string"},
-											"name": map[string]interface{}{"type": "string"},
-										},
-									},
-									"arrival_airport": map[string]interface{}{
-										"type": "object",
-										"properties": map[string]interface{}{
-											"code": map[string]interface{}{"type": "string"},
-											"name": map[string]interface{}{"type": "string"},
-										},
-									},
-									"departure_time": map[string]interface{}{"type": "string"},
-									"arrival_time":   map[string]interface{}{"type": "string"},
-									"duration":       map[string]interface{}{"type": "integer"},
-									"airline":        map[string]interface{}{"type": "string"},
-									"airline_code":   map[string]interface{}{"type": "string"},
-									"flight_number":  map[string]interface{}{"type": "string"},
+									"code": schemaString(),
+									"name": schemaString(),
 								},
 							},
+							"departure_time": schemaString(),
+							"arrival_time":   schemaString(),
+							"duration":       schemaInt(),
+							"airline":        schemaString(),
+							"airline_code":   schemaString(),
+							"flight_number":  schemaString(),
 						},
-					},
+					}),
 				},
-			},
-			"suggestions": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"action":      map[string]interface{}{"type": "string"},
-						"description": map[string]interface{}{"type": "string"},
-						"params":      map[string]interface{}{"type": "object"},
-					},
+			}),
+			"suggestions": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"action":      schemaString(),
+					"description": schemaString(),
+					"params":      schemaObject(),
 				},
-			},
-			"hacks": map[string]interface{}{
-				"type":        "array",
-				"description": "Auto-detected travel optimization tips for this route (zero-API-call detectors only)",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"type":        map[string]interface{}{"type": "string"},
-						"title":       map[string]interface{}{"type": "string"},
-						"description": map[string]interface{}{"type": "string"},
-						"savings":     map[string]interface{}{"type": "number"},
-						"currency":    map[string]interface{}{"type": "string"},
-						"steps": map[string]interface{}{
-							"type":  "array",
-							"items": map[string]interface{}{"type": "string"},
-						},
-					},
+			}),
+			"hacks": schemaArrayDesc("Auto-detected travel optimization tips for this route (zero-API-call detectors only)", map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"type":        schemaString(),
+					"title":       schemaString(),
+					"description": schemaString(),
+					"savings":     schemaNum(),
+					"currency":    schemaString(),
+					"steps":       schemaStringArray(),
 				},
-			},
-			"error": map[string]interface{}{"type": "string"},
+			}),
+			"error": schemaString(),
 		},
 		"required": []string{"success", "count"},
 	}
@@ -127,24 +104,21 @@ func dateSearchOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":    map[string]interface{}{"type": "boolean"},
-			"count":      map[string]interface{}{"type": "integer"},
-			"trip_type":  map[string]interface{}{"type": "string"},
-			"date_range": map[string]interface{}{"type": "string"},
-			"dates": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"date":        map[string]interface{}{"type": "string"},
-						"price":       map[string]interface{}{"type": "number"},
-						"currency":    map[string]interface{}{"type": "string"},
-						"return_date": map[string]interface{}{"type": "string"},
-					},
-					"required": []string{"date", "price", "currency"},
+			"success":    schemaBool(),
+			"count":      schemaInt(),
+			"trip_type":  schemaString(),
+			"date_range": schemaString(),
+			"dates": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"date":        schemaString(),
+					"price":       schemaNum(),
+					"currency":    schemaString(),
+					"return_date": schemaString(),
 				},
-			},
-			"error": map[string]interface{}{"type": "string"},
+				"required": []string{"date", "price", "currency"},
+			}),
+			"error": schemaString(),
 		},
 		"required": []string{"success", "count"},
 	}
@@ -220,28 +194,13 @@ func searchDatesTool() ToolDef {
 // --- Tool handlers ---
 
 func handleSearchFlights(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
-	origin := strings.ToUpper(argString(args, "origin"))
-	dest := strings.ToUpper(argString(args, "destination"))
-	date := argString(args, "departure_date")
-
-	if origin == "" || dest == "" {
-		return nil, nil, fmt.Errorf("origin and destination are required")
+	origin, dest, err := validateOriginDest(args)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	// Validate IATA codes.
-	if err := models.ValidateIATA(origin); err != nil {
-		return nil, nil, fmt.Errorf("invalid origin: %w", err)
-	}
-	if err := models.ValidateIATA(dest); err != nil {
-		return nil, nil, fmt.Errorf("invalid destination: %w", err)
-	}
-
-	if date == "" {
-		return nil, nil, fmt.Errorf("departure_date is required")
-	}
-
-	// Validate date.
-	if err := models.ValidateDate(date); err != nil {
+	date, err := validateDate(args, "departure_date")
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -463,21 +422,15 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 }
 
 func handleSearchDates(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
-	origin := strings.ToUpper(argString(args, "origin"))
-	dest := strings.ToUpper(argString(args, "destination"))
+	origin, dest, err := validateOriginDest(args)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	startDate := argString(args, "start_date")
 	endDate := argString(args, "end_date")
-
-	if origin == "" || dest == "" || startDate == "" || endDate == "" {
-		return nil, nil, fmt.Errorf("origin, destination, start_date, and end_date are required")
-	}
-
-	// Validate IATA codes.
-	if err := models.ValidateIATA(origin); err != nil {
-		return nil, nil, fmt.Errorf("invalid origin: %w", err)
-	}
-	if err := models.ValidateIATA(dest); err != nil {
-		return nil, nil, fmt.Errorf("invalid destination: %w", err)
+	if startDate == "" || endDate == "" {
+		return nil, nil, fmt.Errorf("start_date and end_date are required")
 	}
 
 	// Validate date range.
@@ -678,39 +631,33 @@ func suggestDatesOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":     map[string]interface{}{"type": "boolean"},
-			"origin":      map[string]interface{}{"type": "string"},
-			"destination": map[string]interface{}{"type": "string"},
-			"cheapest_dates": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"date":        map[string]interface{}{"type": "string"},
-						"day_of_week": map[string]interface{}{"type": "string"},
-						"price":       map[string]interface{}{"type": "number"},
-						"currency":    map[string]interface{}{"type": "string"},
-						"return_date": map[string]interface{}{"type": "string"},
-					},
-					"required": []string{"date", "price", "currency"},
+			"success":     schemaBool(),
+			"origin":      schemaString(),
+			"destination": schemaString(),
+			"cheapest_dates": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"date":        schemaString(),
+					"day_of_week": schemaString(),
+					"price":       schemaNum(),
+					"currency":    schemaString(),
+					"return_date": schemaString(),
 				},
-			},
-			"average_price": map[string]interface{}{"type": "number"},
-			"currency":      map[string]interface{}{"type": "string"},
-			"insights": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"type":        map[string]interface{}{"type": "string"},
-						"description": map[string]interface{}{"type": "string"},
-						"date":        map[string]interface{}{"type": "string"},
-						"price":       map[string]interface{}{"type": "number"},
-						"savings":     map[string]interface{}{"type": "number"},
-					},
+				"required": []string{"date", "price", "currency"},
+			}),
+			"average_price": schemaNum(),
+			"currency":      schemaString(),
+			"insights": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"type":        schemaString(),
+					"description": schemaString(),
+					"date":        schemaString(),
+					"price":       schemaNum(),
+					"savings":     schemaNum(),
 				},
-			},
-			"error": map[string]interface{}{"type": "string"},
+			}),
+			"error": schemaString(),
 		},
 		"required": []string{"success"},
 	}
@@ -744,22 +691,14 @@ func suggestDatesTool() ToolDef {
 }
 
 func handleSuggestDates(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
-	origin := strings.ToUpper(argString(args, "origin"))
-	dest := strings.ToUpper(argString(args, "destination"))
-	targetDate := argString(args, "target_date")
-
-	if origin == "" || dest == "" {
-		return nil, nil, fmt.Errorf("origin and destination are required")
+	origin, dest, err := validateOriginDest(args)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	targetDate := argString(args, "target_date")
 	if targetDate == "" {
 		return nil, nil, fmt.Errorf("target_date is required")
-	}
-
-	if err := models.ValidateIATA(origin); err != nil {
-		return nil, nil, fmt.Errorf("invalid origin: %w", err)
-	}
-	if err := models.ValidateIATA(dest); err != nil {
-		return nil, nil, fmt.Errorf("invalid destination: %w", err)
 	}
 
 	opts := trip.SmartDateOptions{
@@ -809,31 +748,25 @@ func multiCityOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":      map[string]interface{}{"type": "boolean"},
-			"home_airport": map[string]interface{}{"type": "string"},
-			"optimal_order": map[string]interface{}{
-				"type":  "array",
-				"items": map[string]interface{}{"type": "string"},
-			},
-			"segments": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"from":     map[string]interface{}{"type": "string"},
-						"to":       map[string]interface{}{"type": "string"},
-						"price":    map[string]interface{}{"type": "number"},
-						"currency": map[string]interface{}{"type": "string"},
-					},
-					"required": []string{"from", "to", "price", "currency"},
+			"success":      schemaBool(),
+			"home_airport": schemaString(),
+			"optimal_order": schemaStringArray(),
+			"segments": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"from":     schemaString(),
+					"to":       schemaString(),
+					"price":    schemaNum(),
+					"currency": schemaString(),
 				},
-			},
-			"total_cost":           map[string]interface{}{"type": "number"},
-			"currency":             map[string]interface{}{"type": "string"},
-			"worst_cost":           map[string]interface{}{"type": "number"},
-			"savings":              map[string]interface{}{"type": "number"},
-			"permutations_checked": map[string]interface{}{"type": "integer"},
-			"error":                map[string]interface{}{"type": "string"},
+				"required": []string{"from", "to", "price", "currency"},
+			}),
+			"total_cost":           schemaNum(),
+			"currency":             schemaString(),
+			"worst_cost":           schemaNum(),
+			"savings":              schemaNum(),
+			"permutations_checked": schemaInt(),
+			"error":                schemaString(),
 		},
 		"required": []string{"success"},
 	}

@@ -39,10 +39,10 @@ func searchNaturalTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"intent":        map[string]interface{}{"type": "string"},
-				"result":        map[string]interface{}{"type": "object"},
-				"query":         map[string]interface{}{"type": "string"},
-				"dispatched_to": map[string]interface{}{"type": "string"},
+				"intent":        schemaString(),
+				"result":        schemaObject(),
+				"query":         schemaString(),
+				"dispatched_to": schemaString(),
 			},
 		},
 		Annotations: &ToolAnnotations{

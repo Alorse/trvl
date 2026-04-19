@@ -42,26 +42,23 @@ func hacksOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"origin":      map[string]interface{}{"type": "string"},
-			"destination": map[string]interface{}{"type": "string"},
-			"date":        map[string]interface{}{"type": "string"},
-			"count":       map[string]interface{}{"type": "integer"},
-			"hacks": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"type":        map[string]interface{}{"type": "string"},
-						"title":       map[string]interface{}{"type": "string"},
-						"description": map[string]interface{}{"type": "string"},
-						"savings":     map[string]interface{}{"type": "number"},
-						"currency":    map[string]interface{}{"type": "string"},
-						"risks":       map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-						"steps":       map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-						"citations":   map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-					},
+			"origin":      schemaString(),
+			"destination": schemaString(),
+			"date":        schemaString(),
+			"count":       schemaInt(),
+			"hacks": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"type":        schemaString(),
+					"title":       schemaString(),
+					"description": schemaString(),
+					"savings":     schemaNum(),
+					"currency":    schemaString(),
+					"risks":       schemaStringArray(),
+					"steps":       schemaStringArray(),
+					"citations":   schemaStringArray(),
 				},
-			},
+			}),
 		},
 		"required": []string{"origin", "destination", "date", "count", "hacks"},
 	}
@@ -194,26 +191,23 @@ func accommodationHacksOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"city":     map[string]interface{}{"type": "string"},
-			"checkin":  map[string]interface{}{"type": "string"},
-			"checkout": map[string]interface{}{"type": "string"},
-			"count":    map[string]interface{}{"type": "integer"},
-			"hacks": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"type":        map[string]interface{}{"type": "string"},
-						"title":       map[string]interface{}{"type": "string"},
-						"description": map[string]interface{}{"type": "string"},
-						"savings":     map[string]interface{}{"type": "number"},
-						"currency":    map[string]interface{}{"type": "string"},
-						"risks":       map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-						"steps":       map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-						"citations":   map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-					},
+			"city":     schemaString(),
+			"checkin":  schemaString(),
+			"checkout": schemaString(),
+			"count":    schemaInt(),
+			"hacks": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"type":        schemaString(),
+					"title":       schemaString(),
+					"description": schemaString(),
+					"savings":     schemaNum(),
+					"currency":    schemaString(),
+					"risks":       schemaStringArray(),
+					"steps":       schemaStringArray(),
+					"citations":   schemaStringArray(),
 				},
-			},
+			}),
 		},
 		"required": []string{"city", "checkin", "checkout", "count", "hacks"},
 	}

@@ -39,24 +39,21 @@ func restaurantSearchOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":  map[string]interface{}{"type": "boolean"},
-			"location": map[string]interface{}{"type": "string"},
-			"count":    map[string]interface{}{"type": "integer"},
-			"restaurants": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name":        map[string]interface{}{"type": "string"},
-						"rating":      map[string]interface{}{"type": "number"},
-						"category":    map[string]interface{}{"type": "string"},
-						"price_level": map[string]interface{}{"type": "integer"},
-						"distance_m":  map[string]interface{}{"type": "integer"},
-						"address":     map[string]interface{}{"type": "string"},
-					},
+			"success":  schemaBool(),
+			"location": schemaString(),
+			"count":    schemaInt(),
+			"restaurants": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name":        schemaString(),
+					"rating":      schemaNum(),
+					"category":    schemaString(),
+					"price_level": schemaInt(),
+					"distance_m":  schemaInt(),
+					"address":     schemaString(),
 				},
-			},
-			"error": map[string]interface{}{"type": "string"},
+			}),
+			"error": schemaString(),
 		},
 		"required": []string{"success", "count"},
 	}

@@ -35,26 +35,23 @@ func baggageOutputSchema() interface{} {
 	airlineSchema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"code":               map[string]interface{}{"type": "string"},
-			"name":               map[string]interface{}{"type": "string"},
-			"carry_on_max_kg":    map[string]interface{}{"type": "number"},
-			"carry_on_dimensions": map[string]interface{}{"type": "string"},
-			"personal_item":      map[string]interface{}{"type": "boolean"},
-			"checked_included":   map[string]interface{}{"type": "integer"},
-			"checked_fee_eur":    map[string]interface{}{"type": "number"},
-			"overhead_only":      map[string]interface{}{"type": "boolean"},
-			"notes":              map[string]interface{}{"type": "string"},
+			"code":               schemaString(),
+			"name":               schemaString(),
+			"carry_on_max_kg":    schemaNum(),
+			"carry_on_dimensions": schemaString(),
+			"personal_item":      schemaBool(),
+			"checked_included":   schemaInt(),
+			"checked_fee_eur":    schemaNum(),
+			"overhead_only":      schemaBool(),
+			"notes":              schemaString(),
 		},
 	}
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
 			"airline": airlineSchema,
-			"airlines": map[string]interface{}{
-				"type":  "array",
-				"items": airlineSchema,
-			},
-			"found": map[string]interface{}{"type": "boolean"},
+			"airlines": schemaArray(airlineSchema),
+			"found": schemaBool(),
 		},
 	}
 }

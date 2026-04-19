@@ -14,43 +14,37 @@ func tripOutputSchema() map[string]interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"id":         map[string]interface{}{"type": "string"},
-			"name":       map[string]interface{}{"type": "string"},
-			"status":     map[string]interface{}{"type": "string"},
-			"created_at": map[string]interface{}{"type": "string"},
-			"updated_at": map[string]interface{}{"type": "string"},
-			"legs": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"type":       map[string]interface{}{"type": "string"},
-						"from":       map[string]interface{}{"type": "string"},
-						"to":         map[string]interface{}{"type": "string"},
-						"provider":   map[string]interface{}{"type": "string"},
-						"start_time": map[string]interface{}{"type": "string"},
-						"end_time":   map[string]interface{}{"type": "string"},
-						"price":      map[string]interface{}{"type": "number"},
-						"currency":   map[string]interface{}{"type": "string"},
-						"confirmed":  map[string]interface{}{"type": "boolean"},
-						"reference":  map[string]interface{}{"type": "string"},
-					},
+			"id":         schemaString(),
+			"name":       schemaString(),
+			"status":     schemaString(),
+			"created_at": schemaString(),
+			"updated_at": schemaString(),
+			"legs": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"type":       schemaString(),
+					"from":       schemaString(),
+					"to":         schemaString(),
+					"provider":   schemaString(),
+					"start_time": schemaString(),
+					"end_time":   schemaString(),
+					"price":      schemaNum(),
+					"currency":   schemaString(),
+					"confirmed":  schemaBool(),
+					"reference":  schemaString(),
 				},
-			},
-			"bookings": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"type":      map[string]interface{}{"type": "string"},
-						"provider":  map[string]interface{}{"type": "string"},
-						"reference": map[string]interface{}{"type": "string"},
-						"url":       map[string]interface{}{"type": "string"},
-					},
+			}),
+			"bookings": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"type":      schemaString(),
+					"provider":  schemaString(),
+					"reference": schemaString(),
+					"url":       schemaString(),
 				},
-			},
-			"tags":  map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-			"notes": map[string]interface{}{"type": "string"},
+			}),
+			"tags":  schemaStringArray(),
+			"notes": schemaString(),
 		},
 	}
 }
@@ -70,11 +64,8 @@ func listTripsTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"trips": map[string]interface{}{
-					"type":  "array",
-					"items": tripOutputSchema(),
-				},
-				"count": map[string]interface{}{"type": "integer"},
+				"trips": schemaArray(tripOutputSchema()),
+				"count": schemaInt(),
 			},
 		},
 		Annotations: &ToolAnnotations{
@@ -124,8 +115,8 @@ func createTripTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"id":   map[string]interface{}{"type": "string"},
-				"name": map[string]interface{}{"type": "string"},
+				"id":   schemaString(),
+				"name": schemaString(),
 			},
 		},
 		Annotations: &ToolAnnotations{
@@ -161,7 +152,7 @@ func addTripLegTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"trip_id": map[string]interface{}{"type": "string"},
+				"trip_id": schemaString(),
 				"leg":     tripOutputSchema(),
 			},
 		},
@@ -193,9 +184,9 @@ func markTripBookedTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"trip_id":   map[string]interface{}{"type": "string"},
-				"reference": map[string]interface{}{"type": "string"},
-				"status":    map[string]interface{}{"type": "string"},
+				"trip_id":   schemaString(),
+				"reference": schemaString(),
+				"status":    schemaString(),
 			},
 		},
 		Annotations: &ToolAnnotations{

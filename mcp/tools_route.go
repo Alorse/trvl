@@ -46,34 +46,31 @@ func routeSearchOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":     map[string]interface{}{"type": "boolean"},
-			"origin":      map[string]interface{}{"type": "string"},
-			"destination": map[string]interface{}{"type": "string"},
-			"date":        map[string]interface{}{"type": "string"},
-			"count":       map[string]interface{}{"type": "integer"},
+			"success":     schemaBool(),
+			"origin":      schemaString(),
+			"destination": schemaString(),
+			"date":        schemaString(),
+			"count":       schemaInt(),
 			"itineraries": routeItinerariesOutputSchema(),
-			"error":       map[string]interface{}{"type": "string"},
+			"error":       schemaString(),
 		},
 		"required": []string{"success", "origin", "destination", "date", "count"},
 	}
 }
 
 func routeItinerariesOutputSchema() interface{} {
-	return map[string]interface{}{
-		"type": "array",
-		"items": map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"legs":           map[string]interface{}{"type": "array"},
-				"total_price":    map[string]interface{}{"type": "number"},
-				"currency":       map[string]interface{}{"type": "string"},
-				"total_duration": map[string]interface{}{"type": "integer"},
-				"transfers":      map[string]interface{}{"type": "integer"},
-				"depart_time":    map[string]interface{}{"type": "string"},
-				"arrive_time":    map[string]interface{}{"type": "string"},
-			},
+	return schemaArray(map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"legs":           map[string]interface{}{"type": "array"},
+			"total_price":    schemaNum(),
+			"currency":       schemaString(),
+			"total_duration": schemaInt(),
+			"transfers":      schemaInt(),
+			"depart_time":    schemaString(),
+			"arrive_time":    schemaString(),
 		},
-	}
+	})
 }
 
 func handleSearchRoute(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {

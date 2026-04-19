@@ -18,58 +18,46 @@ func hotelSearchOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success": map[string]interface{}{"type": "boolean"},
-			"count":   map[string]interface{}{"type": "integer"},
-			"hotels": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name":         map[string]interface{}{"type": "string"},
-						"hotel_id":     map[string]interface{}{"type": "string"},
-						"rating":       map[string]interface{}{"type": "number"},
-						"review_count": map[string]interface{}{"type": "integer"},
-						"stars":        map[string]interface{}{"type": "integer"},
-						"price":        map[string]interface{}{"type": "number"},
-						"currency":     map[string]interface{}{"type": "string"},
-						"address":      map[string]interface{}{"type": "string"},
-						"lat":          map[string]interface{}{"type": "number"},
-						"lon":          map[string]interface{}{"type": "number"},
-						"booking_url":  map[string]interface{}{"type": "string"},
-						"amenities": map[string]interface{}{
-							"type":  "array",
-							"items": map[string]interface{}{"type": "string"},
+			"success": schemaBool(),
+			"count":   schemaInt(),
+			"hotels": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name":         schemaString(),
+					"hotel_id":     schemaString(),
+					"rating":       schemaNum(),
+					"review_count": schemaInt(),
+					"stars":        schemaInt(),
+					"price":        schemaNum(),
+					"currency":     schemaString(),
+					"address":      schemaString(),
+					"lat":          schemaNum(),
+					"lon":          schemaNum(),
+					"booking_url":  schemaString(),
+					"amenities":    schemaStringArray(),
+					"eco_certified":   schemaBool(),
+					"savings":         schemaNumDesc("Price savings vs most expensive source"),
+					"cheapest_source": schemaStringDesc("Provider with lowest price"),
+					"sources": schemaArray(map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"provider":    schemaString(),
+							"price":       schemaNum(),
+							"currency":    schemaString(),
+							"booking_url": schemaString(),
 						},
-						"eco_certified":   map[string]interface{}{"type": "boolean"},
-						"savings":         map[string]interface{}{"type": "number", "description": "Price savings vs most expensive source"},
-						"cheapest_source": map[string]interface{}{"type": "string", "description": "Provider with lowest price"},
-						"sources": map[string]interface{}{
-							"type": "array",
-							"items": map[string]interface{}{
-								"type": "object",
-								"properties": map[string]interface{}{
-									"provider":    map[string]interface{}{"type": "string"},
-									"price":       map[string]interface{}{"type": "number"},
-									"currency":    map[string]interface{}{"type": "string"},
-									"booking_url": map[string]interface{}{"type": "string"},
-								},
-							},
-						},
-					},
+					}),
 				},
-			},
-			"suggestions": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"action":      map[string]interface{}{"type": "string"},
-						"description": map[string]interface{}{"type": "string"},
-						"params":      map[string]interface{}{"type": "object"},
-					},
+			}),
+			"suggestions": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"action":      schemaString(),
+					"description": schemaString(),
+					"params":      schemaObject(),
 				},
-			},
-			"error": map[string]interface{}{"type": "string"},
+			}),
+			"error": schemaString(),
 		},
 		"required": []string{"success", "count"},
 	}
@@ -80,24 +68,21 @@ func hotelPricesOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":   map[string]interface{}{"type": "boolean"},
-			"hotel_id":  map[string]interface{}{"type": "string"},
-			"name":      map[string]interface{}{"type": "string"},
-			"check_in":  map[string]interface{}{"type": "string"},
-			"check_out": map[string]interface{}{"type": "string"},
-			"providers": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"provider": map[string]interface{}{"type": "string"},
-						"price":    map[string]interface{}{"type": "number"},
-						"currency": map[string]interface{}{"type": "string"},
-					},
-					"required": []string{"provider", "price", "currency"},
+			"success":   schemaBool(),
+			"hotel_id":  schemaString(),
+			"name":      schemaString(),
+			"check_in":  schemaString(),
+			"check_out": schemaString(),
+			"providers": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"provider": schemaString(),
+					"price":    schemaNum(),
+					"currency": schemaString(),
 				},
-			},
-			"error": map[string]interface{}{"type": "string"},
+				"required": []string{"provider", "price", "currency"},
+			}),
+			"error": schemaString(),
 		},
 		"required": []string{"success"},
 	}
@@ -431,31 +416,28 @@ func hotelReviewsOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":  map[string]interface{}{"type": "boolean"},
-			"hotel_id": map[string]interface{}{"type": "string"},
-			"name":     map[string]interface{}{"type": "string"},
+			"success":  schemaBool(),
+			"hotel_id": schemaString(),
+			"name":     schemaString(),
 			"summary": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"average_rating":   map[string]interface{}{"type": "number"},
-					"total_reviews":    map[string]interface{}{"type": "integer"},
-					"rating_breakdown": map[string]interface{}{"type": "object"},
+					"average_rating":   schemaNum(),
+					"total_reviews":    schemaInt(),
+					"rating_breakdown": schemaObject(),
 				},
 			},
-			"reviews": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"rating": map[string]interface{}{"type": "number"},
-						"text":   map[string]interface{}{"type": "string"},
-						"author": map[string]interface{}{"type": "string"},
-						"date":   map[string]interface{}{"type": "string"},
-					},
+			"reviews": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"rating": schemaNum(),
+					"text":   schemaString(),
+					"author": schemaString(),
+					"date":   schemaString(),
 				},
-			},
-			"count": map[string]interface{}{"type": "integer"},
-			"error": map[string]interface{}{"type": "string"},
+			}),
+			"count": schemaInt(),
+			"error": schemaString(),
 		},
 		"required": []string{"success"},
 	}
@@ -533,33 +515,27 @@ func hotelRoomsOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":   map[string]interface{}{"type": "boolean"},
-			"hotel_id":  map[string]interface{}{"type": "string"},
-			"name":      map[string]interface{}{"type": "string"},
-			"check_in":  map[string]interface{}{"type": "string"},
-			"check_out": map[string]interface{}{"type": "string"},
-			"rooms": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name":        map[string]interface{}{"type": "string"},
-						"price":       map[string]interface{}{"type": "number"},
-						"currency":    map[string]interface{}{"type": "string"},
-						"provider":    map[string]interface{}{"type": "string"},
-						"max_guests":  map[string]interface{}{"type": "integer"},
-						"bed_type":    map[string]interface{}{"type": "string"},
-						"size_m2":     map[string]interface{}{"type": "number"},
-						"description": map[string]interface{}{"type": "string"},
-						"amenities": map[string]interface{}{
-							"type":  "array",
-							"items": map[string]interface{}{"type": "string"},
-						},
-					},
-					"required": []string{"name", "price", "currency"},
+			"success":   schemaBool(),
+			"hotel_id":  schemaString(),
+			"name":      schemaString(),
+			"check_in":  schemaString(),
+			"check_out": schemaString(),
+			"rooms": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name":        schemaString(),
+					"price":       schemaNum(),
+					"currency":    schemaString(),
+					"provider":    schemaString(),
+					"max_guests":  schemaInt(),
+					"bed_type":    schemaString(),
+					"size_m2":     schemaNum(),
+					"description": schemaString(),
+					"amenities":   schemaStringArray(),
 				},
-			},
-			"error": map[string]interface{}{"type": "string"},
+				"required": []string{"name", "price", "currency"},
+			}),
+			"error": schemaString(),
 		},
 		"required": []string{"success"},
 	}
@@ -690,22 +666,15 @@ func watchRoomOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success":  map[string]interface{}{"type": "boolean"},
-			"watch_id": map[string]interface{}{"type": "string"},
-			"hotel":    map[string]interface{}{"type": "string"},
-			"check_in": map[string]interface{}{
-				"type": "string",
-			},
-			"check_out": map[string]interface{}{
-				"type": "string",
-			},
-			"keywords": map[string]interface{}{
-				"type":  "array",
-				"items": map[string]interface{}{"type": "string"},
-			},
-			"below":    map[string]interface{}{"type": "number"},
-			"currency": map[string]interface{}{"type": "string"},
-			"error":    map[string]interface{}{"type": "string"},
+			"success":   schemaBool(),
+			"watch_id":  schemaString(),
+			"hotel":     schemaString(),
+			"check_in":  schemaString(),
+			"check_out": schemaString(),
+			"keywords":  schemaStringArray(),
+			"below":     schemaNum(),
+			"currency":  schemaString(),
+			"error":     schemaString(),
 		},
 		"required": []string{"success"},
 	}

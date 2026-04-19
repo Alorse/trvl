@@ -37,28 +37,25 @@ func dealsSearchOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success": map[string]interface{}{"type": "boolean"},
-			"count":   map[string]interface{}{"type": "integer"},
-			"deals": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"title":       map[string]interface{}{"type": "string"},
-						"price":       map[string]interface{}{"type": "number"},
-						"currency":    map[string]interface{}{"type": "string"},
-						"origin":      map[string]interface{}{"type": "string"},
-						"destination": map[string]interface{}{"type": "string"},
-						"airline":     map[string]interface{}{"type": "string"},
-						"type":        map[string]interface{}{"type": "string"},
-						"source":      map[string]interface{}{"type": "string"},
-						"url":         map[string]interface{}{"type": "string"},
-						"published":   map[string]interface{}{"type": "string"},
-						"summary":     map[string]interface{}{"type": "string"},
-					},
+			"success": schemaBool(),
+			"count":   schemaInt(),
+			"deals": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"title":       schemaString(),
+					"price":       schemaNum(),
+					"currency":    schemaString(),
+					"origin":      schemaString(),
+					"destination": schemaString(),
+					"airline":     schemaString(),
+					"type":        schemaString(),
+					"source":      schemaString(),
+					"url":         schemaString(),
+					"published":   schemaString(),
+					"summary":     schemaString(),
 				},
-			},
-			"error": map[string]interface{}{"type": "string"},
+			}),
+			"error": schemaString(),
 		},
 		"required": []string{"success", "count"},
 	}

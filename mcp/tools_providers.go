@@ -66,21 +66,21 @@ func configureProviderTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"id":              map[string]interface{}{"type": "string"},
-				"name":            map[string]interface{}{"type": "string"},
-				"category":        map[string]interface{}{"type": "string"},
-				"endpoint":        map[string]interface{}{"type": "string"},
-				"method":          map[string]interface{}{"type": "string"},
-				"results_path":    map[string]interface{}{"type": "string"},
-				"field_mapping":   map[string]interface{}{"type": "object"},
-				"rate_limit_rps": map[string]interface{}{"type": "number"},
-				"tls_fingerprint": map[string]interface{}{"type": "string"},
+				"id":              schemaString(),
+				"name":            schemaString(),
+				"category":        schemaString(),
+				"endpoint":        schemaString(),
+				"method":          schemaString(),
+				"results_path":    schemaString(),
+				"field_mapping":   schemaObject(),
+				"rate_limit_rps": schemaNum(),
+				"tls_fingerprint": schemaString(),
 				"consent": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"granted":   map[string]interface{}{"type": "boolean"},
-						"timestamp": map[string]interface{}{"type": "string"},
-						"domain":    map[string]interface{}{"type": "string"},
+						"granted":   schemaBool(),
+						"timestamp": schemaString(),
+						"domain":    schemaString(),
 					},
 				},
 			},
@@ -384,21 +384,18 @@ func listProvidersTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"providers": map[string]interface{}{
-					"type": "array",
-					"items": map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"id":           map[string]interface{}{"type": "string"},
-							"name":         map[string]interface{}{"type": "string"},
-							"category":     map[string]interface{}{"type": "string"},
-							"domain":       map[string]interface{}{"type": "string"},
-							"consent":      map[string]interface{}{"type": "boolean"},
-							"last_success": map[string]interface{}{"type": "string"},
-							"error_count":  map[string]interface{}{"type": "integer"},
-						},
+				"providers": schemaArray(map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"id":           schemaString(),
+						"name":         schemaString(),
+						"category":     schemaString(),
+						"domain":       schemaString(),
+						"consent":      schemaBool(),
+						"last_success": schemaString(),
+						"error_count":  schemaInt(),
 					},
-				},
+				}),
 			},
 		},
 		Annotations: &ToolAnnotations{
@@ -490,7 +487,7 @@ func removeProviderTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"message": map[string]interface{}{"type": "string"},
+				"message": schemaString(),
 			},
 		},
 		Annotations: &ToolAnnotations{
@@ -541,14 +538,14 @@ func testProviderTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"success":            map[string]interface{}{"type": "boolean"},
-				"step":               map[string]interface{}{"type": "string"},
-				"http_status":        map[string]interface{}{"type": "integer"},
-				"results_count":      map[string]interface{}{"type": "integer"},
-				"error":              map[string]interface{}{"type": "string"},
-				"extraction_results": map[string]interface{}{"type": "object"},
-				"body_snippet":       map[string]interface{}{"type": "string"},
-				"sample_result":      map[string]interface{}{"type": "object"},
+				"success":            schemaBool(),
+				"step":               schemaString(),
+				"http_status":        schemaInt(),
+				"results_count":      schemaInt(),
+				"error":              schemaString(),
+				"extraction_results": schemaObject(),
+				"body_snippet":       schemaString(),
+				"sample_result":      schemaObject(),
 			},
 		},
 		Annotations: &ToolAnnotations{
@@ -703,25 +700,22 @@ func suggestProvidersTool() ToolDef {
 		OutputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"providers": map[string]interface{}{
-					"type": "array",
-					"items": map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"id":              map[string]interface{}{"type": "string"},
-							"name":            map[string]interface{}{"type": "string"},
-							"category":        map[string]interface{}{"type": "string"},
-							"description":     map[string]interface{}{"type": "string"},
-							"auth_pattern":    map[string]interface{}{"type": "string"},
-							"auth_hint":       map[string]interface{}{"type": "string"},
-							"reference":       map[string]interface{}{"type": "string"},
-							"tls":             map[string]interface{}{"type": "string"},
-							"rate_limit":      map[string]interface{}{"type": "string"},
-							"configured":      map[string]interface{}{"type": "boolean"},
-							"config_skeleton": map[string]interface{}{"type": "object"},
-						},
+				"providers": schemaArray(map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"id":              schemaString(),
+						"name":            schemaString(),
+						"category":        schemaString(),
+						"description":     schemaString(),
+						"auth_pattern":    schemaString(),
+						"auth_hint":       schemaString(),
+						"reference":       schemaString(),
+						"tls":             schemaString(),
+						"rate_limit":      schemaString(),
+						"configured":      schemaBool(),
+						"config_skeleton": schemaObject(),
 					},
-				},
+				}),
 			},
 		},
 		Annotations: &ToolAnnotations{

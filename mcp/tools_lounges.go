@@ -16,37 +16,24 @@ func loungeSearchOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success": map[string]interface{}{"type": "boolean"},
-			"airport": map[string]interface{}{"type": "string"},
-			"count":   map[string]interface{}{"type": "integer"},
-			"lounges": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name":     map[string]interface{}{"type": "string"},
-						"airport":  map[string]interface{}{"type": "string"},
-						"terminal": map[string]interface{}{"type": "string"},
-						"cards": map[string]interface{}{
-							"type":  "array",
-							"items": map[string]interface{}{"type": "string"},
-						},
-						"amenities": map[string]interface{}{
-							"type":  "array",
-							"items": map[string]interface{}{"type": "string"},
-						},
-						"open_hours": map[string]interface{}{"type": "string"},
-						"accessible_with": map[string]interface{}{
-							"type":        "array",
-							"items":       map[string]interface{}{"type": "string"},
-							"description": "Subset of the user's own lounge cards that grant free entry",
-						},
-					},
-					"required": []string{"name", "airport"},
+			"success": schemaBool(),
+			"airport": schemaString(),
+			"count":   schemaInt(),
+			"lounges": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name":              schemaString(),
+					"airport":           schemaString(),
+					"terminal":          schemaString(),
+					"cards":             schemaStringArray(),
+					"amenities":         schemaStringArray(),
+					"open_hours":        schemaString(),
+					"accessible_with":   schemaStringArrayDesc("Subset of the user's own lounge cards that grant free entry"),
 				},
-			},
-			"source": map[string]interface{}{"type": "string"},
-			"error":  map[string]interface{}{"type": "string"},
+				"required": []string{"name", "airport"},
+			}),
+			"source": schemaString(),
+			"error":  schemaString(),
 		},
 		"required": []string{"success", "count"},
 	}

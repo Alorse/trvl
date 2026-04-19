@@ -47,51 +47,42 @@ func optimizeBookingOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"success": map[string]interface{}{"type": "boolean"},
-			"error":   map[string]interface{}{"type": "string"},
-			"options": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"rank":                map[string]interface{}{"type": "integer"},
-						"strategy":            map[string]interface{}{"type": "string"},
-						"base_cost":           map[string]interface{}{"type": "number"},
-						"bag_cost":            map[string]interface{}{"type": "number"},
-						"ff_savings":          map[string]interface{}{"type": "number"},
-						"transfer_cost":       map[string]interface{}{"type": "number"},
-						"all_in_cost":         map[string]interface{}{"type": "number"},
-						"currency":            map[string]interface{}{"type": "string"},
-						"savings_vs_baseline": map[string]interface{}{"type": "number"},
-						"hacks_applied": map[string]interface{}{
-							"type":  "array",
-							"items": map[string]interface{}{"type": "string"},
+			"success": schemaBool(),
+			"error":   schemaString(),
+			"options": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"rank":                schemaInt(),
+					"strategy":            schemaString(),
+					"base_cost":           schemaNum(),
+					"bag_cost":            schemaNum(),
+					"ff_savings":          schemaNum(),
+					"transfer_cost":       schemaNum(),
+					"all_in_cost":         schemaNum(),
+					"currency":            schemaString(),
+					"savings_vs_baseline": schemaNum(),
+					"hacks_applied":       schemaStringArray(),
+					"legs": schemaArray(map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"type":         schemaString(),
+							"from":         schemaString(),
+							"to":           schemaString(),
+							"date":         schemaString(),
+							"price":        schemaNum(),
+							"currency":     schemaString(),
+							"airline":      schemaString(),
+							"duration_min": schemaInt(),
+							"notes":        schemaString(),
 						},
-						"legs": map[string]interface{}{
-							"type": "array",
-							"items": map[string]interface{}{
-								"type": "object",
-								"properties": map[string]interface{}{
-									"type":         map[string]interface{}{"type": "string"},
-									"from":         map[string]interface{}{"type": "string"},
-									"to":           map[string]interface{}{"type": "string"},
-									"date":         map[string]interface{}{"type": "string"},
-									"price":        map[string]interface{}{"type": "number"},
-									"currency":     map[string]interface{}{"type": "string"},
-									"airline":      map[string]interface{}{"type": "string"},
-									"duration_min": map[string]interface{}{"type": "integer"},
-									"notes":        map[string]interface{}{"type": "string"},
-								},
-							},
-						},
-					},
+					}),
 				},
-			},
+			}),
 			"baseline": map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"all_in_cost": map[string]interface{}{"type": "number"},
-					"currency":    map[string]interface{}{"type": "string"},
+					"all_in_cost": schemaNum(),
+					"currency":    schemaString(),
 				},
 			},
 		},

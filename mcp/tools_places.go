@@ -41,50 +41,41 @@ func nearbyPlacesOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"pois": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name":          map[string]interface{}{"type": "string"},
-						"type":          map[string]interface{}{"type": "string"},
-						"lat":           map[string]interface{}{"type": "number"},
-						"lon":           map[string]interface{}{"type": "number"},
-						"distance_m":    map[string]interface{}{"type": "integer"},
-						"cuisine":       map[string]interface{}{"type": "string"},
-						"opening_hours": map[string]interface{}{"type": "string"},
-						"phone":         map[string]interface{}{"type": "string"},
-						"website":       map[string]interface{}{"type": "string"},
-					},
+			"pois": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name":          schemaString(),
+					"type":          schemaString(),
+					"lat":           schemaNum(),
+					"lon":           schemaNum(),
+					"distance_m":    schemaInt(),
+					"cuisine":       schemaString(),
+					"opening_hours": schemaString(),
+					"phone":         schemaString(),
+					"website":       schemaString(),
 				},
-			},
-			"rated_places": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name":        map[string]interface{}{"type": "string"},
-						"rating":      map[string]interface{}{"type": "number"},
-						"category":    map[string]interface{}{"type": "string"},
-						"price_level": map[string]interface{}{"type": "integer"},
-						"distance_m":  map[string]interface{}{"type": "integer"},
-						"address":     map[string]interface{}{"type": "string"},
-						"tip":         map[string]interface{}{"type": "string"},
-					},
+			}),
+			"rated_places": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name":        schemaString(),
+					"rating":      schemaNum(),
+					"category":    schemaString(),
+					"price_level": schemaInt(),
+					"distance_m":  schemaInt(),
+					"address":     schemaString(),
+					"tip":         schemaString(),
 				},
-			},
-			"attractions": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name":          map[string]interface{}{"type": "string"},
-						"kind":          map[string]interface{}{"type": "string"},
-						"distance_m":    map[string]interface{}{"type": "integer"},
-						"wikipedia_url": map[string]interface{}{"type": "string"},
-					},
+			}),
+			"attractions": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name":          schemaString(),
+					"kind":          schemaString(),
+					"distance_m":    schemaInt(),
+					"wikipedia_url": schemaString(),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -168,13 +159,13 @@ func travelGuideOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"location": map[string]interface{}{"type": "string"},
-			"summary":  map[string]interface{}{"type": "string"},
+			"location": schemaString(),
+			"summary":  schemaString(),
 			"sections": map[string]interface{}{
 				"type":                 "object",
-				"additionalProperties": map[string]interface{}{"type": "string"},
+				"additionalProperties": schemaString(),
 			},
-			"url": map[string]interface{}{"type": "string"},
+			"url": schemaString(),
 		},
 		"required": []string{"location"},
 	}
@@ -255,22 +246,19 @@ func localEventsOutputSchema() interface{} {
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"events": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"name":        map[string]interface{}{"type": "string"},
-						"date":        map[string]interface{}{"type": "string"},
-						"time":        map[string]interface{}{"type": "string"},
-						"venue":       map[string]interface{}{"type": "string"},
-						"type":        map[string]interface{}{"type": "string"},
-						"url":         map[string]interface{}{"type": "string"},
-						"price_range": map[string]interface{}{"type": "string"},
-					},
+			"events": schemaArray(map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name":        schemaString(),
+					"date":        schemaString(),
+					"time":        schemaString(),
+					"venue":       schemaString(),
+					"type":        schemaString(),
+					"url":         schemaString(),
+					"price_range": schemaString(),
 				},
-			},
-			"message": map[string]interface{}{"type": "string"},
+			}),
+			"message": schemaString(),
 		},
 	}
 }
