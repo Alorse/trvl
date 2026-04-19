@@ -99,6 +99,76 @@
 //     stay one night in budget hotel, fly onward at lower fare; total still saves
 //   - Destination airport + suburb hotel — fly into secondary airport (cheaper),
 //     stay in suburb near that airport instead of city center
+//
+// # Ground Transport Pricing Fundamentals
+//
+// Trains discount for:
+//   - Advance purchase (Sparpreis/Super Sparpreis on DB, Prems on SNCF) — 50-70% off flex
+//   - Off-peak travel (avoiding morning/evening commuter peaks)
+//   - Cross-border booking arbitrage — same train, different price from different
+//     national railway (OBB vs DB for Vienna-Munich, CD vs DB for Prague-Berlin)
+//   - Flat-rate passes (Deutschlandticket €49/mo, Klimaticket, Swiss Half Fare)
+//   - Split ticketing — A→C via B as two tickets cheaper than A→C direct (UK, cross-border)
+//   - Longer routes — some operators price longer routes non-linearly (book past
+//     destination, exit early — no enforcement on ground transport)
+//   - Return tickets — Eurostar return premium often just €5-10 over one-way
+//
+// Trains charge premium for:
+//   - Flexible/refundable fares (2-3x advance purchase)
+//   - Peak hours (morning/evening commuter slots)
+//   - Mandatory seat reservations (TGV, Eurostar, some Trenitalia — €4-34 on top of ticket)
+//   - Last-minute (especially on capacity-controlled high-speed routes)
+//   - Single national operator booking (vs shopping across operators)
+//
+// Buses discount for:
+//   - Advance purchase (FlixBus/RegioJet early bird)
+//   - Longer routes (non-linear pricing — sometimes longer is cheaper)
+//   - Off-peak days (midweek)
+//   - New routes (promotional pricing to build demand)
+//
+// Buses charge premium for:
+//   - Peak periods (holiday weekends, Friday evenings)
+//   - Seat selection / extra legroom
+//   - Last-minute (dynamic pricing)
+//
+// # Ferry Pricing Fundamentals
+//
+// Ferries discount for:
+//   - Advance booking (cabins especially — sell out in peak season)
+//   - Off-season (winter Baltic, shoulder Mediterranean)
+//   - Midweek crossings (Mon-Thu cheaper than Fri-Sun)
+//   - Foot passengers vs car (car deck space is the constraint)
+//   - Return bookings (often barely more than one-way, like Eurostar)
+//   - Loyalty programmes (Viking Line Club, Tallink Club — 10-15% off)
+//   - Day cruises (same ferry, round-trip same day — tax-free shopping subsidises fare)
+//
+// Ferries charge premium for:
+//   - Peak season (Jul-Aug on all routes, Dec/Easter on family routes)
+//   - Friday/Sunday departures (weekend travel pattern)
+//   - Car deck space (finite, non-expandable)
+//   - Cabin upgrades (sea view, suite — high margin)
+//   - Single-night weekend crossings (party/entertainment demand)
+//
+// Ferry arbitrage:
+//   - Cabin replaces hotel night (implemented: detectFerryCabin) — transport + sleep
+//   - Day cruise for shopping (Helsinki-Tallinn day return often €10-15 including tax-free)
+//   - Return barely more than one-way (like Eurostar — book return even if one-way trip)
+//   - Schedule-aware positioning: frequent routes (HEL-TLL every 1-2h) are flexible,
+//     infrequent routes (HEL-ARN 1x/day 17:00) require schedule planning — miss it = hotel
+//
+// # Known Composite Patterns (user-confirmed)
+//
+// AMS→HEL via hidden city: book AMS→RIX via HEL on Finnair, exit at Helsinki,
+// skip the HEL→RIX last leg. Helsinki as Finnair hub makes AMS→RIX cheaper
+// than AMS→HEL direct because connecting traffic is discounted.
+//
+// KLM rail+fly + train skip: book via Antwerp (ZWE) for Belgian fare zone,
+// skip train both directions (user-confirmed safe on KLM), fly directly
+// from/to Schiphol. Pure fare zone arbitrage without taking any train.
+//
+// PRG/KRK→AMS via hidden city: book to HEL via AMS, exit at Amsterdam.
+// Eastern European origin gives cheaper market pricing, connecting discount
+// makes via-AMS routing cheaper than AMS-as-destination.
 package hacks
 
 import (
