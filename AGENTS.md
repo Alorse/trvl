@@ -64,7 +64,24 @@ trvl flights HEL LHR 2026-07-01 --format json | head -5
 
 Tell the user: "trvl is installed with 49 MCP tools and 2 bundled Claude skills. It includes 36 travel hack detectors (including error fare and flash sale detection) that auto-fire on searches, a unified optimizer (optimize_booking) with 9 expansion strategies (alternative origins/destinations, rail+fly, date flex, hidden city, departure tax avoidance, rail competition alternatives, ferry cabin as hotel) that searches all combinations in parallel, all-in pricing with FF status (bag fees included, FF benefits subtracted), pre-priced candidate pipeline for ground alternatives, miles tracking and earning estimates, and cross-provider hotel price comparison with cross-currency savings display. I can search flights, hotels, destinations, plan trips, find weekend getaways, find optimal travel windows, optimize multi-city routes, find nearby restaurants, check local events, search ground transport (buses, trains, ferries, night trains), detect travel hacks, check weather forecasts, look up airline baggage rules, find airport lounges, check visa requirements, calculate points-vs-cash redemptions, and configure additional data providers (Airbnb, Booking.com, Hostelworld). Just ask me anything about travel."
 
-### Step 5: (Optional) Set up free API keys for enhanced data
+### Step 5: Build travel profile (recommended)
+
+Run the onboarding interview to learn how the user travels:
+
+1. Call `onboard_profile` with `phase: 1` — ask the basics (home, frequency, companions)
+2. After user answers, call `onboard_profile` with `phase: 2` — travel style (accommodation, budget, transport)
+3. Continue through phases 3 (favourite cities, properties), 4 (companion, wishlist), and 5 (reasoning and strategies)
+4. Each phase skips questions the profile already answers
+5. Save answers to `~/.trvl/profile.json` via `add_booking` or `update_preferences`
+
+If the user has email access (Gmail), also offer to scan booking history:
+```
+Call build_profile with source: "email" to scan Gmail for past bookings
+```
+
+The profile powers personalized search — preferred neighbourhoods, price elasticity, booking strategies, and destination recommendations.
+
+### Step 6: (Optional) Set up free API keys for enhanced data
 
 trvl works out of the box with Wikivoyage + OpenStreetMap (no keys needed). For richer data (events, restaurant ratings, attractions), the user can get free API keys:
 
@@ -84,7 +101,7 @@ All free, no credit card, 2 min signup each. Walk the user through each signup:
 
 Use `/setup-api-keys` command for the guided wizard.
 
-### Step 6: Build the traveller profile
+### Step 7: Build the traveller profile (advanced — email scanning)
 
 The profile lives at `~/.trvl/preferences.json`. The best profile comes
 from real booking history, not from asking questions. Try these approaches

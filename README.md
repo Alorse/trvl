@@ -43,11 +43,15 @@ trvl is an [MCP server](https://modelcontextprotocol.io/) + CLI that gives Claud
 
 ## Setup
 
-**Tell your AI assistant** (recommended):
+**One command — your AI does everything:**
+
+> Read https://raw.githubusercontent.com/MikkoParkkola/trvl/main/AGENTS.md and set up trvl
+
+That's it. Your AI will install the binary, wire the MCP server, install the skill, build your travel profile, and verify everything works. Takes under a minute. Works in Claude Code, Cursor, Windsurf, Codex, and any AI with terminal access.
+
+**Or tell your AI assistant:**
 
 > Read https://github.com/MikkoParkkola/trvl and install trvl as my travel MCP server
-
-Your agent will install the binary, wire itself up, and verify the connection. Works in Claude Code, Cursor, Windsurf, Codex, and any AI with terminal access.
 
 **Or install manually:**
 
@@ -98,26 +102,27 @@ claude mcp add trvl --transport stdio -- trvl mcp
 
 ### 3. (Optional) Teach your AI about trvl
 
-Point your AI assistant to the reference docs so it knows all 48 tools:
-
-```
-https://raw.githubusercontent.com/MikkoParkkola/trvl/main/AGENTS.md
-```
-
-Or the compact version for context-limited models:
-
-```
-https://raw.githubusercontent.com/MikkoParkkola/trvl/main/llms.txt
-```
-
-For Claude Code, you can also install the bundled skill that teaches Claude how to use trvl optimally:
+If you used the one-command setup above, the skill is already installed. Otherwise, install the bundled skill that teaches Claude how to use trvl optimally:
 
 ```bash
+# Install the bundled skill (Claude Code)
 mkdir -p ~/.claude/skills
 curl -fsSL "https://raw.githubusercontent.com/MikkoParkkola/trvl/main/.claude/skills/trvl.md" -o "$HOME/.claude/skills/trvl.md"
 ```
 
-### 4. Ask your AI to search
+Reference docs for other clients: [AGENTS.md](https://raw.githubusercontent.com/MikkoParkkola/trvl/main/AGENTS.md) (full) · [llms.txt](https://raw.githubusercontent.com/MikkoParkkola/trvl/main/llms.txt) (compact)
+
+### 4. Build your travel profile
+
+trvl learns how you travel. On first use, the AI runs a short interview (4 phases, ~2 minutes) to understand your home airports, travel style, favourite cities, and booking strategies. It can also scan your email for past bookings.
+
+```
+Tell trvl to build my travel profile
+```
+
+The profile makes every subsequent search smarter — it skips questions it already knows the answer to, applies your preferences automatically, and suggests destinations based on your patterns.
+
+### 5. Ask your AI to search
 
 That's it. Your AI assistant now has 49 travel tools available. Just ask naturally:
 
