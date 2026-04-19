@@ -13,7 +13,7 @@ import (
 //
 // Rule: if round-trip price < one-way price × 1.6, flag it.
 func detectThrowaway(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -83,7 +83,7 @@ func detectThrowaway(ctx context.Context, in DetectorInput) []Hack {
 			"Only board the outbound leg — discard or ignore the return",
 		},
 		Citations: []string{
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, in.Date),
+			googleFlightsURL(in.Destination, in.Origin, in.Date),
 		},
 	}}
 }

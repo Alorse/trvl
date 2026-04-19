@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // finnlinesGraphQL is the AWS AppSync GraphQL endpoint for Finnlines booking.
@@ -22,7 +21,7 @@ const finnlinesGraphQL = "https://dm3xyy44wbeivgqmeymvmw22be.appsync-api.eu-cent
 const finnlinesAPIKey = "da2-zvuktusyubbstlw7khps4vyeie"
 
 // finnlinesLimiter: 10 req/min to be respectful.
-var finnlinesLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
+var finnlinesLimiter = newProviderLimiter(6 * time.Second)
 
 // finnlinesClient is a shared HTTP client for Finnlines API calls.
 var finnlinesClient = &http.Client{
@@ -40,7 +39,7 @@ type finnlinesPort struct {
 var finnlinesPorts = map[string]finnlinesPort{
 	// Helsinki
 	"helsinki": {Code: "FIHEL", Name: "Helsinki Vuosaari Harbour", City: "Helsinki"},
-	"hel":     {Code: "FIHEL", Name: "Helsinki Vuosaari Harbour", City: "Helsinki"},
+	"hel":      {Code: "FIHEL", Name: "Helsinki Vuosaari Harbour", City: "Helsinki"},
 
 	// Naantali
 	"naantali": {Code: "FINLI", Name: "Naantali Harbour", City: "Naantali"},

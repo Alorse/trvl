@@ -1,11 +1,17 @@
 package hacks
 
 import (
+	"fmt"
 	"math"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
+
+// googleFlightsURL builds a Google Flights search citation URL.
+func googleFlightsURL(dest, origin, date string) string {
+	return fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", dest, origin, date)
+}
 
 // minFlightPrice returns the cheapest positive price across all flights.
 // Returns 0 if no valid price found.

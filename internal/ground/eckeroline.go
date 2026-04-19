@@ -22,7 +22,6 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // eckerolinePorts maps city aliases to Eckerö Line port info.
@@ -32,10 +31,10 @@ var eckerolinePorts = map[string]struct {
 	City string
 }{
 	"helsinki": {Code: "HEL", Name: "Länsisatama Terminal 2", City: "Helsinki"},
-	"hel":     {Code: "HEL", Name: "Länsisatama Terminal 2", City: "Helsinki"},
-	"tallinn": {Code: "TLL", Name: "Old Port A-Terminal", City: "Tallinn"},
-	"tll":     {Code: "TLL", Name: "Old Port A-Terminal", City: "Tallinn"},
-	"tln":     {Code: "TLL", Name: "Old Port A-Terminal", City: "Tallinn"},
+	"hel":      {Code: "HEL", Name: "Länsisatama Terminal 2", City: "Helsinki"},
+	"tallinn":  {Code: "TLL", Name: "Old Port A-Terminal", City: "Tallinn"},
+	"tll":      {Code: "TLL", Name: "Old Port A-Terminal", City: "Tallinn"},
+	"tln":      {Code: "TLL", Name: "Old Port A-Terminal", City: "Tallinn"},
 }
 
 type eckerolineScheduleEntry struct {
@@ -65,7 +64,7 @@ var eckerolineSchedules = map[string][]eckerolineScheduleEntry{
 const eckerolineBasePrice = 19.0
 
 // eckerolineLimiter: conservative 5 req/min (one request per 12 seconds).
-var eckerolineLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
+var eckerolineLimiter = newProviderLimiter(12 * time.Second)
 
 // eckerolineClient uses Chrome TLS fingerprint to interact with Eckerö Line's website.
 var eckerolineClient = batchexec.ChromeHTTPClient()
@@ -232,7 +231,6 @@ func tryEckeroLineLive(ctx context.Context, fromCode, toCode, date string) ([]ec
 	slog.Debug("eckeroline live departures", "count", len(departures))
 	return departures, nil
 }
-
 
 // SearchEckeroLine returns Eckerö Line ferry departures for the given route and date.
 // It first tries the Magento AJAX API for live departures with prices. Falls back to

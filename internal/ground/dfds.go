@@ -37,14 +37,13 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // dfdsAvailabilityBase is the DFDS travel-search availability endpoint.
 const dfdsAvailabilityBase = "https://travel-search-prod.dfds-pax-web.com/api/available-travel-dates"
 
 // dfdsLimiter: conservative 5 req/min.
-var dfdsLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
+var dfdsLimiter = newProviderLimiter(12 * time.Second)
 
 // dfdsClient is a shared HTTP client for DFDS availability API calls.
 var dfdsClient = &http.Client{

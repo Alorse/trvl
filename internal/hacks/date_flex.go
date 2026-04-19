@@ -14,7 +14,7 @@ const dateFlexMinSaving = 20.0
 
 // detectDateFlex finds cheaper dates within ±3 days of the requested date.
 func detectDateFlex(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -102,7 +102,7 @@ func detectDateFlex(ctx context.Context, in DetectorInput) []Hack {
 			"Update any hotel or connecting-transport bookings accordingly",
 		},
 		Citations: []string{
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, bestDate),
+			googleFlightsURL(in.Destination, in.Origin, bestDate),
 		},
 	}}
 }

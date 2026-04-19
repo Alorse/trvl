@@ -18,13 +18,12 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/cookies"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	trvlnab "github.com/MikkoParkkola/trvl/internal/nab"
-	"golang.org/x/time/rate"
 )
 
 const trainlineSearchURL = "https://www.thetrainline.com/api/journey-search/"
 
 // trainlineLimiter: 5 req/min to be respectful
-var trainlineLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
+var trainlineLimiter = newProviderLimiter(12 * time.Second)
 
 // trainlineClient uses Chrome TLS fingerprint to bypass Datadome bot detection.
 var trainlineClient = batchexec.ChromeHTTPClient()

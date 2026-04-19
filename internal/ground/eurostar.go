@@ -17,13 +17,12 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/cookies"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	trvlnab "github.com/MikkoParkkola/trvl/internal/nab"
-	"golang.org/x/time/rate"
 )
 
 const eurostarGateway = "https://site-api.eurostar.com/gateway"
 
 // eurostarLimiter enforces Eurostar's aggressive rate limit: 3 req/min (conservative).
-var eurostarLimiter = rate.NewLimiter(rate.Every(20*time.Second), 1)
+var eurostarLimiter = newProviderLimiter(20 * time.Second)
 
 // eurostarClient is a dedicated HTTP client for Eurostar API calls.
 // Uses Chrome TLS fingerprint via utls to bypass Datadome bot detection.

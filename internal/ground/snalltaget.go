@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // snalltagetBase is the base URL for the Snälltåget booking API
@@ -20,7 +19,7 @@ import (
 const snalltagetBase = "https://bokning.snalltaget.se"
 
 // snalltagetLimiter: conservative 1 req/6s.
-var snalltagetLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
+var snalltagetLimiter = newProviderLimiter(6 * time.Second)
 
 // snalltagetClient is a shared HTTP client for Snälltåget API calls.
 var snalltagetClient = &http.Client{
@@ -39,22 +38,22 @@ type SnalltagetStation struct {
 // UIC codes verified against Snälltåget route documentation.
 var snalltagetStations = map[string]SnalltagetStation{
 	// Sweden — year-round Stockholm–Malmö route
-	"stockholm":   {UIC: "7400001", Name: "Stockholm Central", City: "Stockholm", Country: "SE"},
-	"norrköping":  {UIC: "7400120", Name: "Norrköping C", City: "Norrköping", Country: "SE"},
-	"norrkoping":  {UIC: "7400120", Name: "Norrköping C", City: "Norrköping", Country: "SE"},
-	"linköping":   {UIC: "7400180", Name: "Linköping C", City: "Linköping", Country: "SE"},
-	"linkoping":   {UIC: "7400180", Name: "Linköping C", City: "Linköping", Country: "SE"},
-	"alvesta":     {UIC: "7400440", Name: "Alvesta", City: "Alvesta", Country: "SE"},
-	"hässleholm":  {UIC: "7400490", Name: "Hässleholm C", City: "Hässleholm", Country: "SE"},
-	"hassleholm":  {UIC: "7400490", Name: "Hässleholm C", City: "Hässleholm", Country: "SE"},
-	"lund":        {UIC: "7400500", Name: "Lund C", City: "Lund", Country: "SE"},
-	"malmö":       {UIC: "7400003", Name: "Malmö C", City: "Malmö", Country: "SE"},
-	"malmo":       {UIC: "7400003", Name: "Malmö C", City: "Malmö", Country: "SE"},
-	"malmö c":     {UIC: "7400003", Name: "Malmö C", City: "Malmö", Country: "SE"},
+	"stockholm":  {UIC: "7400001", Name: "Stockholm Central", City: "Stockholm", Country: "SE"},
+	"norrköping": {UIC: "7400120", Name: "Norrköping C", City: "Norrköping", Country: "SE"},
+	"norrkoping": {UIC: "7400120", Name: "Norrköping C", City: "Norrköping", Country: "SE"},
+	"linköping":  {UIC: "7400180", Name: "Linköping C", City: "Linköping", Country: "SE"},
+	"linkoping":  {UIC: "7400180", Name: "Linköping C", City: "Linköping", Country: "SE"},
+	"alvesta":    {UIC: "7400440", Name: "Alvesta", City: "Alvesta", Country: "SE"},
+	"hässleholm": {UIC: "7400490", Name: "Hässleholm C", City: "Hässleholm", Country: "SE"},
+	"hassleholm": {UIC: "7400490", Name: "Hässleholm C", City: "Hässleholm", Country: "SE"},
+	"lund":       {UIC: "7400500", Name: "Lund C", City: "Lund", Country: "SE"},
+	"malmö":      {UIC: "7400003", Name: "Malmö C", City: "Malmö", Country: "SE"},
+	"malmo":      {UIC: "7400003", Name: "Malmö C", City: "Malmö", Country: "SE"},
+	"malmö c":    {UIC: "7400003", Name: "Malmö C", City: "Malmö", Country: "SE"},
 
 	// Sweden — winter ski train (Stockholm–Åre/Duved)
-	"åre":  {UIC: "7402200", Name: "Åre", City: "Åre", Country: "SE"},
-	"are":  {UIC: "7402200", Name: "Åre", City: "Åre", Country: "SE"},
+	"åre":   {UIC: "7402200", Name: "Åre", City: "Åre", Country: "SE"},
+	"are":   {UIC: "7402200", Name: "Åre", City: "Åre", Country: "SE"},
 	"duved": {UIC: "7402210", Name: "Duved", City: "Duved", Country: "SE"},
 
 	// Germany — summer seasonal (Stockholm–Berlin via ferry)
@@ -88,14 +87,14 @@ type snalltagetTripsResponse struct {
 }
 
 type snalltagetTrip struct {
-	DepartureTime string                 `json:"departureTime"`
-	ArrivalTime   string                 `json:"arrivalTime"`
-	Duration      int                    `json:"duration"` // minutes
-	Origin        snalltagetTripStop     `json:"origin"`
-	Destination   snalltagetTripStop     `json:"destination"`
-	Prices        []snalltagetPrice      `json:"prices"`
-	Fares         []snalltagetPrice      `json:"fares"` // alternative key
-	Segments      []snalltagetSegment    `json:"segments"`
+	DepartureTime string              `json:"departureTime"`
+	ArrivalTime   string              `json:"arrivalTime"`
+	Duration      int                 `json:"duration"` // minutes
+	Origin        snalltagetTripStop  `json:"origin"`
+	Destination   snalltagetTripStop  `json:"destination"`
+	Prices        []snalltagetPrice   `json:"prices"`
+	Fares         []snalltagetPrice   `json:"fares"` // alternative key
+	Segments      []snalltagetSegment `json:"segments"`
 }
 
 type snalltagetTripStop struct {

@@ -2134,23 +2134,35 @@ func TestWatch_AddRoomWatch(t *testing.T) {
 	withTempHome(t)
 
 	old := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
 	os.Stdout = w
+	t.Cleanup(func() { os.Stdout = old })
+
+	// Drain the pipe in a goroutine to prevent deadlock if output exceeds
+	// the OS pipe buffer.
+	outCh := make(chan string, 1)
+	go func() {
+		var buf bytes.Buffer
+		buf.ReadFrom(r)
+		outCh <- buf.String()
+	}()
 
 	cmd := watchRoomsCmd()
 	cmd.SetArgs([]string{"Hotel Lutetia", "--checkin", "2026-06-15", "--checkout", "2026-06-18", "--keywords", "suite"})
-	err := cmd.Execute()
+	execErr := cmd.Execute()
 	w.Close()
 	os.Stdout = old
 
-	if err != nil {
-		t.Fatalf("watch rooms failed: %v", err)
+	if execErr != nil {
+		t.Fatalf("watch rooms failed: %v", execErr)
 	}
 
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	if !strings.Contains(buf.String(), "watch") {
-		t.Logf("room watch output: %s", buf.String())
+	out := <-outCh
+	if !strings.Contains(out, "watch") {
+		t.Errorf("expected output to contain %q, got: %s", "watch", out)
 	}
 }
 

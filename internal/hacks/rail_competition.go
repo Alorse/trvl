@@ -60,7 +60,7 @@ var railCityMap = map[string]string{
 // competitive rail corridor where multiple operators drive down prices.
 // Purely advisory — zero API calls.
 func detectRailCompetition(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" {
+	if !in.valid() {
 		return nil
 	}
 

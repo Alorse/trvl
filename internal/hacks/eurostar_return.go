@@ -9,7 +9,7 @@ import (
 // detectEurostarReturn advises booking a Eurostar return even for one-way
 // travel, because the return premium is typically only €5-10.
 func detectEurostarReturn(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" {
+	if !in.valid() {
 		return nil
 	}
 

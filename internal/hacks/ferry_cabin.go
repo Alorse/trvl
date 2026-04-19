@@ -31,7 +31,7 @@ var overnightFerries = map[string]map[string]ferryCabinRoute{
 // destination, and the cabin price is meaningfully cheaper than a hotel night
 // at the destination.
 func detectFerryCabin(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" {
+	if !in.valid() {
 		return nil
 	}
 

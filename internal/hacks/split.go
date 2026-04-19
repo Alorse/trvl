@@ -12,7 +12,7 @@ import (
 //
 // Only meaningful when a return date is provided.
 func detectSplit(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.ReturnDate == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" || in.ReturnDate == "" {
 		return nil
 	}
 
@@ -78,8 +78,8 @@ func detectSplit(ctx context.Context, in DetectorInput) []Hack {
 			"Different airlines are fine — these are independent bookings",
 		},
 		Citations: []string{
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, in.Date),
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Origin, in.Destination, in.ReturnDate),
+			googleFlightsURL(in.Destination, in.Origin, in.Date),
+			googleFlightsURL(in.Origin, in.Destination, in.ReturnDate),
 		},
 	}}
 }

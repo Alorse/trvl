@@ -33,14 +33,13 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // ferryhopperMCPURL is the Ferryhopper MCP endpoint.
 const ferryhopperMCPURL = "https://mcp.ferryhopper.com/mcp"
 
 // ferryhopperLimiter: 2 req/s — conservative to avoid overloading the free MCP endpoint.
-var ferryhopperLimiter = rate.NewLimiter(rate.Every(500*time.Millisecond), 1)
+var ferryhopperLimiter = newProviderLimiter(500 * time.Millisecond)
 
 // ferryhopperClient is a shared HTTP client for Ferryhopper MCP calls.
 var ferryhopperClient = &http.Client{
@@ -49,9 +48,9 @@ var ferryhopperClient = &http.Client{
 
 // ferryhopperRPCRequest is a JSON-RPC 2.0 tools/call request body.
 type ferryhopperRPCRequest struct {
-	JSONRPC string                     `json:"jsonrpc"`
-	ID      int                        `json:"id"`
-	Method  string                     `json:"method"`
+	JSONRPC string                      `json:"jsonrpc"`
+	ID      int                         `json:"id"`
+	Method  string                      `json:"method"`
 	Params  ferryhopperRPCRequestParams `json:"params"`
 }
 
@@ -90,12 +89,12 @@ type ferryhopperItinerary struct {
 
 // ferryhopperSegment is a single ferry leg within an itinerary.
 type ferryhopperSegment struct {
-	DeparturePort     ferryhopperPort          `json:"departurePort"`
-	ArrivalPort       ferryhopperPort          `json:"arrivalPort"`
-	DepartureDateTime string                   `json:"departureDateTime"` // ISO 8601
-	ArrivalDateTime   string                   `json:"arrivalDateTime"`   // ISO 8601
-	Operator          string                   `json:"operator"`
-	VesselName        string                   `json:"vesselName"`
+	DeparturePort     ferryhopperPort            `json:"departurePort"`
+	ArrivalPort       ferryhopperPort            `json:"arrivalPort"`
+	DepartureDateTime string                     `json:"departureDateTime"` // ISO 8601
+	ArrivalDateTime   string                     `json:"arrivalDateTime"`   // ISO 8601
+	Operator          string                     `json:"operator"`
+	VesselName        string                     `json:"vesselName"`
 	Accommodations    []ferryhopperAccommodation `json:"accommodations"`
 }
 
@@ -107,7 +106,7 @@ type ferryhopperPort struct {
 
 // ferryhopperAccommodation holds a fare class with a price in cents.
 type ferryhopperAccommodation struct {
-	Name      string `json:"name"`
+	Name       string `json:"name"`
 	PriceCents int    `json:"price"` // EUR cents
 }
 

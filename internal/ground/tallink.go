@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // tallinkBookingBase is the Tallink booking SPA base URL.
@@ -33,7 +32,7 @@ const tallinkOvernightThreshold = 600
 // tallinkLimiter: 10 req/min — allows multiple detectors in a single hacks run
 // without hitting the context deadline (previously 5 req/min / 12s caused
 // "rate limiter: Wait(n=1) would exceed context deadline" during hacks searches).
-var tallinkLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
+var tallinkLimiter = newProviderLimiter(6 * time.Second)
 
 // tallinkClient is a shared HTTP client for Tallink API calls.
 var tallinkClient = &http.Client{
@@ -251,25 +250,25 @@ func fetchTallinkCabinClasses(ctx context.Context, cookies []*http.Cookie, sessi
 
 // tallinkSail is a single sailing from the booking timetables API response.
 type tallinkSail struct {
-	SailID               int64   `json:"sailId"`
-	ShipCode             string  `json:"shipCode"`
-	DepartureIsoDate     string  `json:"departureIsoDate"`     // "2026-05-01T07:30"
-	ArrivalIsoDate       string  `json:"arrivalIsoDate"`       // "2026-05-01T09:30"
-	PersonPrice          string  `json:"personPrice"`          // "38.90"
-	VehiclePrice         *string `json:"vehiclePrice"`         // null or "45.00"
-	Duration             float64 `json:"duration"`             // hours, e.g. 2.0
-	SailPackageCode      string  `json:"sailPackageCode"`      // "HEL-TAL"
-	SailPackageName      string  `json:"sailPackageName"`      // "Helsinki-Tallinn"
-	CityFrom             string  `json:"cityFrom"`             // "HEL"
-	CityTo               string  `json:"cityTo"`               // "TAL"
-	PierFrom             string  `json:"pierFrom"`
-	PierTo               string  `json:"pierTo"`
-	HasRoom              bool    `json:"hasRoom"`
-	IsOvernight          bool    `json:"isOvernight"`
-	IsDisabled           bool    `json:"isDisabled"`
-	PromotionApplied     bool    `json:"promotionApplied"`
-	MarketingMessage     *string `json:"marketingMessage"`
-	IsVoucherApplicable  bool    `json:"isVoucherApplicable"`
+	SailID              int64   `json:"sailId"`
+	ShipCode            string  `json:"shipCode"`
+	DepartureIsoDate    string  `json:"departureIsoDate"` // "2026-05-01T07:30"
+	ArrivalIsoDate      string  `json:"arrivalIsoDate"`   // "2026-05-01T09:30"
+	PersonPrice         string  `json:"personPrice"`      // "38.90"
+	VehiclePrice        *string `json:"vehiclePrice"`     // null or "45.00"
+	Duration            float64 `json:"duration"`         // hours, e.g. 2.0
+	SailPackageCode     string  `json:"sailPackageCode"`  // "HEL-TAL"
+	SailPackageName     string  `json:"sailPackageName"`  // "Helsinki-Tallinn"
+	CityFrom            string  `json:"cityFrom"`         // "HEL"
+	CityTo              string  `json:"cityTo"`           // "TAL"
+	PierFrom            string  `json:"pierFrom"`
+	PierTo              string  `json:"pierTo"`
+	HasRoom             bool    `json:"hasRoom"`
+	IsOvernight         bool    `json:"isOvernight"`
+	IsDisabled          bool    `json:"isDisabled"`
+	PromotionApplied    bool    `json:"promotionApplied"`
+	MarketingMessage    *string `json:"marketingMessage"`
+	IsVoucherApplicable bool    `json:"isVoucherApplicable"`
 }
 
 // tallinkDayTrips holds outward and return sails for a single day.

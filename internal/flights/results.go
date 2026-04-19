@@ -223,7 +223,7 @@ func tripTypeForSearch(opts SearchOptions) string {
 }
 
 func kiwiSearchEligible(client *batchexec.Client, opts SearchOptions) bool {
-	if client == nil || defaultClient == nil || client != defaultClient {
+	if client == nil || client != batchexec.SharedClient() {
 		return false
 	}
 	return kiwiEligibleOptions(opts)

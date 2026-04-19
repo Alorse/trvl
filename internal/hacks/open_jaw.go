@@ -38,7 +38,7 @@ var openJawAlternates = map[string][]string{
 // city B. When one end is the user's home airport this is particularly powerful
 // because the return ticket from home is not needed.
 func detectOpenJaw(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.ReturnDate == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" || in.ReturnDate == "" {
 		return nil
 	}
 
@@ -140,8 +140,8 @@ func detectOpenJaw(ctx context.Context, in DetectorInput) []Hack {
 				fmt.Sprintf("Book one-way %s→%s on %s (%s %.0f)", res.alt, in.Origin, in.ReturnDate, currency, res.price),
 			},
 			Citations: []string{
-				fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, in.Date),
-				fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Origin, res.alt, in.ReturnDate),
+				googleFlightsURL(in.Destination, in.Origin, in.Date),
+				googleFlightsURL(in.Origin, res.alt, in.ReturnDate),
 			},
 		}
 		hacks = append(hacks, h)

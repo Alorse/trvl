@@ -13,14 +13,13 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // oebbShopBase is the base URL for the ÖBB shop REST API.
 const oebbShopBase = "https://shop.oebbtickets.at"
 
 // oebbLimiter: conservative 5 req/min.
-var oebbLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
+var oebbLimiter = newProviderLimiter(12 * time.Second)
 
 // oebbClient is a shared HTTP client for ÖBB API calls.
 var oebbClient = &http.Client{

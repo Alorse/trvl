@@ -50,7 +50,7 @@ func countryName(cc string) string {
 // significant aviation departure tax and a nearby alternative airport sits
 // in a zero-tax country. Purely advisory — zero API calls.
 func detectDepartureTax(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" {
+	if !in.valid() {
 		return nil
 	}
 

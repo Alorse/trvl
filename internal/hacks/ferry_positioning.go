@@ -88,7 +88,7 @@ var ferryPositioningRoutes = map[string][]ferryRoute{
 // then flying from there is cheaper than flying directly, even after adding
 // the ferry cost.
 func detectFerryPositioning(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -194,7 +194,7 @@ func detectFerryPositioning(ctx context.Context, in DetectorInput) []Hack {
 				"Allow at least 3 hours between ferry arrival and flight departure",
 			},
 			Citations: []string{
-				fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, c.route.AirportTo, in.Date),
+				googleFlightsURL(in.Destination, c.route.AirportTo, in.Date),
 			},
 		})
 	}

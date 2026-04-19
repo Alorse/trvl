@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 const digitransitEndpoint = "https://api.digitransit.fi/routing/v2/finland/gtfs/v1"
@@ -22,7 +21,7 @@ const digitransitEndpoint = "https://api.digitransit.fi/routing/v2/finland/gtfs/
 const digitransitAPIKey = "195ac14f2a2b40e6b06ede06b2b33bb9"
 
 // digitransitLimiter enforces 5 req/min (conservative; actual limit is higher).
-var digitransitLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
+var digitransitLimiter = newProviderLimiter(12 * time.Second)
 
 // digitransitClient is a dedicated HTTP client for Digitransit API calls.
 var digitransitClient = &http.Client{
@@ -38,39 +37,39 @@ type digitransitStation struct {
 
 // digitransitStations maps lowercase city name/alias to station coordinates.
 var digitransitStations = map[string]digitransitStation{
-	"helsinki":     {60.1719, 24.9414, "Helsinki"},
-	"tampere":      {61.4978, 23.7610, "Tampere"},
-	"turku":        {60.4518, 22.2666, "Turku"},
-	"oulu":         {65.0121, 25.4651, "Oulu"},
+	"helsinki":    {60.1719, 24.9414, "Helsinki"},
+	"tampere":     {61.4978, 23.7610, "Tampere"},
+	"turku":       {60.4518, 22.2666, "Turku"},
+	"oulu":        {65.0121, 25.4651, "Oulu"},
 	"jyväskylä":   {62.2426, 25.7473, "Jyväskylä"},
-	"jyvaskyla":    {62.2426, 25.7473, "Jyväskylä"},
-	"kuopio":       {62.8924, 27.6783, "Kuopio"},
-	"lahti":        {60.9827, 25.6612, "Lahti"},
-	"rovaniemi":    {66.5039, 25.7294, "Rovaniemi"},
-	"vaasa":        {63.0952, 21.6165, "Vaasa"},
-	"kouvola":      {60.8681, 26.7043, "Kouvola"},
+	"jyvaskyla":   {62.2426, 25.7473, "Jyväskylä"},
+	"kuopio":      {62.8924, 27.6783, "Kuopio"},
+	"lahti":       {60.9827, 25.6612, "Lahti"},
+	"rovaniemi":   {66.5039, 25.7294, "Rovaniemi"},
+	"vaasa":       {63.0952, 21.6165, "Vaasa"},
+	"kouvola":     {60.8681, 26.7043, "Kouvola"},
 	"seinäjoki":   {62.7903, 22.8403, "Seinäjoki"},
-	"seinajoki":    {62.7903, 22.8403, "Seinäjoki"},
-	"joensuu":      {62.6010, 29.7636, "Joensuu"},
+	"seinajoki":   {62.7903, 22.8403, "Seinäjoki"},
+	"joensuu":     {62.6010, 29.7636, "Joensuu"},
 	"hämeenlinna": {60.9966, 24.4641, "Hämeenlinna"},
-	"hameenlinna":  {60.9966, 24.4641, "Hämeenlinna"},
+	"hameenlinna": {60.9966, 24.4641, "Hämeenlinna"},
 }
 
 // vrPrices maps a "from-to" pair (lowercase city names, canonical direction) to the
 // VR fixed second-class single fare in EUR. lookupVRPrice also checks the reverse.
 var vrPrices = map[string]float64{
-	"helsinki-tampere":      22.50,
-	"helsinki-turku":        19.90,
-	"helsinki-oulu":         59.90,
-	"helsinki-jyväskylä":  34.90,
-	"helsinki-kuopio":       39.90,
-	"helsinki-lahti":        14.90,
-	"helsinki-rovaniemi":    69.90,
-	"helsinki-vaasa":        49.90,
-	"helsinki-kouvola":      16.90,
-	"tampere-turku":         19.90,
-	"tampere-oulu":          39.90,
-	"tampere-jyväskylä":   14.90,
+	"helsinki-tampere":   22.50,
+	"helsinki-turku":     19.90,
+	"helsinki-oulu":      59.90,
+	"helsinki-jyväskylä": 34.90,
+	"helsinki-kuopio":    39.90,
+	"helsinki-lahti":     14.90,
+	"helsinki-rovaniemi": 69.90,
+	"helsinki-vaasa":     49.90,
+	"helsinki-kouvola":   16.90,
+	"tampere-turku":      19.90,
+	"tampere-oulu":       39.90,
+	"tampere-jyväskylä":  14.90,
 }
 
 // LookupDigitransitStation resolves a city name to a Digitransit station (case-insensitive).
@@ -128,10 +127,10 @@ type digitransitResponse struct {
 }
 
 type digitransitItinerary struct {
-	StartTime int64              `json:"startTime"` // Unix ms
-	EndTime   int64              `json:"endTime"`   // Unix ms
-	Duration  int                `json:"duration"`  // seconds
-	Legs      []digitransitLeg   `json:"legs"`
+	StartTime int64            `json:"startTime"` // Unix ms
+	EndTime   int64            `json:"endTime"`   // Unix ms
+	Duration  int              `json:"duration"`  // seconds
+	Legs      []digitransitLeg `json:"legs"`
 }
 
 type digitransitLeg struct {

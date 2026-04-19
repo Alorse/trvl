@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 const nsTripsEndpoint = "https://gateway.apiportal.ns.nl/reisinformatie-api/api/v3/trips"
@@ -21,7 +20,7 @@ const nsTripsEndpoint = "https://gateway.apiportal.ns.nl/reisinformatie-api/api/
 const nsAPIKey = "3833ed4cbc5d43bd9241420caf04365c"
 
 // nsLimiter enforces a conservative rate limit: 5 req/min.
-var nsLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
+var nsLimiter = newProviderLimiter(12 * time.Second)
 
 // nsClient is a dedicated HTTP client for NS API calls.
 // NS has a public API so the standard client (no Chrome TLS) is sufficient.
@@ -84,8 +83,8 @@ type nsTrip struct {
 }
 
 type nsTripLeg struct {
-	Origin      nsStop  `json:"origin"`
-	Destination nsStop  `json:"destination"`
+	Origin      nsStop `json:"origin"`
+	Destination nsStop `json:"destination"`
 	// trainCategory is the train type (e.g. "Intercity", "Sprinter")
 	TrainCategory string `json:"trainCategory,omitempty"`
 	Direction     string `json:"direction,omitempty"`
@@ -98,11 +97,11 @@ type nsTripLeg struct {
 }
 
 type nsStop struct {
-	Name             string `json:"name"`
-	UICCode          string `json:"uicCode,omitempty"`
-	PlannedDateTime  string `json:"plannedDateTime,omitempty"`
-	ActualDateTime   string `json:"actualDateTime,omitempty"`
-	City             string `json:"city,omitempty"`
+	Name            string `json:"name"`
+	UICCode         string `json:"uicCode,omitempty"`
+	PlannedDateTime string `json:"plannedDateTime,omitempty"`
+	ActualDateTime  string `json:"actualDateTime,omitempty"`
+	City            string `json:"city,omitempty"`
 }
 
 type nsPrice struct {

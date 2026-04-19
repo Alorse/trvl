@@ -320,8 +320,8 @@ func buildSplitHack(origin, dest string, trip TripLeg, currency string, rtPrice,
 			fmt.Sprintf("Book one-way %s (%s %.0f)", retDesc, currency, owRetPrice),
 		},
 		Citations: []string{
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", dest, origin, trip.DepartDate),
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", origin, dest, trip.ReturnDate),
+			googleFlightsURL(dest, origin, trip.DepartDate),
+			googleFlightsURL(origin, dest, trip.ReturnDate),
 		},
 	}
 }

@@ -7,6 +7,51 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/preferences"
 )
 
+func TestGoogleFlightsURL(t *testing.T) {
+	tests := []struct {
+		dest, origin, date string
+		want               string
+	}{
+		{
+			dest: "HEL", origin: "AMS", date: "2026-05-01",
+			want: "https://www.google.com/travel/flights?q=Flights+to+HEL+from+AMS+on+2026-05-01",
+		},
+		{
+			dest: "BCN", origin: "LHR", date: "2026-12-25",
+			want: "https://www.google.com/travel/flights?q=Flights+to+BCN+from+LHR+on+2026-12-25",
+		},
+	}
+
+	for _, tt := range tests {
+		got := googleFlightsURL(tt.dest, tt.origin, tt.date)
+		if got != tt.want {
+			t.Errorf("googleFlightsURL(%q, %q, %q) = %q, want %q", tt.dest, tt.origin, tt.date, got, tt.want)
+		}
+	}
+}
+
+func TestDetectorInputValid(t *testing.T) {
+	tests := []struct {
+		name string
+		in   DetectorInput
+		want bool
+	}{
+		{name: "both set", in: DetectorInput{Origin: "AMS", Destination: "HEL"}, want: true},
+		{name: "origin empty", in: DetectorInput{Origin: "", Destination: "HEL"}, want: false},
+		{name: "destination empty", in: DetectorInput{Origin: "AMS", Destination: ""}, want: false},
+		{name: "both empty", in: DetectorInput{Origin: "", Destination: ""}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.in.valid()
+			if got != tt.want {
+				t.Errorf("valid() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMinFlightPrice(t *testing.T) {
 	tests := []struct {
 		name string

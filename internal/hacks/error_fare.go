@@ -97,7 +97,7 @@ func CheckErrorFare(origin, dest string, price float64, isRoundTrip bool) (hackT
 // that airlines sometimes honour — they should be booked immediately.
 // Purely advisory — zero API calls.
 func detectErrorFare(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" || in.NaivePrice <= 0 {
+	if !in.valid() || in.NaivePrice <= 0 {
 		return nil
 	}
 

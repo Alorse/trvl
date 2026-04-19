@@ -16,12 +16,10 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // stenalineLimiter: conservative 5 req/min (kept for future live-API integration).
-var stenalineLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
-
+var stenalineLimiter = newProviderLimiter(12 * time.Second)
 
 // stenalinePort holds metadata for a Stena Line ferry port.
 type stenalinePort struct {
@@ -222,8 +220,6 @@ func stenalineFormatDateTime(date, timeStr string, dayOffset int) string {
 	t = t.AddDate(0, 0, dayOffset)
 	return t.Format("2006-01-02") + "T" + timeStr + ":00"
 }
-
-
 
 // SearchStenaLine returns Stena Line ferry sailings for the requested route and date.
 // It attempts to fetch live prices via browser page read, then falls back to

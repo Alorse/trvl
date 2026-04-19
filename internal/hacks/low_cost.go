@@ -35,7 +35,7 @@ const lowCostMinSavingPct = 20.0
 // that are at least 20% cheaper than the cheapest result returned by the
 // baseline search (which may include legacy carriers).
 func detectLowCostCarrier(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -111,7 +111,7 @@ func detectLowCostCarrier(ctx context.Context, in DetectorInput) []Hack {
 			"Arrive early: LCC check-in cuts off 30-45 min before departure",
 		},
 		Citations: []string{
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, in.Date),
+			googleFlightsURL(in.Destination, in.Origin, in.Date),
 		},
 	}}
 }

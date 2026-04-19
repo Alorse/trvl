@@ -58,7 +58,7 @@ var crossBorderRoutes = map[string]map[string]arbitrageRoute{
 // rail route where booking on a different national railway's website is
 // consistently cheaper for the same train and seat.
 func detectCrossBorderRail(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" {
+	if !in.valid() {
 		return nil
 	}
 

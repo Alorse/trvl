@@ -13,7 +13,7 @@ import (
 //
 // Saving threshold: EUR 50, consistent with other multimodal detectors.
 func detectMultiModalReturnSplit(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.ReturnDate == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" || in.ReturnDate == "" {
 		return nil
 	}
 
@@ -124,7 +124,7 @@ func detectMultiModalReturnSplit(ctx context.Context, in DetectorInput) []Hack {
 						fmt.Sprintf("Return journey: %s", bestRoute.bookingURL),
 					},
 					Citations: []string{
-						fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, in.Date),
+						googleFlightsURL(in.Destination, in.Origin, in.Date),
 						bestRoute.bookingURL,
 					},
 				})
@@ -202,7 +202,7 @@ func detectMultiModalReturnSplit(ctx context.Context, in DetectorInput) []Hack {
 					},
 					Citations: []string{
 						bestRoute.bookingURL,
-						fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Origin, in.Destination, in.ReturnDate),
+						googleFlightsURL(in.Origin, in.Destination, in.ReturnDate),
 					},
 				})
 			}

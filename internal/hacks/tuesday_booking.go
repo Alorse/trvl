@@ -30,7 +30,7 @@ const tuesdayBookingMinSaving = 10.0
 // expensive weekday (Friday/Sunday) and searches for cheaper Tuesday/Wednesday/
 // Saturday alternatives within ±5 days.
 func detectTuesdayBooking(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -149,7 +149,7 @@ func detectTuesdayBooking(ctx context.Context, in DetectorInput) []Hack {
 			"Update hotel or connecting transport if switching dates",
 		},
 		Citations: []string{
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, bestDate),
+			googleFlightsURL(in.Destination, in.Origin, bestDate),
 		},
 	}}
 }

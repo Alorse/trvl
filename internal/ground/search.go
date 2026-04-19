@@ -34,8 +34,8 @@ var httpClient = &http.Client{
 
 // Shared rate limiters for FlixBus and RegioJet (used by the shared httpClient).
 var (
-	flixbusLimiter  = rate.NewLimiter(rate.Limit(10), 1) // 10 req/s
-	regiojetLimiter = rate.NewLimiter(rate.Limit(10), 1) // 10 req/s
+	flixbusLimiter  = newProviderLimiter(100 * time.Millisecond) // 10 req/s
+	regiojetLimiter = newProviderLimiter(100 * time.Millisecond) // 10 req/s
 )
 
 // rateLimitedDo executes an HTTP request through the shared client after
@@ -45,6 +45,24 @@ func rateLimitedDo(ctx context.Context, limiter *rate.Limiter, req *http.Request
 		return nil, fmt.Errorf("rate limiter: %w", err)
 	}
 	return httpClient.Do(req)
+}
+
+// providerResult holds the outcome of a single provider search goroutine.
+type providerResult struct {
+	routes []models.GroundRoute
+	err    error
+	name   string
+}
+
+// launchProvider starts a provider search in a new goroutine, sending the
+// result to the results channel when done.
+func launchProvider(wg *sync.WaitGroup, results chan<- providerResult, name string, fn func() ([]models.GroundRoute, error)) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		routes, err := fn()
+		results <- providerResult{routes: routes, err: err, name: name}
+	}()
 }
 
 // SearchOptions configures a ground transport search.
@@ -86,12 +104,6 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		}
 	}
 
-	type providerResult struct {
-		routes []models.GroundRoute
-		err    error
-		name   string
-	}
-
 	var wg sync.WaitGroup
 	results := make(chan providerResult, searchResultBufferCapacity())
 
@@ -111,32 +123,23 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 	// Placed first (before individual providers) since it aggregates 2,000+ carriers.
 	// Requires DISTRIBUSION_API_KEY to be set; silently skipped otherwise.
 	if useProvider("distribusion") && HasDistribusionKey() {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchDistribusion(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "distribusion"}
-		}()
+		launchProvider(&wg, results, "distribusion", func() ([]models.GroundRoute, error) {
+			return SearchDistribusion(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// FlixBus
 	if useProvider("flixbus") {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := searchFlixBusByName(ctx, from, to, date, opts)
-			results <- providerResult{routes: routes, err: err, name: "flixbus"}
-		}()
+		launchProvider(&wg, results, "flixbus", func() ([]models.GroundRoute, error) {
+			return searchFlixBusByName(ctx, from, to, date, opts)
+		})
 	}
 
 	// RegioJet
 	if useProvider("regiojet") {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := searchRegioJetByName(ctx, from, to, date, opts)
-			results <- providerResult{routes: routes, err: err, name: "regiojet"}
-		}()
+		launchProvider(&wg, results, "regiojet", func() ([]models.GroundRoute, error) {
+			return searchRegioJetByName(ctx, from, to, date, opts)
+		})
 	}
 
 	// Eurostar — only if both cities have Eurostar stations.
@@ -151,194 +154,137 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		}
 
 		// Snap fares goroutine.
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchEurostar(ctx, from, to, date, endDate, opts.Currency, true)
-			results <- providerResult{routes: routes, err: err, name: "eurostar snap"}
-		}()
+		launchProvider(&wg, results, "eurostar snap", func() ([]models.GroundRoute, error) {
+			return SearchEurostar(ctx, from, to, date, endDate, opts.Currency, true)
+		})
 
 		// Regular fares goroutine.
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchEurostar(ctx, from, to, date, endDate, opts.Currency, false)
-			results <- providerResult{routes: routes, err: err, name: "eurostar"}
-		}()
+		launchProvider(&wg, results, "eurostar", func() ([]models.GroundRoute, error) {
+			return SearchEurostar(ctx, from, to, date, endDate, opts.Currency, false)
+		})
 	}
 
 	// NS (Dutch Railways) — only if at least one city has an NS station.
 	if useProvider("ns") && (HasNSStation(from) || HasNSStation(to)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchNS(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "ns"}
-		}()
+		launchProvider(&wg, results, "ns", func() ([]models.GroundRoute, error) {
+			return SearchNS(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Deutsche Bahn — if at least one city has a DB station (covers most European rail).
 	if useProvider("db") && (HasDBStation(from) || HasDBStation(to)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchDeutscheBahn(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "db"}
-		}()
+		launchProvider(&wg, results, "db", func() ([]models.GroundRoute, error) {
+			return SearchDeutscheBahn(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// SNCF — only if at least one city is French.
 	if useProvider("sncf") && HasSNCFRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchSNCF(ctx, from, to, date, opts.Currency, allowBrowserFallbacks)
-			results <- providerResult{routes: routes, err: err, name: "sncf"}
-		}()
+		launchProvider(&wg, results, "sncf", func() ([]models.GroundRoute, error) {
+			return SearchSNCF(ctx, from, to, date, opts.Currency, allowBrowserFallbacks)
+		})
 	}
 
 	// Trainline — train aggregator (covers SNCF, Eurostar, DB, Trenitalia, etc.)
 	if useProvider("trainline") && HasTrainlineStation(from) && HasTrainlineStation(to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchTrainline(ctx, from, to, date, opts.Currency, allowBrowserFallbacks)
-			results <- providerResult{routes: routes, err: err, name: "trainline"}
-		}()
+		launchProvider(&wg, results, "trainline", func() ([]models.GroundRoute, error) {
+			return SearchTrainline(ctx, from, to, date, opts.Currency, allowBrowserFallbacks)
+		})
 	}
 
 	// ÖBB (Austrian Federal Railways) — Austria and neighbouring countries.
 	if useProvider("oebb") && HasOebbRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchOebb(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "oebb"}
-		}()
+		launchProvider(&wg, results, "oebb", func() ([]models.GroundRoute, error) {
+			return SearchOebb(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Digitransit (VR Finnish Railways) — only if at least one city has a Finnish station.
 	if (useProvider("digitransit") || useProvider("vr")) && (HasDigitransitStation(from) || HasDigitransitStation(to)) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchDigitransit(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "vr"}
-		}()
+		launchProvider(&wg, results, "vr", func() ([]models.GroundRoute, error) {
+			return SearchDigitransit(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Renfe (Spain) — only if at least one city has a Renfe station (Spanish rail).
 	if useProvider("renfe") && HasRenfeRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchRenfe(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "renfe"}
-		}()
+		launchProvider(&wg, results, "renfe", func() ([]models.GroundRoute, error) {
+			return SearchRenfe(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Tallink/Silja Line — ferry routes in the Baltic Sea.
 	if useProvider("tallink") && HasTallinkRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchTallink(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "tallink"}
-		}()
+		launchProvider(&wg, results, "tallink", func() ([]models.GroundRoute, error) {
+			return SearchTallink(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Stena Line — ferry routes across the North Sea and Baltic Sea.
 	if useProvider("stenaline") && HasStenaLineRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchStenaLine(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "stenaline"}
-		}()
+		launchProvider(&wg, results, "stenaline", func() ([]models.GroundRoute, error) {
+			return SearchStenaLine(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// DFDS — ferry routes across the North Sea and Baltic Sea.
 	if useProvider("dfds") && HasDFDSRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchDFDS(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "dfds"}
-		}()
+		launchProvider(&wg, results, "dfds", func() ([]models.GroundRoute, error) {
+			return SearchDFDS(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Viking Line — ferry routes in the Baltic Sea (Helsinki–Tallinn, Helsinki–Stockholm,
 	// Turku–Stockholm, Stockholm–Mariehamn).
 	if useProvider("vikingline") && HasVikingLineRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchVikingLine(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "vikingline"}
-		}()
+		launchProvider(&wg, results, "vikingline", func() ([]models.GroundRoute, error) {
+			return SearchVikingLine(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Eckerö Line — Helsinki ↔ Tallinn ferry (M/S Finlandia).
 	if useProvider("eckeroline") && HasEckeroLineRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchEckeroLine(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "eckeroline"}
-		}()
+		launchProvider(&wg, results, "eckeroline", func() ([]models.GroundRoute, error) {
+			return SearchEckeroLine(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Finnlines — Helsinki ↔ Travemünde, Naantali ↔ Kapellskär, Malmö ↔ Świnoujście.
 	if useProvider("finnlines") && HasFinnlinesRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchFinnlines(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "finnlines"}
-		}()
+		launchProvider(&wg, results, "finnlines", func() ([]models.GroundRoute, error) {
+			return SearchFinnlines(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Ferryhopper — Greek ferry aggregator (Aegean, Ionian, Adriatic seas).
 	// Uses the public Ferryhopper MCP endpoint; no API key required.
 	// Accepts free-form location names so it is always attempted.
 	if useProvider("ferryhopper") {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchFerryhopper(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "ferryhopper"}
-		}()
+		launchProvider(&wg, results, "ferryhopper", func() ([]models.GroundRoute, error) {
+			return SearchFerryhopper(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// European Sleeper — night train Brussels→Amsterdam→Berlin→Dresden→Prague.
 	if useProvider("european_sleeper") && HasEuropeanSleeperRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchEuropeanSleeper(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "european_sleeper"}
-		}()
+		launchProvider(&wg, results, "european_sleeper", func() ([]models.GroundRoute, error) {
+			return SearchEuropeanSleeper(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Snälltåget — Swedish night trains (Stockholm→Malmö, Stockholm→Åre, Stockholm→Berlin).
 	if useProvider("snalltaget") && HasSnalltagetRoute(from, to) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := SearchSnalltaget(ctx, from, to, date, opts.Currency)
-			results <- providerResult{routes: routes, err: err, name: "snalltaget"}
-		}()
+		launchProvider(&wg, results, "snalltaget", func() ([]models.GroundRoute, error) {
+			return SearchSnalltaget(ctx, from, to, date, opts.Currency)
+		})
 	}
 
 	// Transitous — coordinate-based, always available as a fallback.
 	// Requires geocoding city names to coordinates; skipped if geocoding fails.
 	if useProvider("transitous") {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			routes, err := searchTransitousByName(ctx, from, to, date)
-			results <- providerResult{routes: routes, err: err, name: "transitous"}
-		}()
+		launchProvider(&wg, results, "transitous", func() ([]models.GroundRoute, error) {
+			return searchTransitousByName(ctx, from, to, date)
+		})
 	}
 
 	go func() {
@@ -513,61 +459,68 @@ func filterUnavailableGroundRoutes(routes []models.GroundRoute) []models.GroundR
 	return filtered
 }
 
-// searchFlixBusByName resolves city names and searches FlixBus.
-func searchFlixBusByName(ctx context.Context, from, to, date string, opts SearchOptions) ([]models.GroundRoute, error) {
-	fromCities, err := FlixBusAutoComplete(ctx, from)
+// resolveAndSearch is a generic helper that resolves city names via an
+// autocomplete function, then delegates to a search function that receives the
+// resolved from/to cities. It eliminates the identical resolve-from / resolve-to
+// / check-empty / call-search boilerplate shared by FlixBus and RegioJet.
+func resolveAndSearch[T any](
+	ctx context.Context,
+	from, to string,
+	providerName string,
+	autoComplete func(ctx context.Context, query string) ([]T, error),
+	search func(fromCity, toCity T) ([]models.GroundRoute, error),
+) ([]models.GroundRoute, error) {
+	fromCities, err := autoComplete(ctx, from)
 	if err != nil {
 		return nil, fmt.Errorf("resolve from city: %w", err)
 	}
 	if len(fromCities) == 0 {
-		return nil, fmt.Errorf("no FlixBus city found for %q", from)
+		return nil, fmt.Errorf("no %s city found for %q", providerName, from)
 	}
 
-	toCities, err := FlixBusAutoComplete(ctx, to)
+	toCities, err := autoComplete(ctx, to)
 	if err != nil {
 		return nil, fmt.Errorf("resolve to city: %w", err)
 	}
 	if len(toCities) == 0 {
-		return nil, fmt.Errorf("no FlixBus city found for %q", to)
+		return nil, fmt.Errorf("no %s city found for %q", providerName, to)
 	}
 
-	routes, err := SearchFlixBus(ctx, fromCities[0].ID, toCities[0].ID, date, opts)
-	if err != nil {
-		return nil, err
-	}
+	return search(fromCities[0], toCities[0])
+}
 
-	// Enrich city names
-	for i := range routes {
-		if routes[i].Departure.City == "" {
-			routes[i].Departure.City = fromCities[0].Name
-		}
-		if routes[i].Arrival.City == "" {
-			routes[i].Arrival.City = toCities[0].Name
-		}
-	}
-
-	return routes, nil
+// searchFlixBusByName resolves city names and searches FlixBus.
+func searchFlixBusByName(ctx context.Context, from, to, date string, opts SearchOptions) ([]models.GroundRoute, error) {
+	routes, err := resolveAndSearch(ctx, from, to, "FlixBus",
+		FlixBusAutoComplete,
+		func(fromCity, toCity FlixBusCity) ([]models.GroundRoute, error) {
+			results, err := SearchFlixBus(ctx, fromCity.ID, toCity.ID, date, opts)
+			if err != nil {
+				return nil, err
+			}
+			// Enrich city names
+			for i := range results {
+				if results[i].Departure.City == "" {
+					results[i].Departure.City = fromCity.Name
+				}
+				if results[i].Arrival.City == "" {
+					results[i].Arrival.City = toCity.Name
+				}
+			}
+			return results, nil
+		},
+	)
+	return routes, err
 }
 
 // searchRegioJetByName resolves city names and searches RegioJet.
 func searchRegioJetByName(ctx context.Context, from, to, date string, opts SearchOptions) ([]models.GroundRoute, error) {
-	fromCities, err := RegioJetAutoComplete(ctx, from)
-	if err != nil {
-		return nil, fmt.Errorf("resolve from city: %w", err)
-	}
-	if len(fromCities) == 0 {
-		return nil, fmt.Errorf("no RegioJet city found for %q", from)
-	}
-
-	toCities, err := RegioJetAutoComplete(ctx, to)
-	if err != nil {
-		return nil, fmt.Errorf("resolve to city: %w", err)
-	}
-	if len(toCities) == 0 {
-		return nil, fmt.Errorf("no RegioJet city found for %q", to)
-	}
-
-	return SearchRegioJet(ctx, fromCities[0].ID, toCities[0].ID, date, opts)
+	return resolveAndSearch(ctx, from, to, "RegioJet",
+		RegioJetAutoComplete,
+		func(fromCity, toCity RegioJetCity) ([]models.GroundRoute, error) {
+			return SearchRegioJet(ctx, fromCity.ID, toCity.ID, date, opts)
+		},
+	)
 }
 
 // searchTransitousByName geocodes city names to coordinates and searches Transitous.

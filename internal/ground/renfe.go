@@ -12,14 +12,13 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // renfeAPIBase is the Renfe REST API endpoint for price/calendar queries.
 const renfeAPIBase = "https://wsrestcorp.renfe.es/api/wsrviajeros/vhi_priceCalendar"
 
 // renfeLimiter: conservative 5 req/min.
-var renfeLimiter = rate.NewLimiter(rate.Every(12*time.Second), 1)
+var renfeLimiter = newProviderLimiter(12 * time.Second)
 
 // renfeClient is a shared HTTP client for Renfe API calls.
 var renfeClient = &http.Client{

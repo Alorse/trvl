@@ -18,7 +18,6 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/cookies"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	trvlnab "github.com/MikkoParkkola/trvl/internal/nab"
-	"golang.org/x/time/rate"
 )
 
 // SNCF calendar prices endpoint (public, no auth).
@@ -28,7 +27,7 @@ import (
 const sncfCalendarEndpoint = "https://www.sncf-connect.com/calendar/cdp/api/public/calendar/v4/outward"
 
 // sncfLimiter enforces a conservative rate limit: 10 req/min.
-var sncfLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
+var sncfLimiter = newProviderLimiter(6 * time.Second)
 
 // sncfClient is a dedicated HTTP client for SNCF API calls.
 // Uses Chrome TLS fingerprint via utls to bypass Cloudflare bot detection.

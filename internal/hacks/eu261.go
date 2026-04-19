@@ -19,7 +19,7 @@ var euAirports = map[string]bool{
 // detectEU261 reminds travellers on EU-departing flights about their
 // compensation rights under EU Regulation 261/2004.
 func detectEU261(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" || in.Date == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 

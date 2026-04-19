@@ -57,7 +57,7 @@ var destinationAlternatives = map[string][]alternativeAirport{
 // zero API calls. It complements detectPositioning which handles alternative
 // ORIGIN airports.
 func detectDestinationAirport(_ context.Context, in DetectorInput) []Hack {
-	if in.Destination == "" || in.Origin == "" {
+	if !in.valid() {
 		return nil
 	}
 

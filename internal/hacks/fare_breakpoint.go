@@ -51,7 +51,7 @@ var airlineNames = map[string]string{
 // could yield cheaper tickets by splitting the journey into separate zone
 // components. This is purely advisory — no API calls are made.
 func detectFareBreakpoint(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" {
+	if !in.valid() {
 		return nil
 	}
 

@@ -6,25 +6,16 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
-)
-
-var (
-	defaultClient     *batchexec.Client
-	defaultClientOnce sync.Once
 )
 
 // DefaultClient returns a shared batchexec.Client for the flights package.
 // The client is created once and reused across all requests, enabling
 // connection reuse and shared rate limiting.
 func DefaultClient() *batchexec.Client {
-	defaultClientOnce.Do(func() {
-		defaultClient = batchexec.NewClient()
-	})
-	return defaultClient
+	return batchexec.SharedClient()
 }
 
 // SearchOptions configures a flight search.

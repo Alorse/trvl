@@ -211,6 +211,11 @@ func (in *DetectorInput) currency() string {
 	return "EUR"
 }
 
+// valid returns true when Origin and Destination are both non-empty.
+func (in *DetectorInput) valid() bool {
+	return in.Origin != "" && in.Destination != ""
+}
+
 // StopoverProgram describes an airline's free stopover offer.
 type StopoverProgram struct {
 	Airline      string

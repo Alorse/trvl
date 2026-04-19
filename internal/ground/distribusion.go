@@ -31,14 +31,13 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"golang.org/x/time/rate"
 )
 
 // distribusionAPIBase is the Distribusion retailers API base URL.
 const distribusionAPIBase = "https://api.distribusion.com/retailers/v4"
 
 // distribusionLimiter: conservative 10 req/min until actual limits are known.
-var distribusionLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
+var distribusionLimiter = newProviderLimiter(6 * time.Second)
 
 var distribusionTitleCaser = cases.Title(language.English)
 
@@ -80,24 +79,24 @@ var distribusionStationCodes = map[string]string{
 	"malmo":      "SEMMAX",
 
 	// Germany
-	"berlin":   "DEBERZ",
-	"ber":      "DEBERZ",
-	"hamburg":  "DEHAMS",
-	"munich":   "DEMUCZ",
-	"münchen":  "DEMUCZ",
-	"munchen":  "DEMUCZ",
+	"berlin":    "DEBERZ",
+	"ber":       "DEBERZ",
+	"hamburg":   "DEHAMS",
+	"munich":    "DEMUCZ",
+	"münchen":   "DEMUCZ",
+	"munchen":   "DEMUCZ",
 	"frankfurt": "DEFRAS",
-	"cologne":  "DECGNX",
-	"köln":     "DECGNX",
-	"koln":     "DECGNX",
+	"cologne":   "DECGNX",
+	"köln":      "DECGNX",
+	"koln":      "DECGNX",
 
 	// Poland
-	"warsaw":  "PLWAWS",
-	"waw":     "PLWAWS",
-	"krakow":  "PLKRKS",
-	"kraków":  "PLKRKS",
-	"gdansk":  "PLGDNS",
-	"gdańsk":  "PLGDNS",
+	"warsaw": "PLWAWS",
+	"waw":    "PLWAWS",
+	"krakow": "PLKRKS",
+	"kraków": "PLKRKS",
+	"gdansk": "PLGDNS",
+	"gdańsk": "PLGDNS",
 
 	// Czech Republic
 	"prague": "CZPRGS",
@@ -119,12 +118,12 @@ var distribusionStationCodes = map[string]string{
 	"antwerp":  "BEANTS",
 
 	// France
-	"paris":    "FRPARS",
-	"cdg":      "FRPARS",
-	"lyon":     "FRLYSZ",
+	"paris":     "FRPARS",
+	"cdg":       "FRPARS",
+	"lyon":      "FRLYSZ",
 	"marseille": "FRMRSS",
-	"bordeaux": "FRBODX",
-	"toulouse": "FRTLSS",
+	"bordeaux":  "FRBODX",
+	"toulouse":  "FRTLSS",
 
 	// United Kingdom
 	"london":     "GBLONS",
@@ -139,7 +138,7 @@ var distribusionStationCodes = map[string]string{
 	"aarhus":     "DKAAAS",
 
 	// Norway
-	"oslo": "NOOSX",
+	"oslo":   "NOOSX",
 	"bergen": "NOBGOS",
 
 	// Spain
@@ -156,9 +155,9 @@ var distribusionStationCodes = map[string]string{
 	"venice": "ITIVEZ",
 
 	// Switzerland
-	"zurich":  "CHZRHS",
-	"geneva":  "CHGEVS",
-	"basel":   "CHBSLS",
+	"zurich": "CHZRHS",
+	"geneva": "CHGEVS",
+	"basel":  "CHBSLS",
 
 	// Hungary
 	"budapest": "HUBUBS",
@@ -176,7 +175,7 @@ var distribusionStationCodes = map[string]string{
 	"belgrade": "RSBELS",
 
 	// Greece
-	"athens":    "GRATHL",
+	"athens":       "GRATHL",
 	"thessaloniki": "GRSKGS",
 
 	// Portugal
@@ -202,50 +201,50 @@ func distribusionStationCode(city string) string {
 // distribusionJSONAPI is the top-level JSONAPI envelope returned by the
 // Distribusion API.
 type distribusionJSONAPI struct {
-	Data     []distribusionData       `json:"data"`
-	Included []distribusionIncluded   `json:"included"`
-	Meta     distribusionMeta         `json:"meta"`
+	Data     []distribusionData     `json:"data"`
+	Included []distribusionIncluded `json:"included"`
+	Meta     distribusionMeta       `json:"meta"`
 }
 
 // distribusionData is a single resource in the JSONAPI data array.
 type distribusionData struct {
-	ID         string                        `json:"id"`
-	Type       string                        `json:"type"`
-	Attributes distribusionConnectionAttrs   `json:"attributes"`
+	ID         string                      `json:"id"`
+	Type       string                      `json:"type"`
+	Attributes distribusionConnectionAttrs `json:"attributes"`
 }
 
 // distribusionConnectionAttrs holds the attributes of a connection resource.
 type distribusionConnectionAttrs struct {
-	DepartureTime      string  `json:"departure_time"`       // ISO 8601
-	ArrivalTime        string  `json:"arrival_time"`         // ISO 8601
-	DurationInMinutes  int     `json:"duration_in_minutes"`
-	LowestPrice        int     `json:"lowest_price"`         // price in cents
-	Currency           string  `json:"currency"`
-	TrafficType        string  `json:"traffic_type"`         // "bus", "train", "ferry"
+	DepartureTime        string `json:"departure_time"` // ISO 8601
+	ArrivalTime          string `json:"arrival_time"`   // ISO 8601
+	DurationInMinutes    int    `json:"duration_in_minutes"`
+	LowestPrice          int    `json:"lowest_price"` // price in cents
+	Currency             string `json:"currency"`
+	TrafficType          string `json:"traffic_type"` // "bus", "train", "ferry"
 	MarketingCarrierCode string `json:"marketing_carrier_code"`
 	DepartureStationCode string `json:"departure_station_code"`
 	ArrivalStationCode   string `json:"arrival_station_code"`
-	BookingURL         string  `json:"booking_url,omitempty"`
-	Available          bool    `json:"available"`
-	SeatsAvailable     *int    `json:"seats_available,omitempty"`
+	BookingURL           string `json:"booking_url,omitempty"`
+	Available            bool   `json:"available"`
+	SeatsAvailable       *int   `json:"seats_available,omitempty"`
 }
 
 // distribusionIncluded holds related resources (stations, carriers) included
 // in the response per JSONAPI compound-document spec.
 type distribusionIncluded struct {
-	ID         string                      `json:"id"`
-	Type       string                      `json:"type"`
-	Attributes distribusionIncludedAttrs   `json:"attributes"`
+	ID         string                    `json:"id"`
+	Type       string                    `json:"type"`
+	Attributes distribusionIncludedAttrs `json:"attributes"`
 }
 
 // distribusionIncludedAttrs holds attributes for included resources (stations
 // and marketing carriers).
 type distribusionIncludedAttrs struct {
 	// Station attributes
-	Name    string  `json:"name"`
-	City    string  `json:"city"`
-	Lat     float64 `json:"latitude,omitempty"`
-	Lon     float64 `json:"longitude,omitempty"`
+	Name string  `json:"name"`
+	City string  `json:"city"`
+	Lat  float64 `json:"latitude,omitempty"`
+	Lon  float64 `json:"longitude,omitempty"`
 	// Carrier attributes
 	TradeNameEn string `json:"trade_name_en,omitempty"`
 }

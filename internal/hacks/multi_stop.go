@@ -57,7 +57,7 @@ const minLayoverMinutesForStopover = 240 // 4 hours
 // detectMultiStop identifies round-trips that route through an airline hub
 // with a long enough layover to make a meaningful city visit.
 func detectMultiStop(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -150,7 +150,7 @@ func detectMultiStop(ctx context.Context, in DetectorInput) []Hack {
 				},
 				Steps: steps,
 				Citations: []string{
-					fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, in.Date),
+					googleFlightsURL(in.Destination, in.Origin, in.Date),
 				},
 			})
 		}

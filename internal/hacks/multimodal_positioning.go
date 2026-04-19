@@ -105,7 +105,7 @@ const minSavingsFraction = 0.20
 // nearby hub airport and flying from there is cheaper than flying directly,
 // by more than 20 %.
 func detectMultiModalPositioning(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -214,8 +214,7 @@ func detectMultiModalPositioning(ctx context.Context, in DetectorInput) []Hack {
 				"Allow at least 2 hours between ground arrival and flight departure",
 			},
 			Citations: []string{
-				fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s",
-					in.Destination, c.hub.HubCode, in.Date),
+				googleFlightsURL(in.Destination, c.hub.HubCode, in.Date),
 			},
 		})
 	}

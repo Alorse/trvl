@@ -38,7 +38,7 @@ var knownArbitrageAirlines = []currencyArbitrageNote{
 // static knowledge about typical FX markup percentages rather than live
 // multi-currency quotes.
 func detectCurrencyArbitrage(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -110,7 +110,7 @@ func detectCurrencyArbitrage(ctx context.Context, in DetectorInput) []Hack {
 				"Pay with a card that has no foreign transaction fees",
 			},
 			Citations: []string{
-				fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, in.Date),
+				googleFlightsURL(in.Destination, in.Origin, in.Date),
 			},
 		})
 	}

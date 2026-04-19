@@ -39,7 +39,7 @@ var hiddenCityExtensions = map[string][]string{
 // Only suggested when carry-on only is set or CarryOnOnly flag is true,
 // because checked bags are routed to the final destination.
 func detectHiddenCity(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -164,7 +164,7 @@ func buildHiddenCityHack(in DetectorInput, beyond string, beyondPrice, directPri
 			"Tip: booking from Eastern European origins (PRG, KRK, BUD, WAW) to hub cities via cheap beyond-destinations leverages lower market pricing",
 		},
 		Citations: []string{
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", beyond, in.Origin, in.Date),
+			googleFlightsURL(beyond, in.Origin, in.Date),
 		},
 	}
 }

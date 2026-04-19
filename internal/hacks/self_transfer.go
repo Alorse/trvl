@@ -60,7 +60,7 @@ var lccDirectRoutes = map[string]map[string]bool{
 // the user might save by booking two separate one-way LCC tickets through
 // a hub airport.
 func detectSelfTransfer(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" {
+	if !in.valid() {
 		return nil
 	}
 

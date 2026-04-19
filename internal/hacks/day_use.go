@@ -8,7 +8,7 @@ import (
 // layovers. Day-use services offer 4-8 hour room blocks at 50-70% of the
 // overnight rate. Purely advisory — zero API calls.
 func detectDayUse(_ context.Context, in DetectorInput) []Hack {
-	if in.Origin == "" || in.Destination == "" {
+	if !in.valid() {
 		return nil
 	}
 

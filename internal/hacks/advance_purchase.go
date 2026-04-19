@@ -179,7 +179,7 @@ var airportCoords = map[string][2]float64{
 
 // detectAdvancePurchase checks if the booking timing is optimal for the route type.
 func detectAdvancePurchase(_ context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 

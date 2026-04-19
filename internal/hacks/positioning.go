@@ -76,7 +76,7 @@ type nearbyEntry struct {
 // detectPositioning checks whether flying from a nearby airport is cheaper
 // even after adding ground-transit costs.
 func detectPositioning(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -135,7 +135,7 @@ func detectPositioning(ctx context.Context, in DetectorInput) []Hack {
 				"Allow at least 2 hours at the alternative airport for check-in",
 			},
 			Citations: []string{
-				fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, entry.Code, in.Date),
+				googleFlightsURL(in.Destination, entry.Code, in.Date),
 			},
 		})
 	}

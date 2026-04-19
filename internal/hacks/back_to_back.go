@@ -28,7 +28,7 @@ const backToBackOverlapDays = 14
 // savings. If any search fails it falls back to the advisory message.
 func detectBackToBack(ctx context.Context, in DetectorInput) []Hack {
 	// Only fire when there's a return date (user is booking round-trip).
-	if in.Origin == "" || in.Destination == "" || in.ReturnDate == "" {
+	if !in.valid() || in.ReturnDate == "" {
 		return nil
 	}
 	if in.Date == "" {
@@ -170,8 +170,8 @@ func backToBackLivePrices(ctx context.Context, in DetectorInput) ([]Hack, bool) 
 			"Book on different booking references to avoid pattern detection",
 		},
 		Citations: []string{
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", dest, origin, departDate),
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", origin, dest, returnDate),
+			googleFlightsURL(dest, origin, departDate),
+			googleFlightsURL(origin, dest, returnDate),
 		},
 	}
 

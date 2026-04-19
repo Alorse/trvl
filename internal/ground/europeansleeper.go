@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // europeanSleeperBase is the base URL for the European Sleeper booking API
@@ -20,7 +19,7 @@ import (
 const europeanSleeperBase = "https://booking.europeansleeper.eu"
 
 // europeanSleeperLimiter: conservative 1 req/6s.
-var europeanSleeperLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
+var europeanSleeperLimiter = newProviderLimiter(6 * time.Second)
 
 // europeanSleeperClient is a shared HTTP client for European Sleeper API calls.
 var europeanSleeperClient = &http.Client{
@@ -83,14 +82,14 @@ type europeanSleeperTripsResponse struct {
 }
 
 type europeanSleeperTrip struct {
-	DepartureTime string                    `json:"departureTime"`
-	ArrivalTime   string                    `json:"arrivalTime"`
-	Duration      int                       `json:"duration"` // minutes
-	Origin        europeanSleeperTripStop   `json:"origin"`
-	Destination   europeanSleeperTripStop   `json:"destination"`
-	Prices        []europeanSleeperPrice    `json:"prices"`
-	Fares         []europeanSleeperPrice    `json:"fares"` // alternative key
-	Segments      []europeanSleeperSegment  `json:"segments"`
+	DepartureTime string                   `json:"departureTime"`
+	ArrivalTime   string                   `json:"arrivalTime"`
+	Duration      int                      `json:"duration"` // minutes
+	Origin        europeanSleeperTripStop  `json:"origin"`
+	Destination   europeanSleeperTripStop  `json:"destination"`
+	Prices        []europeanSleeperPrice   `json:"prices"`
+	Fares         []europeanSleeperPrice   `json:"fares"` // alternative key
+	Segments      []europeanSleeperSegment `json:"segments"`
 }
 
 type europeanSleeperTripStop struct {

@@ -108,7 +108,7 @@ var nearbyHubs = map[string][]nearbyHub{
 // and completing the journey by ground transport is cheaper than flying directly
 // to the destination.
 func detectMultiModalOpenJawGround(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -219,8 +219,7 @@ func detectMultiModalOpenJawGround(ctx context.Context, in DetectorInput) []Hack
 				fmt.Sprintf("Arrive at %s (~%.0f EUR ground cost)", c.hub.DestCity, c.groundEUR),
 			},
 			Citations: []string{
-				fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s",
-					c.hub.HubCode, in.Origin, in.Date),
+				googleFlightsURL(c.hub.HubCode, in.Origin, in.Date),
 			},
 		})
 	}

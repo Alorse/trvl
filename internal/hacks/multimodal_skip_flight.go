@@ -14,7 +14,7 @@ import (
 //
 // Threshold: net saving must exceed EUR 50 before this hack is surfaced.
 func detectMultiModalSkipFlight(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 

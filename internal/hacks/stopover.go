@@ -12,7 +12,7 @@ import (
 // offers a free multi-day stopover program, so the traveller can add a free
 // city visit with no extra airfare.
 func detectStopover(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 

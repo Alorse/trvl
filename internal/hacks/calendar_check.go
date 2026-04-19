@@ -31,7 +31,7 @@ var staticHolidayPeriods = []holidayPeriod{
 // detectCalendarConflict warns if the requested date falls inside a European
 // peak travel period and suggests shifting by ±1 week (if cheaper).
 func detectCalendarConflict(ctx context.Context, in DetectorInput) []Hack {
-	if in.Date == "" || in.Origin == "" || in.Destination == "" {
+	if !in.valid() || in.Date == "" {
 		return nil
 	}
 
@@ -115,7 +115,7 @@ func detectCalendarConflict(ctx context.Context, in DetectorInput) []Hack {
 			"Update hotel bookings if switching dates",
 		},
 		Citations: []string{
-			fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", in.Destination, in.Origin, best.date),
+			googleFlightsURL(in.Destination, in.Origin, best.date),
 		},
 	}}
 }

@@ -6,7 +6,7 @@ import "context"
 // destination when a longer route may be cheaper.  Unlike flights, bus and
 // train operators do not cancel tickets if the passenger exits early.
 func detectThrowawayGround(_ context.Context, in DetectorInput) []Hack {
-	if in.Destination == "" || in.Origin == "" {
+	if !in.valid() {
 		return nil
 	}
 

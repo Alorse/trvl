@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 const dbJourneysEndpoint = "https://app.services-bahn.de/mob/angebote/fahrplan"
@@ -30,7 +29,7 @@ func generateCorrelationID() string {
 }
 
 // dbLimiter enforces a conservative rate limit: 30 req/min (half of the actual 60/min limit).
-var dbLimiter = rate.NewLimiter(rate.Every(2*time.Second), 1)
+var dbLimiter = newProviderLimiter(2 * time.Second)
 
 // dbClient is a dedicated HTTP client for Deutsche Bahn API calls.
 var dbClient = &http.Client{
@@ -49,35 +48,35 @@ type DBStation struct {
 // EVA numbers sourced from Deutsche Bahn's public station data.
 var dbStations = map[string]DBStation{
 	// Germany
-	"berlin":      {EVA: "8011160", Name: "Berlin Hbf", City: "Berlin", Country: "DE"},
-	"munich":      {EVA: "8000261", Name: "München Hbf", City: "Munich", Country: "DE"},
-	"münchen":     {EVA: "8000261", Name: "München Hbf", City: "Munich", Country: "DE"},
-	"frankfurt":   {EVA: "8000105", Name: "Frankfurt(Main)Hbf", City: "Frankfurt", Country: "DE"},
-	"hamburg":     {EVA: "8002549", Name: "Hamburg Hbf", City: "Hamburg", Country: "DE"},
-	"cologne":     {EVA: "8000207", Name: "Köln Hbf", City: "Cologne", Country: "DE"},
-	"köln":        {EVA: "8000207", Name: "Köln Hbf", City: "Cologne", Country: "DE"},
-	"düsseldorf":  {EVA: "8000085", Name: "Düsseldorf Hbf", City: "Düsseldorf", Country: "DE"},
-	"dusseldorf":  {EVA: "8000085", Name: "Düsseldorf Hbf", City: "Düsseldorf", Country: "DE"},
-	"stuttgart":   {EVA: "8000096", Name: "Stuttgart Hbf", City: "Stuttgart", Country: "DE"},
-	"nuremberg":   {EVA: "8000284", Name: "Nürnberg Hbf", City: "Nuremberg", Country: "DE"},
-	"nürnberg":    {EVA: "8000284", Name: "Nürnberg Hbf", City: "Nuremberg", Country: "DE"},
-	"hannover":    {EVA: "8000152", Name: "Hannover Hbf", City: "Hannover", Country: "DE"},
-	"hanover":     {EVA: "8000152", Name: "Hannover Hbf", City: "Hannover", Country: "DE"},
-	"leipzig":     {EVA: "8010205", Name: "Leipzig Hbf", City: "Leipzig", Country: "DE"},
-	"dresden":     {EVA: "8010085", Name: "Dresden Hbf", City: "Dresden", Country: "DE"},
-	"bremen":      {EVA: "8000050", Name: "Bremen Hbf", City: "Bremen", Country: "DE"},
-	"freiburg":    {EVA: "8000107", Name: "Freiburg(Breisgau) Hbf", City: "Freiburg", Country: "DE"},
-	"karlsruhe":   {EVA: "8000191", Name: "Karlsruhe Hbf", City: "Karlsruhe", Country: "DE"},
-	"mannheim":    {EVA: "8000244", Name: "Mannheim Hbf", City: "Mannheim", Country: "DE"},
-	"augsburg":    {EVA: "8000013", Name: "Augsburg Hbf", City: "Augsburg", Country: "DE"},
-	"dortmund":    {EVA: "8000080", Name: "Dortmund Hbf", City: "Dortmund", Country: "DE"},
-	"essen":       {EVA: "8000098", Name: "Essen Hbf", City: "Essen", Country: "DE"},
-	"aachen":      {EVA: "8000001", Name: "Aachen Hbf", City: "Aachen", Country: "DE"},
+	"berlin":     {EVA: "8011160", Name: "Berlin Hbf", City: "Berlin", Country: "DE"},
+	"munich":     {EVA: "8000261", Name: "München Hbf", City: "Munich", Country: "DE"},
+	"münchen":    {EVA: "8000261", Name: "München Hbf", City: "Munich", Country: "DE"},
+	"frankfurt":  {EVA: "8000105", Name: "Frankfurt(Main)Hbf", City: "Frankfurt", Country: "DE"},
+	"hamburg":    {EVA: "8002549", Name: "Hamburg Hbf", City: "Hamburg", Country: "DE"},
+	"cologne":    {EVA: "8000207", Name: "Köln Hbf", City: "Cologne", Country: "DE"},
+	"köln":       {EVA: "8000207", Name: "Köln Hbf", City: "Cologne", Country: "DE"},
+	"düsseldorf": {EVA: "8000085", Name: "Düsseldorf Hbf", City: "Düsseldorf", Country: "DE"},
+	"dusseldorf": {EVA: "8000085", Name: "Düsseldorf Hbf", City: "Düsseldorf", Country: "DE"},
+	"stuttgart":  {EVA: "8000096", Name: "Stuttgart Hbf", City: "Stuttgart", Country: "DE"},
+	"nuremberg":  {EVA: "8000284", Name: "Nürnberg Hbf", City: "Nuremberg", Country: "DE"},
+	"nürnberg":   {EVA: "8000284", Name: "Nürnberg Hbf", City: "Nuremberg", Country: "DE"},
+	"hannover":   {EVA: "8000152", Name: "Hannover Hbf", City: "Hannover", Country: "DE"},
+	"hanover":    {EVA: "8000152", Name: "Hannover Hbf", City: "Hannover", Country: "DE"},
+	"leipzig":    {EVA: "8010205", Name: "Leipzig Hbf", City: "Leipzig", Country: "DE"},
+	"dresden":    {EVA: "8010085", Name: "Dresden Hbf", City: "Dresden", Country: "DE"},
+	"bremen":     {EVA: "8000050", Name: "Bremen Hbf", City: "Bremen", Country: "DE"},
+	"freiburg":   {EVA: "8000107", Name: "Freiburg(Breisgau) Hbf", City: "Freiburg", Country: "DE"},
+	"karlsruhe":  {EVA: "8000191", Name: "Karlsruhe Hbf", City: "Karlsruhe", Country: "DE"},
+	"mannheim":   {EVA: "8000244", Name: "Mannheim Hbf", City: "Mannheim", Country: "DE"},
+	"augsburg":   {EVA: "8000013", Name: "Augsburg Hbf", City: "Augsburg", Country: "DE"},
+	"dortmund":   {EVA: "8000080", Name: "Dortmund Hbf", City: "Dortmund", Country: "DE"},
+	"essen":      {EVA: "8000098", Name: "Essen Hbf", City: "Essen", Country: "DE"},
+	"aachen":     {EVA: "8000001", Name: "Aachen Hbf", City: "Aachen", Country: "DE"},
 
 	// Austria
-	"vienna": {EVA: "8101003", Name: "Wien Hbf", City: "Vienna", Country: "AT"},
-	"wien":   {EVA: "8101003", Name: "Wien Hbf", City: "Vienna", Country: "AT"},
-	"salzburg": {EVA: "8100002", Name: "Salzburg Hbf", City: "Salzburg", Country: "AT"},
+	"vienna":    {EVA: "8101003", Name: "Wien Hbf", City: "Vienna", Country: "AT"},
+	"wien":      {EVA: "8101003", Name: "Wien Hbf", City: "Vienna", Country: "AT"},
+	"salzburg":  {EVA: "8100002", Name: "Salzburg Hbf", City: "Salzburg", Country: "AT"},
 	"innsbruck": {EVA: "8100108", Name: "Innsbruck Hbf", City: "Innsbruck", Country: "AT"},
 
 	// Switzerland
@@ -88,7 +87,7 @@ var dbStations = map[string]DBStation{
 
 	// Netherlands
 	"amsterdam": {EVA: "8400058", Name: "Amsterdam Centraal", City: "Amsterdam", Country: "NL"},
-	"rotterdam":  {EVA: "8400530", Name: "Rotterdam Centraal", City: "Rotterdam", Country: "NL"},
+	"rotterdam": {EVA: "8400530", Name: "Rotterdam Centraal", City: "Rotterdam", Country: "NL"},
 
 	// Belgium
 	"brussels": {EVA: "8814001", Name: "Bruxelles-Midi", City: "Brussels", Country: "BE"},
@@ -165,7 +164,7 @@ func dbJourneysRequest(fromEVA, toEVA string, when time.Time) map[string]any {
 				"verkehrsmittel":             []string{"ALL"},
 				"alternativeHalteBerechnung": true,
 				"zeitWunsch": map[string]any{
-					"reiseDatum":  when.Format("2006-01-02T15:04:05"),
+					"reiseDatum":   when.Format("2006-01-02T15:04:05"),
 					"zeitPunktArt": "ABFAHRT",
 				},
 			},
@@ -186,16 +185,16 @@ type dbError struct {
 }
 
 type dbVerbindung struct {
-	Verbindung              *dbVerbindungInner `json:"verbindung,omitempty"`
-	Angebote                *dbAngebote        `json:"angebote,omitempty"`
-	VerbindungsAbschnitte   []dbAbschnitt      `json:"verbindungsAbschnitte,omitempty"`
-	AngebotsPreis           *dbPreis           `json:"angebotsPreis,omitempty"`
-	AbPreis                 *dbPreis           `json:"abPreis,omitempty"`
+	Verbindung            *dbVerbindungInner `json:"verbindung,omitempty"`
+	Angebote              *dbAngebote        `json:"angebote,omitempty"`
+	VerbindungsAbschnitte []dbAbschnitt      `json:"verbindungsAbschnitte,omitempty"`
+	AngebotsPreis         *dbPreis           `json:"angebotsPreis,omitempty"`
+	AbPreis               *dbPreis           `json:"abPreis,omitempty"`
 }
 
 type dbVerbindungInner struct {
 	VerbindungsAbschnitte []dbAbschnitt `json:"verbindungsAbschnitte"`
-	ReiseDauer            int           `json:"reiseDauer"`           // seconds
+	ReiseDauer            int           `json:"reiseDauer"` // seconds
 	UmstiegeAnzahl        int           `json:"umstiegeAnzahl"`
 }
 
@@ -204,12 +203,12 @@ type dbAngebote struct {
 }
 
 type dbPreise struct {
-	IstTeilpreis bool     `json:"istTeilpreis"`
+	IstTeilpreis bool      `json:"istTeilpreis"`
 	Gesamt       *dbGesamt `json:"gesamt,omitempty"`
 }
 
 type dbGesamt struct {
-	Klasse string  `json:"klasse"`
+	Klasse string   `json:"klasse"`
 	Ab     *dbPreis `json:"ab,omitempty"`
 }
 
@@ -219,20 +218,20 @@ type dbPreis struct {
 }
 
 type dbAbschnitt struct {
-	AbgangsDatum        string          `json:"abgangsDatum"`
-	AnkunftsDatum       string          `json:"ankunftsDatum"`
-	AbfahrtsZeitpunkt   string          `json:"abfahrtsZeitpunkt,omitempty"`
-	AnkunftsZeitpunkt   string          `json:"ankunftsZeitpunkt,omitempty"`
-	AbgangsOrt          *dbOrt          `json:"abgangsOrt,omitempty"`
-	AnkunftsOrt         *dbOrt          `json:"ankunftsOrt,omitempty"`
-	AnkunftsOrtObj      *dbOrt          `json:"ankunftsOrtObj,omitempty"`
-	Typ                 string          `json:"typ"`           // "FAHRZEUG", "FUSSWEG", "TRANSFER", "WALK"
-	Langtext            string          `json:"langtext"`
-	Mitteltext          string          `json:"mitteltext"`
-	Kurztext            string          `json:"kurztext"`
-	ProduktGattung      string          `json:"produktGattung"`
-	Verkehrsmittel      *dbVerkehrsmittel `json:"verkehrsmittel,omitempty"`
-	Halte               []dbHalt        `json:"halte"`
+	AbgangsDatum      string            `json:"abgangsDatum"`
+	AnkunftsDatum     string            `json:"ankunftsDatum"`
+	AbfahrtsZeitpunkt string            `json:"abfahrtsZeitpunkt,omitempty"`
+	AnkunftsZeitpunkt string            `json:"ankunftsZeitpunkt,omitempty"`
+	AbgangsOrt        *dbOrt            `json:"abgangsOrt,omitempty"`
+	AnkunftsOrt       *dbOrt            `json:"ankunftsOrt,omitempty"`
+	AnkunftsOrtObj    *dbOrt            `json:"ankunftsOrtObj,omitempty"`
+	Typ               string            `json:"typ"` // "FAHRZEUG", "FUSSWEG", "TRANSFER", "WALK"
+	Langtext          string            `json:"langtext"`
+	Mitteltext        string            `json:"mitteltext"`
+	Kurztext          string            `json:"kurztext"`
+	ProduktGattung    string            `json:"produktGattung"`
+	Verkehrsmittel    *dbVerkehrsmittel `json:"verkehrsmittel,omitempty"`
+	Halte             []dbHalt          `json:"halte"`
 }
 
 type dbVerkehrsmittel struct {
@@ -274,8 +273,8 @@ func fetchDBBestPrice(ctx context.Context, fromEVA, toEVA, date string) (float64
 
 	// Format A — matches the fahrplan request structure (with required fields).
 	reqBodyA := map[string]any{
-		"autonomeReservierung":          false,
-		"klasse":                        "KLASSE_2",
+		"autonomeReservierung":              false,
+		"klasse":                            "KLASSE_2",
 		"reservierungsKontingenteVorhanden": false,
 		"fahrverguenstigungen": map[string]any{
 			"deutschlandTicketVorhanden":       false,

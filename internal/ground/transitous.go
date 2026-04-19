@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
-	"golang.org/x/time/rate"
 )
 
 // Transitous provides the MOTIS 2 API for pan-European public transit routing.
@@ -21,7 +20,7 @@ const transitousEndpoint = "https://api.transitous.org/api/v1/plan"
 
 // transitousLimiter enforces a conservative rate limit: 10 req/min.
 // Transitous is a community-run service with limited resources.
-var transitousLimiter = rate.NewLimiter(rate.Every(6*time.Second), 1)
+var transitousLimiter = newProviderLimiter(6 * time.Second)
 
 // transitousClient is a dedicated HTTP client for Transitous API calls.
 var transitousClient = &http.Client{
@@ -36,23 +35,23 @@ type transitousResponse struct {
 }
 
 type transitousItinerary struct {
-	Duration  int              `json:"duration"`  // seconds
-	StartTime string           `json:"startTime"` // ISO 8601
-	EndTime   string           `json:"endTime"`   // ISO 8601
-	Transfers int              `json:"transfers"`
-	Legs      []transitousLeg  `json:"legs"`
+	Duration  int             `json:"duration"`  // seconds
+	StartTime string          `json:"startTime"` // ISO 8601
+	EndTime   string          `json:"endTime"`   // ISO 8601
+	Transfers int             `json:"transfers"`
+	Legs      []transitousLeg `json:"legs"`
 }
 
 type transitousLeg struct {
-	Mode      string          `json:"mode"` // WALK, BUS, TRAM, SUBWAY, RAIL, REGIONAL_RAIL, etc.
-	From      transitousPlace `json:"from"`
-	To        transitousPlace `json:"to"`
-	Duration  int             `json:"duration"` // seconds
-	StartTime string          `json:"startTime"`
-	EndTime   string          `json:"endTime"`
+	Mode      string           `json:"mode"` // WALK, BUS, TRAM, SUBWAY, RAIL, REGIONAL_RAIL, etc.
+	From      transitousPlace  `json:"from"`
+	To        transitousPlace  `json:"to"`
+	Duration  int              `json:"duration"` // seconds
+	StartTime string           `json:"startTime"`
+	EndTime   string           `json:"endTime"`
 	Route     *transitousRoute `json:"route,omitempty"`
-	TripId    string          `json:"tripId,omitempty"`
-	HeadSign  string          `json:"headsign,omitempty"`
+	TripId    string           `json:"tripId,omitempty"`
+	HeadSign  string           `json:"headsign,omitempty"`
 }
 
 type transitousPlace struct {
