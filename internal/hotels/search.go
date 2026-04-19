@@ -14,12 +14,16 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/providers"
+	"golang.org/x/sync/singleflight"
 )
 
 var (
 	defaultClient     *batchexec.Client
 	defaultClientOnce sync.Once
 )
+
+// hotelGroup deduplicates concurrent in-flight searches with identical parameters.
+var hotelGroup singleflight.Group
 
 // externalProviderRuntime is set by the MCP server when providers are configured.
 // It is nil when no external providers are available.
@@ -167,6 +171,11 @@ const pageSize = 20
 // Known values: 3=highest rated, 4=most reviewed, 8=price low-to-high.
 var googleSortOrders = []string{"", "3", "8"}
 
+// hotelSearchKey builds a singleflight dedup key from the search parameters.
+func hotelSearchKey(location, checkIn, checkOut string, guests int) string {
+	return fmt.Sprintf("hotel|%s|%s|%s|%d", location, checkIn, checkOut, guests)
+}
+
 // SearchHotelsWithClient is like SearchHotels but reuses the provided client.
 func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, location string, opts HotelSearchOptions) (*models.HotelSearchResult, error) {
 	location = normalizeHotelCity(location)
@@ -190,6 +199,18 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 		return nil, fmt.Errorf("parse check-out date: %w", err)
 	}
 
+	key := hotelSearchKey(location, opts.CheckIn, opts.CheckOut, opts.Guests)
+	v, sfErr, _ := hotelGroup.Do(key, func() (any, error) {
+		return searchHotelsCore(ctx, client, location, opts)
+	})
+	if sfErr != nil {
+		return nil, sfErr
+	}
+	return v.(*models.HotelSearchResult), nil
+}
+
+// searchHotelsCore performs the actual hotel search without singleflight wrapping.
+func searchHotelsCore(ctx context.Context, client *batchexec.Client, location string, opts HotelSearchOptions) (*models.HotelSearchResult, error) {
 	pageLimit := maxPages
 	if opts.MaxPages > 0 && opts.MaxPages < maxPages {
 		pageLimit = opts.MaxPages

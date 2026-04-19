@@ -9,7 +9,13 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"golang.org/x/sync/singleflight"
 )
+
+// flightGroup deduplicates concurrent in-flight searches with identical parameters.
+// Only truly concurrent requests are coalesced; the existing cache layer handles
+// TTL-based reuse between sequential calls.
+var flightGroup singleflight.Group
 
 // DefaultClient returns a shared batchexec.Client for the flights package.
 // The client is created once and reused across all requests, enabling
@@ -72,6 +78,18 @@ func SearchFlights(ctx context.Context, origin, destination, date string, opts S
 	return SearchFlightsWithClient(ctx, DefaultClient(), origin, destination, date, opts)
 }
 
+// flightSearchKey builds a singleflight dedup key from the search parameters.
+func flightSearchKey(origin, destination, date string, opts SearchOptions) string {
+	return fmt.Sprintf("flight|%s|%s|%s|%s|%d|%d|%d|%d|%d|%d|%d|%d|%s|%s|%v|%v|%v|%s|%s|%s",
+		origin, destination, date, opts.ReturnDate,
+		opts.CabinClass, opts.MaxStops, opts.SortBy, opts.Adults,
+		opts.MaxPrice, opts.MaxDuration, opts.CarryOnBags, opts.CheckedBags,
+		opts.Currency, strings.Join(opts.Airlines, ","),
+		opts.ExcludeBasic, opts.LessEmissions, opts.RequireCheckedBag,
+		strings.Join(opts.Alliances, ","), opts.DepartAfter, opts.DepartBefore,
+	)
+}
+
 // SearchFlightsWithClient is like SearchFlights but accepts a pre-built client,
 // useful for reusing connections across multiple requests.
 func SearchFlightsWithClient(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
@@ -88,6 +106,21 @@ func SearchFlightsWithClient(ctx context.Context, client *batchexec.Client, orig
 		}, fmt.Errorf("client is required")
 	}
 
+	key := flightSearchKey(origin, destination, date, opts)
+	v, err, _ := flightGroup.Do(key, func() (any, error) {
+		return searchFlightsCore(ctx, client, origin, destination, date, opts)
+	})
+	if err != nil {
+		if r, ok := v.(*models.FlightSearchResult); ok {
+			return r, err
+		}
+		return &models.FlightSearchResult{Error: err.Error()}, err
+	}
+	return v.(*models.FlightSearchResult), nil
+}
+
+// searchFlightsCore performs the actual flight search without singleflight wrapping.
+func searchFlightsCore(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
 	googleResult, googleErr := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts)
 	googleSucceeded := googleErr == nil
 	currency := flightSearchCurrency(googleResult)

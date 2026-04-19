@@ -28,6 +28,11 @@ func HasExternalProviderSource(h HotelResult) bool {
 // could be ambiguous (e.g. "Hilton" in different cities), normalized address
 // equality or geo-proximity within maxDistanceMeters is used as a tiebreaker.
 func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
+	// Why 100m: a 100 m radius is large enough to catch the same physical
+	// hotel listed at slightly different GPS coordinates by different providers
+	// (e.g. Google Hotels pins the main entrance; Booking pins the reception
+	// desk — typically 10-40 m apart). Beyond 100 m, different buildings in
+	// the same block start to appear in range, risking false merges.
 	const maxDistanceMeters = 100.0
 
 	type key struct {
@@ -44,6 +49,11 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 	// Arena Towers"), the primary name-key lookup misses. The geo-index
 	// catches these by finding the nearest existing entry within 50m AND
 	// requiring name similarity to avoid merging unrelated nearby hotels.
+	//
+	// Why 50m: stricter than maxDistanceMeters (100m) because the secondary
+	// path matches on name similarity, not exact address equality. 50m ensures
+	// only the same physical building matches; at 100m+ distinct hotels in
+	// dense city-center blocks would collapse into one.
 	const geoMergeMeters = 50.0
 	type geoEntry struct {
 		k        key

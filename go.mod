@@ -31,6 +31,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/zalando/go-keyring v0.2.7 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	gopkg.in/ini.v1 v1.67.1 // indirect
 )

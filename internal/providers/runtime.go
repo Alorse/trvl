@@ -32,15 +32,43 @@ import (
 )
 
 const (
-	defaultRPS         = 0.5
-	defaultBurst       = 1
-	authCacheDuration  = 10 * time.Minute
-	boundingBoxOffset  = 0.15
-	maxResponseBytes   = 10 * 1024 * 1024 // 10 MB
+	// Why 0.5: one request every 2 seconds per provider. Keeps aggregate
+	// traffic indistinguishable from relaxed human browsing even when
+	// multiple parallel searches run (e.g. 5 providers × 0.5 rps = 2.5 rps
+	// total, well below bot-detection thresholds of major travel sites).
+	defaultRPS = 0.5
+
+	// Why 1: no burst beyond the steady rate. A burst > 1 would allow
+	// back-to-back requests at startup — detectable as non-human traffic.
+	defaultBurst = 1
+
+	// Why 10 minutes: WAF session tokens (Akamai bm_sz, AWS awsalb) and
+	// preflight-extracted auth tokens (X-Auth-Token, csrfToken) typically
+	// expire in 10-30 minutes. Caching for 10 min avoids redundant preflight
+	// round-trips within a session while safely refreshing before tokens go
+	// stale. Cookie persistence is capped at 24 h overall (see package doc).
+	authCacheDuration = 10 * time.Minute
+
+	// Why 0.15: 0.15° latitude ≈ 16.7 km; 0.15° longitude ≈ 11-13 km at
+	// mid-latitudes. This gives a ~33 × 26 km bounding box (NE/SW corners)
+	// centered on the searched location — wide enough to cover an entire city
+	// center for providers that take a bbox parameter (Hostelworld, some
+	// Booking endpoints) without spilling into adjacent cities.
+	boundingBoxOffset = 0.15
+
+	// Why 10 MB: largest observed real response is ~3 MB (Booking SSR with
+	// full Apollo cache). 10 MB gives 3× headroom for future growth while
+	// preventing a runaway provider from consuming unbounded memory.
+	maxResponseBytes = 10 * 1024 * 1024
 
 	// Circuit breaker: skip providers with N+ consecutive errors and no
 	// success within the cooldown window. Prevents wasting 15-30s per
 	// search on providers that are consistently blocked or down.
+	//
+	// Why 5: fewer than 5 lets transient network blips (1-2 failures) silence
+	// a provider. More than 5 wastes search cycles on a provider that is
+	// genuinely down. Five consecutive failures without any success is a
+	// reliable signal of a systematic problem (WAF block, API change, outage).
 	circuitBreakerThreshold = 5
 	circuitBreakerCooldown  = 5 * time.Minute
 
@@ -48,6 +76,10 @@ const (
 	// preflight → cookie read → WAF solve → search → parse. Without
 	// this, a provider stuck in the browser cookie lookup (15s) + WAF
 	// solver (20s) + retry cascade can hold up the entire search.
+	//
+	// Why 30s: browser cookie read (kooky cold start) ≤ 15s + HTTP
+	// round-trip ≤ 8s + WAF JS solver ≤ 5s = 28s worst case. 30s gives
+	// 2s margin without exceeding the MCP client's typical 60s call budget.
 	perProviderTimeout = 30 * time.Second
 )
 
@@ -164,6 +196,13 @@ func (rt *Runtime) getOrCreateClient(cfg *ProviderConfig) *providerClient {
 		httpClient = newChromeH2Client()
 	} else {
 		httpClient = &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 10,
+				IdleConnTimeout:     90 * time.Second,
+				TLSHandshakeTimeout: 10 * time.Second,
+				ForceAttemptHTTP2:   true,
+			},
 			Timeout: 30 * time.Second,
 		}
 	}

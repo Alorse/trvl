@@ -73,10 +73,11 @@ type Client struct {
 // burst of 1, and automatic retry with exponential backoff for 429/5xx errors.
 func NewClient() *Client {
 	transport := &http.Transport{
-		DialTLSContext:      dialTLSChromeHTTP1,
-		MaxIdleConns:        10,
-		IdleConnTimeout:     30 * time.Second,
-		TLSHandshakeTimeout: 10 * time.Second,
+		DialTLSContext:        dialTLSChromeHTTP1,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
 		// Force HTTP/1.1 — we handle TLS ourselves and net/http can't do HTTP/2
 		// on externally-provided TLS connections without extra wiring.
 		ForceAttemptHTTP2: false,
@@ -501,8 +502,9 @@ func ChromeHTTPClient() *http.Client {
 
 	h1Transport := &http.Transport{
 		DialTLSContext:      dialTLS,
-		MaxIdleConns:        10,
-		IdleConnTimeout:     30 * time.Second,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
 		ForceAttemptHTTP2:   false,
 	}

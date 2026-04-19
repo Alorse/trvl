@@ -18,8 +18,12 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/cache"
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/time/rate"
 )
+
+// groundGroup deduplicates concurrent in-flight searches with identical parameters.
+var groundGroup singleflight.Group
 
 // groundCache caches ground transport search results.
 var groundCache = cache.New()
@@ -104,6 +108,20 @@ func SearchByName(ctx context.Context, from, to, date string, opts SearchOptions
 		}
 	}
 
+	// Deduplicate concurrent identical in-flight searches. The cache check above
+	// already handles TTL-based reuse; singleflight only coalesces truly concurrent
+	// requests that both missed the cache.
+	v, err, _ := groundGroup.Do(cacheKey, func() (any, error) {
+		return searchByNameCore(ctx, from, to, date, opts, cacheKey, allowBrowserFallbacks)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*models.GroundSearchResult), nil
+}
+
+// searchByNameCore performs the actual ground search without singleflight wrapping.
+func searchByNameCore(ctx context.Context, from, to, date string, opts SearchOptions, cacheKey string, allowBrowserFallbacks bool) (*models.GroundSearchResult, error) {
 	var wg sync.WaitGroup
 	results := make(chan providerResult, searchResultBufferCapacity())
 
