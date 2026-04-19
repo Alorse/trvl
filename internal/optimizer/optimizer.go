@@ -548,6 +548,12 @@ func priceCandidate(c *candidate, input OptimizeInput) {
 	c.baseCost = bestFlight.Price
 	c.currency = bestFlight.Currency
 
+	// Check for error fare / flash sale.
+	isRoundTrip := c.returnDate != ""
+	if hackType, ok := hacks.CheckErrorFare(c.origin, c.dest, c.baseCost, isRoundTrip); ok {
+		c.hackTypes = append(c.hackTypes, hackType)
+	}
+
 	// Compute baggage costs via AllInCost.
 	ffStatuses := convertFFStatuses(input.FFStatuses)
 	airlineCode := ""

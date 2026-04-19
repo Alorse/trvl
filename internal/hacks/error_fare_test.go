@@ -121,6 +121,63 @@ func TestDetectErrorFare_unknown_airports(t *testing.T) {
 	}
 }
 
+func TestCheckErrorFare_error_fare(t *testing.T) {
+	// HEL→BCN one-way long-haul. Floor = €60, error threshold = €30.
+	// €20 should return "error_fare".
+	hackType, ok := CheckErrorFare("HEL", "BCN", 20, false)
+	if !ok {
+		t.Fatal("expected ok=true for €20 HEL→BCN one-way")
+	}
+	if hackType != "error_fare" {
+		t.Errorf("hackType: got %q, want error_fare", hackType)
+	}
+}
+
+func TestCheckErrorFare_flash_sale(t *testing.T) {
+	// €45 one-way HEL→BCN is below floor (€60) but above error threshold (€30).
+	hackType, ok := CheckErrorFare("HEL", "BCN", 45, false)
+	if !ok {
+		t.Fatal("expected ok=true for €45 HEL→BCN one-way")
+	}
+	if hackType != "flash_sale" {
+		t.Errorf("hackType: got %q, want flash_sale", hackType)
+	}
+}
+
+func TestCheckErrorFare_normal_price(t *testing.T) {
+	// €150 is above the floor — should return ok=false.
+	hackType, ok := CheckErrorFare("HEL", "BCN", 150, false)
+	if ok {
+		t.Errorf("expected ok=false for normal price, got hackType=%q", hackType)
+	}
+}
+
+func TestCheckErrorFare_roundtrip(t *testing.T) {
+	// RT HEL→BCN long-haul. RT floor = €100, error threshold = €50.
+	// €40 should trigger error_fare.
+	hackType, ok := CheckErrorFare("HEL", "BCN", 40, true)
+	if !ok {
+		t.Fatal("expected ok=true for €40 RT HEL→BCN")
+	}
+	if hackType != "error_fare" {
+		t.Errorf("hackType: got %q, want error_fare", hackType)
+	}
+}
+
+func TestCheckErrorFare_unknown_airports(t *testing.T) {
+	_, ok := CheckErrorFare("XYZ", "QQQ", 5, false)
+	if ok {
+		t.Error("expected ok=false for unknown airports")
+	}
+}
+
+func TestCheckErrorFare_empty_input(t *testing.T) {
+	_, ok := CheckErrorFare("", "", 0, false)
+	if ok {
+		t.Error("expected ok=false for empty input")
+	}
+}
+
 func TestDetectErrorFare_intercontinental(t *testing.T) {
 	// LHR→JFK is ~5500 km. Intercontinental OW floor = €150, error = €75.
 	// €50 should trigger error_fare.

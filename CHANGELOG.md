@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-04-19
+
+### Added
+- **Optimizer: EUR currency normalization** — adds `Currency` field to SearchOptions, maps to Google Flights `gl=` parameter (30 currency→country mappings). Optimizer forces EUR so flights, rail, and ferry candidates compare in the same currency
+- **Back-to-back ticketing: live price comparison** — 4 parallel flight searches compare 2x one-way vs 2x overlapping round-trip. Shows concrete savings with prices and booking URLs. Falls back to advisory on search failure
+- **Booking.com cold-start fix** — background cookie warm-up via `WarmBrowserCookies`. Kooky Keychain read runs concurrently with initialization, eliminating 5-10s sequential blocking on first request
+- **Hotel name similarity guard** — `nameSimilar()` uses word-level Jaccard similarity (≥0.5 threshold) to prevent geo-proximity merging of unrelated nearby hotels
+
+### Fixed
+- **Hotel dedup too aggressive** — `sameHotelCandidate` now requires address match OR proximity (not just either); different addresses → never merge; geo threshold tightened 500m→100m, geo-merge 150m→50m. Paris: 121→1 collapse fixed (now 156→61 post-merge)
+
 ## [0.9.0] - 2026-04-19
 
 ### Added

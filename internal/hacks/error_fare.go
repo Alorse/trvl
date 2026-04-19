@@ -44,6 +44,54 @@ var routePriceRanges = []struct {
 	},
 }
 
+// CheckErrorFare is an exported lightweight check for use by the optimizer.
+// It returns the hack type ("error_fare" or "flash_sale") and ok=true when
+// the price is anomalously low for the route distance. Returns "", false
+// when the price is normal or the airports are unknown.
+func CheckErrorFare(origin, dest string, price float64, isRoundTrip bool) (hackType string, ok bool) {
+	if origin == "" || dest == "" || price <= 0 {
+		return "", false
+	}
+
+	origin = strings.ToUpper(origin)
+	dest = strings.ToUpper(dest)
+
+	origCoord, ok1 := airportCoords[origin]
+	destCoord, ok2 := airportCoords[dest]
+	if !ok1 || !ok2 {
+		return "", false
+	}
+
+	dist := haversineKm(origCoord[0], origCoord[1], destCoord[0], destCoord[1])
+
+	var expected expectedPriceRange
+	for _, r := range routePriceRanges {
+		if int(dist) <= r.maxDistKm {
+			if isRoundTrip {
+				expected = r.roundtrip
+			} else {
+				expected = r.oneway
+			}
+			break
+		}
+	}
+
+	if expected.floorEUR <= 0 {
+		return "", false
+	}
+
+	errorThreshold := expected.floorEUR * 0.5
+	flashThreshold := expected.floorEUR
+
+	if price >= flashThreshold {
+		return "", false
+	}
+	if price <= errorThreshold {
+		return "error_fare", true
+	}
+	return "flash_sale", true
+}
+
 // detectErrorFare fires when the NaivePrice is significantly below the
 // expected floor for the route distance. Error fares are mispriced tickets
 // that airlines sometimes honour — they should be booked immediately.

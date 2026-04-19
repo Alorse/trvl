@@ -798,6 +798,112 @@ func TestRankCandidates_cross_currency_no_savings(t *testing.T) {
 	}
 }
 
+func TestPriceCandidate_error_fare_flagged(t *testing.T) {
+	// HEL→BCN one-way, €20. Long-haul floor is €60, error threshold is €30.
+	// priceCandidate should append "error_fare" to hackTypes.
+	c := &candidate{
+		origin:   "HEL",
+		dest:     "BCN",
+		searched: true,
+		flights: []models.FlightResult{
+			{Price: 20, Currency: "EUR"},
+		},
+	}
+	input := OptimizeInput{}
+	input.defaults()
+	priceCandidate(c, input)
+
+	found := false
+	for _, h := range c.hackTypes {
+		if h == "error_fare" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected error_fare in hackTypes, got %v", c.hackTypes)
+	}
+}
+
+func TestPriceCandidate_flash_sale_flagged(t *testing.T) {
+	// HEL→BCN one-way, €45. Below floor (€60) but above error threshold (€30).
+	c := &candidate{
+		origin:   "HEL",
+		dest:     "BCN",
+		searched: true,
+		flights: []models.FlightResult{
+			{Price: 45, Currency: "EUR"},
+		},
+	}
+	input := OptimizeInput{}
+	input.defaults()
+	priceCandidate(c, input)
+
+	found := false
+	for _, h := range c.hackTypes {
+		if h == "flash_sale" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected flash_sale in hackTypes, got %v", c.hackTypes)
+	}
+}
+
+func TestPriceCandidate_normal_price_no_error_fare(t *testing.T) {
+	// HEL→BCN one-way, €200. Normal price, no hack should be appended.
+	c := &candidate{
+		origin:   "HEL",
+		dest:     "BCN",
+		searched: true,
+		flights: []models.FlightResult{
+			{Price: 200, Currency: "EUR"},
+		},
+	}
+	input := OptimizeInput{}
+	input.defaults()
+	priceCandidate(c, input)
+
+	for _, h := range c.hackTypes {
+		if h == "error_fare" || h == "flash_sale" {
+			t.Errorf("unexpected hack %q in hackTypes for normal price", h)
+		}
+	}
+}
+
+func TestPriceCandidate_error_fare_preserves_existing_hacks(t *testing.T) {
+	// Candidate already has "positioning" hack; error_fare should be appended, not replace.
+	c := &candidate{
+		origin:    "HEL",
+		dest:      "BCN",
+		searched:  true,
+		hackTypes: []string{"positioning"},
+		flights: []models.FlightResult{
+			{Price: 20, Currency: "EUR"},
+		},
+	}
+	input := OptimizeInput{}
+	input.defaults()
+	priceCandidate(c, input)
+
+	if len(c.hackTypes) < 2 {
+		t.Fatalf("expected at least 2 hackTypes, got %v", c.hackTypes)
+	}
+	if c.hackTypes[0] != "positioning" {
+		t.Errorf("first hackType should be positioning, got %q", c.hackTypes[0])
+	}
+	foundErrorFare := false
+	for _, h := range c.hackTypes {
+		if h == "error_fare" {
+			foundErrorFare = true
+		}
+	}
+	if !foundErrorFare {
+		t.Errorf("expected error_fare appended to hackTypes, got %v", c.hackTypes)
+	}
+}
+
 func TestRankCandidates_same_currency_savings(t *testing.T) {
 	candidates := []*candidate{
 		{searched: true, allInCost: 200, baseCost: 200, currency: "EUR", strategy: "Direct"},
