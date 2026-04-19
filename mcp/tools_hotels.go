@@ -8,6 +8,7 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/hotels"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/preferences"
+	"github.com/MikkoParkkola/trvl/internal/profile"
 	"github.com/MikkoParkkola/trvl/internal/watch"
 )
 
@@ -245,6 +246,27 @@ func handleSearchHotels(ctx context.Context, args map[string]any, elicit ElicitF
 		}
 		if opts.MinPrice == 0 && prefs.BudgetPerNightMin > 0 {
 			opts.MinPrice = prefs.BudgetPerNightMin
+		}
+	}
+
+	// Apply profile hints as defaults — lower priority than preferences and
+	// explicit caller args. Only fill in fields still at their zero values.
+	prof, _ := profile.Load()
+	hints := profile.HotelHints(prof, location)
+	if _, explicit := args["stars"]; !explicit && opts.Stars == 0 && hints.MinStars > 0 {
+		opts.Stars = hints.MinStars
+	}
+	if _, explicit := args["max_price"]; !explicit && opts.MaxPrice == 0 && hints.MaxPrice > 0 {
+		opts.MaxPrice = hints.MaxPrice
+	}
+	if _, explicit := args["property_type"]; !explicit && opts.PropertyType == "" && hints.PropertyType != "" {
+		opts.PropertyType = hints.PropertyType
+	}
+	if _, explicit := args["guests"]; !explicit && opts.Guests == 2 && hints.Guests > 0 {
+		// Only override the generic fallback (2), not an explicit value or
+		// a preference-derived one.
+		if prefs == nil || prefs.DefaultCompanions == 0 {
+			opts.Guests = hints.Guests
 		}
 	}
 
@@ -763,6 +785,91 @@ func handleWatchRoomAvailability(ctx context.Context, args map[string]any, elici
 		summary += fmt.Sprintf(" Alert when below %.0f %s.", below, currency)
 	}
 	summary += " The daemon will check periodically and notify when a matching room is available."
+
+	content, err := buildAnnotatedContentBlocks(summary, resp)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return content, resp, nil
+}
+
+// --- search_hotel_by_name tool ---
+
+func searchHotelByNameTool() ToolDef {
+	return ToolDef{
+		Name:  "search_hotel_by_name",
+		Title: "Search Hotel by Name",
+		Description: "Search for a specific hotel or property by name across all providers " +
+			"(Google Hotels, Trivago, and any configured external providers like Booking.com, " +
+			"Airbnb, Hostelworld). Unlike search_hotels which returns area-ranked results, this " +
+			"tool uses the property name as the search query so providers surface the named " +
+			"property, then filters results to only those whose name matches. Ideal for finding " +
+			"a specific property when you already know its name (e.g. 'CORU House Prague').",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"name":      {Type: "string", Description: "Property name to search for (e.g. 'CORU House Prague', 'Hotel Kamp Helsinki')"},
+				"location":  {Type: "string", Description: "City or area context to anchor the search (e.g. 'Prague', 'Helsinki'). Recommended when the name alone is ambiguous."},
+				"check_in":  {Type: "string", Description: "Check-in date in YYYY-MM-DD format"},
+				"check_out": {Type: "string", Description: "Check-out date in YYYY-MM-DD format"},
+				"currency":  {Type: "string", Description: "Currency code (e.g. USD, EUR). Default: USD"},
+			},
+			Required: []string{"name", "check_in", "check_out"},
+		},
+		OutputSchema: hotelSearchOutputSchema(),
+		Annotations: &ToolAnnotations{
+			Title:          "Search Hotel by Name",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+			OpenWorldHint:  true,
+		},
+	}
+}
+
+func handleSearchHotelByName(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
+	name := argString(args, "name")
+	location := models.ResolveLocationName(argString(args, "location"))
+	checkIn := argString(args, "check_in")
+	checkOut := argString(args, "check_out")
+	currency := argString(args, "currency")
+	if currency == "" {
+		currency = "USD"
+	}
+
+	if name == "" || checkIn == "" || checkOut == "" {
+		return nil, nil, fmt.Errorf("name, check_in, and check_out are required")
+	}
+
+	if err := models.ValidateDateRange(checkIn, checkOut); err != nil {
+		return nil, nil, err
+	}
+
+	results, err := hotels.SearchHotelsByName(ctx, name, location, checkIn, checkOut, currency)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	result := &models.HotelSearchResult{
+		Success: true,
+		Count:   len(results),
+		Hotels:  results,
+	}
+
+	displayLoc := name
+	if location != "" {
+		displayLoc = name + " in " + location
+	}
+	summary := hotelSummary(result, displayLoc)
+
+	type byNameResponse struct {
+		*models.HotelSearchResult
+		SearchName string `json:"search_name"`
+	}
+	resp := byNameResponse{
+		HotelSearchResult: result,
+		SearchName:        name,
+	}
 
 	content, err := buildAnnotatedContentBlocks(summary, resp)
 	if err != nil {

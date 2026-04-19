@@ -7,6 +7,7 @@ import (
 
 	"github.com/MikkoParkkola/trvl/internal/ground"
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"github.com/MikkoParkkola/trvl/internal/profile"
 	"github.com/MikkoParkkola/trvl/internal/trip"
 )
 
@@ -138,6 +139,14 @@ func handleSearchGround(ctx context.Context, args map[string]any, elicit ElicitF
 	}
 	if p := argString(args, "provider"); p != "" {
 		opts.Providers = strings.Split(p, ",")
+	}
+
+	// Apply profile hint for preferred transport mode when the caller has not
+	// specified one explicitly.
+	if _, explicit := args["type"]; !explicit && opts.Type == "" {
+		prof, _ := profile.Load()
+		hints := profile.GroundHints(prof, from, to)
+		opts.Type = hints.PreferredType
 	}
 
 	result, err := ground.SearchByName(ctx, from, to, date, opts)

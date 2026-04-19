@@ -216,16 +216,169 @@ func TestFullProfileReturnsFewerQuestions(t *testing.T) {
 }
 
 func TestInvalidPhaseReturnsEmpty(t *testing.T) {
-	qs, instr := OnboardingQuestions(0, &TravelProfile{}, nil)
+	qs, instr := OnboardingQuestions(6, &TravelProfile{}, nil)
 	if len(qs) != 0 {
-		t.Errorf("expected empty questions for phase 0, got %d", len(qs))
+		t.Errorf("expected empty questions for phase 6, got %d", len(qs))
 	}
 	if instr == "" {
 		t.Error("expected non-empty instructions even for invalid phase")
 	}
+}
 
-	qs, _ = OnboardingQuestions(6, &TravelProfile{}, nil)
+// --- Phase 0: LLM context exchange ---
+
+func TestPhase0NoInferencesReturnsEmpty(t *testing.T) {
+	qs, instr := OnboardingQuestions(0, &TravelProfile{}, nil)
 	if len(qs) != 0 {
-		t.Errorf("expected empty questions for phase 6, got %d", len(qs))
+		t.Errorf("expected no phase-0 questions when no inferences supplied, got %d", len(qs))
 	}
+	if instr == "" {
+		t.Error("expected non-empty instructions for phase 0")
+	}
+}
+
+func TestPhase0HomeAirportInference(t *testing.T) {
+	answers := map[string]string{
+		"home_airport_inference": "AMS",
+	}
+	qs, _ := OnboardingQuestions(0, &TravelProfile{}, answers)
+	q := findQuestion(qs, "home_airport_confirm")
+	if q == nil {
+		t.Fatal("expected home_airport_confirm question")
+	}
+	if q.Inference != "AMS" {
+		t.Errorf("expected Inference=AMS, got %q", q.Inference)
+	}
+	if len(q.Options) == 0 {
+		t.Error("expected options on confirmation question")
+	}
+}
+
+func TestPhase0SkipsHomeWhenProfileAlreadyHasIt(t *testing.T) {
+	prof := &TravelProfile{HomeDetected: []string{"HEL"}}
+	answers := map[string]string{
+		"home_airport_inference": "AMS",
+	}
+	qs, _ := OnboardingQuestions(0, prof, answers)
+	if findQuestion(qs, "home_airport_confirm") != nil {
+		t.Error("expected home_airport_confirm to be skipped when profile already has HomeDetected")
+	}
+}
+
+func TestPhase0MultipleInferences(t *testing.T) {
+	answers := map[string]string{
+		"home_airport_inference":      "AMS",
+		"travel_companions_inference": "solo",
+		"accom_type_inference":        "apartment",
+		"budget_tier_inference":       "mid-range",
+		"loyalty_inference":           "Flying Blue",
+		"travel_identity_inference":   "Digital nomad who optimises for cost and WiFi",
+	}
+	qs, _ := OnboardingQuestions(0, &TravelProfile{}, answers)
+	if len(qs) != 6 {
+		t.Errorf("expected 6 confirmation questions, got %d", len(qs))
+	}
+	for _, key := range []string{
+		"home_airport_confirm",
+		"travel_companions_confirm",
+		"accom_type_confirm",
+		"budget_tier_confirm",
+		"loyalty_confirm",
+		"travel_identity_confirm",
+	} {
+		if findQuestion(qs, key) == nil {
+			t.Errorf("missing expected question %q", key)
+		}
+	}
+}
+
+func TestPhase0SkipsAccomTypeWhenProfileHasPreferredType(t *testing.T) {
+	prof := &TravelProfile{PreferredType: "hotel"}
+	answers := map[string]string{
+		"accom_type_inference": "apartment",
+	}
+	qs, _ := OnboardingQuestions(0, prof, answers)
+	if findQuestion(qs, "accom_type_confirm") != nil {
+		t.Error("expected accom_type_confirm to be skipped when profile already has PreferredType")
+	}
+}
+
+func TestPhase0SkipsBudgetTierWhenProfileHasIt(t *testing.T) {
+	prof := &TravelProfile{BudgetTier: "premium"}
+	answers := map[string]string{
+		"budget_tier_inference": "budget",
+	}
+	qs, _ := OnboardingQuestions(0, prof, answers)
+	if findQuestion(qs, "budget_tier_confirm") != nil {
+		t.Error("expected budget_tier_confirm to be skipped when profile already has BudgetTier")
+	}
+}
+
+func TestPhase0SkipsTravelIdentityWhenProfileHasIt(t *testing.T) {
+	prof := &TravelProfile{TravelIdentity: "Frequent business traveller"}
+	answers := map[string]string{
+		"travel_identity_inference": "Leisure explorer",
+	}
+	qs, _ := OnboardingQuestions(0, prof, answers)
+	if findQuestion(qs, "travel_identity_confirm") != nil {
+		t.Error("expected travel_identity_confirm to be skipped when profile already has TravelIdentity")
+	}
+}
+
+func TestPhase0InstructionsAreSpecific(t *testing.T) {
+	_, instr := OnboardingQuestions(0, &TravelProfile{}, map[string]string{
+		"home_airport_inference": "CDG",
+	})
+	// Phase-0 instructions should mention confirmation/inference behaviour.
+	if instr == "" {
+		t.Error("expected non-empty phase-0 instructions")
+	}
+}
+
+// --- LLMContextSummary ---
+
+func TestLLMContextSummaryEmptyProfile(t *testing.T) {
+	s := LLMContextSummary(&TravelProfile{})
+	if s == "" {
+		t.Error("expected non-empty summary even for empty profile")
+	}
+}
+
+func TestLLMContextSummaryNilProfile(t *testing.T) {
+	s := LLMContextSummary(nil)
+	if s == "" {
+		t.Error("expected non-empty summary for nil profile")
+	}
+}
+
+func TestLLMContextSummaryPopulatedProfile(t *testing.T) {
+	prof := &TravelProfile{
+		HomeDetected:      []string{"HEL"},
+		TopDestinations:   []string{"Amsterdam", "Prague"},
+		PreferredType:     "apartment",
+		BudgetTier:        "mid-range",
+		AvgNightlyRate:    95,
+		PreferredAlliance: "Star Alliance",
+		TopGroundModes:    []ModeStats{{Mode: "train", Count: 8}},
+		TravelIdentity:    "Multimodal optimizer",
+	}
+	s := LLMContextSummary(prof)
+	for _, want := range []string{"HEL", "Amsterdam", "apartment", "mid-range", "Star Alliance", "train", "Multimodal optimizer"} {
+		if !containsStr(s, want) {
+			t.Errorf("summary missing %q\nsummary: %s", want, s)
+		}
+	}
+}
+
+// containsStr is a simple substring check to avoid importing strings in tests.
+func containsStr(s, sub string) bool {
+	if len(sub) == 0 {
+		return true
+	}
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }

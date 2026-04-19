@@ -16,6 +16,7 @@ func registerTools(s *Server) {
 		searchFlightsTool(),
 		searchDatesTool(),
 		searchHotelsTool(),
+		searchHotelByNameTool(),
 		hotelPricesTool(),
 		hotelReviewsTool(),
 		destinationInfoTool(),
@@ -66,6 +67,7 @@ func registerTools(s *Server) {
 	s.handlers["search_flights"] = s.wrapHandler(handleSearchFlights)
 	s.handlers["search_dates"] = s.wrapHandler(handleSearchDates)
 	s.handlers["search_hotels"] = s.wrapHandler(handleSearchHotels)
+	s.handlers["search_hotel_by_name"] = s.wrapHandler(handleSearchHotelByName)
 	s.handlers["hotel_prices"] = s.wrapHandler(handleHotelPrices)
 	s.handlers["hotel_reviews"] = s.wrapHandler(handleHotelReviews)
 	s.handlers["destination_info"] = s.wrapHandler(handleDestinationInfo)

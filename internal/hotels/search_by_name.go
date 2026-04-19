@@ -3,11 +3,215 @@ package hotels
 import (
 	"context"
 	"fmt"
-	"sync"
+	"log/slog"
 	"strings"
+	"sync"
+	"unicode"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
+
+// SearchHotelsByName searches for hotels matching a specific property name across
+// all providers (Google Hotels, Trivago, and any configured external providers).
+//
+// Strategy: use the full "name + location" string as the search query so that
+// Google Hotels and other providers return algorithm-ranked results for that
+// specific property, then filter client-side to keep only results whose name
+// fuzzy-matches the search name. All providers run in parallel.
+//
+// Parameters:
+//   - name: property name to search for (e.g. "CORU House Prague")
+//   - location: city/area context (e.g. "Prague") — appended to name for the
+//     area search when not already present in the name
+//   - checkIn, checkOut: dates in YYYY-MM-DD format
+//   - currency: 3-letter ISO code (e.g. "USD", "EUR"); defaults to "USD"
+func SearchHotelsByName(ctx context.Context, name, location, checkIn, checkOut, currency string) ([]models.HotelResult, error) {
+	if name == "" {
+		return nil, fmt.Errorf("hotel name is required")
+	}
+	if checkIn == "" || checkOut == "" {
+		return nil, fmt.Errorf("check-in and check-out dates are required")
+	}
+	if currency == "" {
+		currency = "USD"
+	}
+
+	// Build the search query: use "name, location" so providers treat the name
+	// as a disambiguation hint while the location anchors geocoding. If the
+	// name already contains the location (case-insensitive), skip appending.
+	query := buildNameQuery(name, location)
+
+	opts := HotelSearchOptions{
+		CheckIn:  checkIn,
+		CheckOut: checkOut,
+		Guests:   2,
+		Currency: currency,
+		// Single page is enough — we only need enough results to find the named
+		// property, and using MaxPages=1 avoids unnecessary rate-limit pressure.
+		MaxPages: 1,
+	}
+
+	// Run Google Hotels + Trivago + external providers in parallel.
+	// Google Hotels is always primary; others are non-fatal.
+	type providerResult struct {
+		hotels []models.HotelResult
+		source string
+	}
+
+	resultCh := make(chan providerResult, 3)
+	var wg sync.WaitGroup
+
+	// Google Hotels — use the full "name + location" query so the algorithm
+	// surfaces the specific property.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		res, err := SearchHotels(ctx, query, opts)
+		if err != nil {
+			slog.Warn("search_by_name: google hotels failed", "error", err)
+			return
+		}
+		resultCh <- providerResult{hotels: res.Hotels, source: "google_hotels"}
+	}()
+
+	// Trivago — location-only query (Trivago's API resolves by area, name
+	// search is not supported server-side).
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if location == "" {
+			return
+		}
+		res, err := SearchTrivago(ctx, location, opts)
+		if err != nil {
+			slog.Warn("search_by_name: trivago failed", "error", err)
+			return
+		}
+		resultCh <- providerResult{hotels: res, source: "trivago"}
+	}()
+
+	// External providers (Booking, Airbnb, Hostelworld, …).
+	if eprt := getExternalProviderRuntime(); eprt != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			searchLoc := location
+			if searchLoc == "" {
+				searchLoc = name
+			}
+			lat, lon, err := ResolveLocation(ctx, searchLoc)
+			if err != nil {
+				slog.Warn("search_by_name: geocode failed", "error", err)
+				return
+			}
+			res, _, err := eprt.SearchHotels(ctx, query, lat, lon, checkIn, checkOut, currency, 2, nil)
+			if err != nil {
+				slog.Warn("search_by_name: external providers failed", "error", err)
+				return
+			}
+			resultCh <- providerResult{hotels: res, source: "external"}
+		}()
+	}
+
+	wg.Wait()
+	close(resultCh)
+
+	// Collect and merge all provider results.
+	var batches [][]models.HotelResult
+	for pr := range resultCh {
+		batches = append(batches, pr.hotels)
+	}
+	if len(batches) == 0 {
+		return nil, fmt.Errorf("no results from any provider for %q", name)
+	}
+
+	merged := models.MergeHotelResults(batches...)
+
+	// Filter to keep only hotels whose name fuzzy-matches the search name.
+	matched := filterByNameMatch(merged, name)
+
+	// If the fuzzy filter left nothing (e.g. the property is in results under a
+	// slightly different name), fall back to all merged results so the caller
+	// at least gets something useful.
+	if len(matched) == 0 {
+		slog.Warn("search_by_name: no fuzzy match, returning all merged results",
+			"name", name, "total", len(merged))
+		return merged, nil
+	}
+
+	return matched, nil
+}
+
+// buildNameQuery constructs the location query string used for the area search.
+// If location is non-empty and not already contained in name, it appends
+// ", location" so the search anchors to the right city.
+func buildNameQuery(name, location string) string {
+	if location == "" {
+		return name
+	}
+	// If location words are already in the name, just use the name as-is.
+	if strings.Contains(strings.ToLower(name), strings.ToLower(location)) {
+		return name
+	}
+	return name + ", " + location
+}
+
+// filterByNameMatch keeps only hotels whose normalised name contains all
+// significant words from the search name (length >= 3, case-insensitive,
+// punctuation stripped). E.g. "CORU House" matches "CORU House Prague -
+// Design Hotel" but not "Prague Hilton".
+func filterByNameMatch(hotels []models.HotelResult, searchName string) []models.HotelResult {
+	searchWords := normalizeWords(searchName)
+	if len(searchWords) == 0 {
+		return hotels
+	}
+
+	var out []models.HotelResult
+	for _, h := range hotels {
+		hotelWords := normalizeWordsSet(h.Name)
+		if allWordsPresent(searchWords, hotelWords) {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
+// normalizeWords lowercases, strips punctuation, and returns words of length >= 3.
+func normalizeWords(s string) []string {
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == ' ' {
+			return unicode.ToLower(r)
+		}
+		return ' '
+	}, s)
+	var words []string
+	for _, w := range strings.Fields(s) {
+		if len(w) >= 3 {
+			words = append(words, w)
+		}
+	}
+	return words
+}
+
+// normalizeWordsSet returns a set of normalised words from the string.
+func normalizeWordsSet(s string) map[string]bool {
+	words := normalizeWords(s)
+	set := make(map[string]bool, len(words))
+	for _, w := range words {
+		set[w] = true
+	}
+	return set
+}
+
+// allWordsPresent returns true if every word in needles appears in haystack.
+func allWordsPresent(needles []string, haystack map[string]bool) bool {
+	for _, w := range needles {
+		if !haystack[w] {
+			return false
+		}
+	}
+	return true
+}
 
 // word(s)), search that area, then fuzzy-match the hotel name in results. If that
 // fails we fall back to searching the full query as the location.

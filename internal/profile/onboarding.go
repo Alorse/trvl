@@ -1,8 +1,11 @@
 package profile
 
+import "fmt"
+
 // OnboardingQuestions returns questions for the given onboarding phase and LLM
 // instructions for conducting the interview conversationally.
 //
+// Phase 0 — LLM context exchange: confirmation questions built from LLM inferences.
 // Phase 1 — Basics: home, travel frequency, companions, kids, loyalty.
 // Phase 2 — Travel Style: accommodation, budget, transport, remote work, days.
 // Phase 3 — Deep Patterns: favourite destinations, neighbourhoods, properties, food, hacks, lounges.
@@ -11,6 +14,11 @@ package profile
 //
 // Questions already answerable from the profile are skipped. An empty question
 // list signals the phase is complete (profile is comprehensive enough).
+//
+// For phase 0, the answers map carries LLM inferences keyed by
+// "<profile_field>_inference" (e.g. "home_airport_inference" → "AMS").
+// The function transforms each inference into a confirmation question.
+// Confirmed inferences are written into the profile so later phases skip them.
 func OnboardingQuestions(phase int, prof *TravelProfile, answers map[string]string) ([]Question, string) {
 	if prof == nil {
 		prof = &TravelProfile{}
@@ -24,6 +32,12 @@ func OnboardingQuestions(phase int, prof *TravelProfile, answers map[string]stri
 		"If the traveller has already answered something implicitly, skip it."
 
 	switch phase {
+	case 0:
+		phase0Instructions := "You have already picked up context from the conversation. " +
+			"Present each inference naturally and ask the traveller to confirm or correct. " +
+			"Do not list them as a form — weave them into a short paragraph. " +
+			"For every confirmed answer, call update_preferences so later phases are skipped."
+		return phase0Questions(prof, answers), phase0Instructions
 	case 1:
 		return phase1Questions(prof, answers), instructions
 	case 2:
@@ -37,6 +51,150 @@ func OnboardingQuestions(phase int, prof *TravelProfile, answers map[string]stri
 	default:
 		return nil, instructions
 	}
+}
+
+// phase0Questions builds confirmation questions from LLM inferences supplied in
+// the answers map. Each inference key follows the pattern "<field>_inference".
+// Only inferences that add new information (not already in the profile) are
+// surfaced as questions.
+func phase0Questions(prof *TravelProfile, answers map[string]string) []Question {
+	var questions []Question
+
+	// home_airport_inference → confirms primary home airport.
+	if inferred := answers["home_airport_inference"]; inferred != "" && len(prof.HomeDetected) == 0 {
+		questions = append(questions, Question{
+			Key:       "home_airport_confirm",
+			Text:      fmt.Sprintf("I noticed you mentioned %s — is that your primary home airport?", inferred),
+			Type:      "choice",
+			Options:   []string{"yes", "no", "partially"},
+			Required:  false,
+			Inference: inferred,
+		})
+	}
+
+	// travel_companions_inference → confirms who the user usually travels with.
+	if inferred := answers["travel_companions_inference"]; inferred != "" {
+		questions = append(questions, Question{
+			Key:       "travel_companions_confirm",
+			Text:      fmt.Sprintf("From what you've shared, it sounds like you usually travel %s — is that right?", inferred),
+			Type:      "choice",
+			Options:   []string{"yes", "no", "sometimes"},
+			Required:  false,
+			Inference: inferred,
+		})
+	}
+
+	// accom_type_inference → confirms preferred accommodation type.
+	if inferred := answers["accom_type_inference"]; inferred != "" && prof.PreferredType == "" {
+		questions = append(questions, Question{
+			Key:       "accom_type_confirm",
+			Text:      fmt.Sprintf("You seem to prefer %s — would you say that's your go-to for accommodation?", inferred),
+			Type:      "choice",
+			Options:   []string{"yes", "no", "depends"},
+			Required:  false,
+			Inference: inferred,
+		})
+	}
+
+	// budget_tier_inference → confirms rough budget level.
+	if inferred := answers["budget_tier_inference"]; inferred != "" && prof.BudgetTier == "" {
+		questions = append(questions, Question{
+			Key:       "budget_tier_confirm",
+			Text:      fmt.Sprintf("Based on what you've described, I'd put you in the %s travel budget range — does that feel right?", inferred),
+			Type:      "choice",
+			Options:   []string{"yes", "no", "higher", "lower"},
+			Required:  false,
+			Inference: inferred,
+		})
+	}
+
+	// loyalty_inference → confirms airline/hotel loyalty programmes.
+	if inferred := answers["loyalty_inference"]; inferred != "" {
+		questions = append(questions, Question{
+			Key:       "loyalty_confirm",
+			Text:      fmt.Sprintf("I picked up that you're a member of %s — should I factor that into searches?", inferred),
+			Type:      "choice",
+			Options:   []string{"yes", "no"},
+			Required:  false,
+			Inference: inferred,
+		})
+	}
+
+	// travel_identity_inference → one-sentence travel persona the LLM observed.
+	if inferred := answers["travel_identity_inference"]; inferred != "" && prof.TravelIdentity == "" {
+		questions = append(questions, Question{
+			Key:       "travel_identity_confirm",
+			Text:      fmt.Sprintf("In one sentence I'd describe your travel style as: \"%s\" — does that resonate?", inferred),
+			Type:      "choice",
+			Options:   []string{"yes", "close", "no"},
+			Required:  false,
+			Inference: inferred,
+		})
+	}
+
+	return questions
+}
+
+// LLMContextSummary returns a plain-text summary of what the profile already
+// knows. The LLM can present this to the user at the start of phase 0 so the
+// traveller understands what has been inferred and what still needs answering.
+func LLMContextSummary(prof *TravelProfile) string {
+	if prof == nil {
+		return "I don't have any profile data for you yet."
+	}
+
+	var parts []string
+
+	if len(prof.HomeDetected) > 0 {
+		parts = append(parts, fmt.Sprintf("home airport: %s", joinStrings(prof.HomeDetected, ", ")))
+	}
+	if len(prof.TopDestinations) > 0 {
+		parts = append(parts, fmt.Sprintf("favourite destinations: %s", joinStrings(prof.TopDestinations, ", ")))
+	}
+	if prof.PreferredType != "" {
+		parts = append(parts, fmt.Sprintf("preferred accommodation: %s", prof.PreferredType))
+	}
+	if prof.BudgetTier != "" {
+		parts = append(parts, fmt.Sprintf("budget tier: %s", prof.BudgetTier))
+	}
+	if prof.AvgNightlyRate > 0 {
+		parts = append(parts, fmt.Sprintf("average nightly rate: ~%s", formatCurrency(prof.AvgNightlyRate)))
+	}
+	if prof.PreferredAlliance != "" {
+		parts = append(parts, fmt.Sprintf("preferred airline alliance: %s", prof.PreferredAlliance))
+	}
+	if len(prof.TopGroundModes) > 0 {
+		modes := make([]string, len(prof.TopGroundModes))
+		for i, m := range prof.TopGroundModes {
+			modes[i] = m.Mode
+		}
+		parts = append(parts, fmt.Sprintf("ground transport: %s", joinStrings(modes, ", ")))
+	}
+	if prof.TravelIdentity != "" {
+		parts = append(parts, fmt.Sprintf("travel identity: \"%s\"", prof.TravelIdentity))
+	}
+
+	if len(parts) == 0 {
+		return "I don't have any profile data for you yet."
+	}
+
+	summary := "Here's what I already know about you:\n"
+	for _, p := range parts {
+		summary += "• " + p + "\n"
+	}
+	return summary
+}
+
+// joinStrings joins a slice with a separator (avoids importing strings).
+func joinStrings(ss []string, sep string) string {
+	result := ""
+	for i, s := range ss {
+		if i > 0 {
+			result += sep
+		}
+		result += s
+	}
+	return result
 }
 
 // phase1Questions returns Phase 1 (Basics) questions, skipping those already

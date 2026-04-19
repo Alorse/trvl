@@ -12,6 +12,7 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/points"
 	"github.com/MikkoParkkola/trvl/internal/preferences"
+	"github.com/MikkoParkkola/trvl/internal/profile"
 	"github.com/MikkoParkkola/trvl/internal/trip"
 )
 
@@ -247,6 +248,20 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 			return nil, nil, fmt.Errorf("invalid sort_by: %w", err)
 		}
 		opts.SortBy = parsed
+	}
+
+	// Apply profile hints as defaults — only when the caller has not set the
+	// corresponding parameter explicitly.
+	prof, _ := profile.Load()
+	hints := profile.FlightHints(prof, origin, dest)
+	if _, explicit := args["cabin_class"]; !explicit && hints.CabinClass > 0 && opts.CabinClass == 0 {
+		opts.CabinClass = models.CabinClass(hints.CabinClass)
+	}
+	if _, explicit := args["alliances"]; !explicit && hints.PreferredAlliance != "" && len(opts.Alliances) == 0 {
+		opts.Alliances = []string{hints.PreferredAlliance}
+	}
+	if _, explicit := args["max_price"]; !explicit && hints.MaxPrice > 0 && opts.MaxPrice == 0 {
+		opts.MaxPrice = hints.MaxPrice
 	}
 
 	result, err := flights.SearchFlights(ctx, origin, dest, date, opts)

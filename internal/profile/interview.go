@@ -25,12 +25,13 @@ type TripContext struct {
 
 // Question represents a single interview question for the pre-search flow.
 type Question struct {
-	Key      string   `json:"key"`
-	Text     string   `json:"text"`
-	Type     string   `json:"type"` // "number", "choice", "multi_choice", "text"
-	Options  []string `json:"options,omitempty"`
-	Default  string   `json:"default,omitempty"`
-	Required bool     `json:"required"`
+	Key       string   `json:"key"`
+	Text      string   `json:"text"`
+	Type      string   `json:"type"` // "number", "choice", "multi_choice", "text"
+	Options   []string `json:"options,omitempty"`
+	Default   string   `json:"default,omitempty"`
+	Required  bool     `json:"required"`
+	Inference string   `json:"inference,omitempty"` // LLM's inferred value for phase-0 confirmation questions
 }
 
 // InterviewQuestions returns the minimal set of questions to ask before searching,
