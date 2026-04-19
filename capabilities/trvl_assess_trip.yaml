@@ -1,0 +1,100 @@
+fulcrum: "1.0"
+name: trvl_assess_trip
+description: >-
+  Pre-check trip viability before booking. Checks flights, hotels, visa, and
+  weather in parallel and returns a GO/WAIT/NO_GO verdict with cost breakdown.
+  Uses Google Flights and Hotels for pricing. No API key required.
+
+schema:
+  input:
+    type: object
+    properties:
+      origin:
+        type: string
+        description: Origin airport IATA code
+      destination:
+        type: string
+        description: Destination airport IATA code or city
+      depart_date:
+        type: string
+        description: Departure date (YYYY-MM-DD)
+      return_date:
+        type: string
+        description: Return date (YYYY-MM-DD)
+      guests:
+        type: integer
+        description: "Number of guests (default: 1)"
+      passport:
+        type: string
+        description: Passport country ISO code for visa check (e.g., FI)
+      currency:
+        type: string
+        description: Target currency (e.g., EUR)
+    required: [origin, destination, depart_date, return_date]
+  output:
+    type: object
+    properties:
+      success:
+        type: boolean
+      verdict:
+        type: string
+        description: "GO, WAIT, or NO_GO"
+      reason:
+        type: string
+      total_cost:
+        type: number
+      currency:
+        type: string
+      nights:
+        type: integer
+      checks:
+        type: array
+        items:
+          type: object
+          properties:
+            dimension:
+              type: string
+            status:
+              type: string
+            summary:
+              type: string
+            cost:
+              type: number
+            currency:
+              type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 60
+    config:
+      command: trvl
+      args:
+        - assess-trip
+        - "{origin}"
+        - "{destination}"
+        - "{depart_date}"
+        - "{return_date}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 300
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, viability, pre-check, verdict, flights, hotels, visa, weather, go-no-go, trip-planning, free, no-api-key]
+  cost_category: free
+  execution_time: medium
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Runs parallel checks for flight availability, hotel pricing, visa
+    requirements, and weather. Returns a GO/WAIT/NO_GO verdict with per-check
+    status and total cost estimate. Use before detailed planning to quickly
+    validate a trip idea. No API key required.

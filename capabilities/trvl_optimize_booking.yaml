@@ -1,0 +1,145 @@
+fulcrum: "1.0"
+name: trvl_optimize_booking
+description: >-
+  Find the cheapest way to book a trip by searching alternative origins,
+  destinations, rail+fly stations, and applying all-in cost (baggage + FF
+  status). Returns ranked booking strategies with savings vs naive direct
+  booking. Uses Google Flights for real-time pricing. No API key required.
+
+schema:
+  input:
+    type: object
+    properties:
+      origin:
+        type: string
+        description: Origin IATA airport code (e.g., HEL)
+      destination:
+        type: string
+        description: Destination IATA airport code or city (e.g., BCN)
+      departure_date:
+        type: string
+        description: Departure date (YYYY-MM-DD)
+      return_date:
+        type: string
+        description: Return date (YYYY-MM-DD); omit for one-way
+      flex_days:
+        type: integer
+        description: "Date flexibility +/-N days (default: 3)"
+      guests:
+        type: integer
+        description: "Number of passengers (default: 1)"
+      currency:
+        type: string
+        description: "Display currency (default: EUR)"
+      max_results:
+        type: integer
+        description: "Top N results to return (default: 5)"
+      max_api_calls:
+        type: integer
+        description: "API call budget (default: 15)"
+      need_checked_bag:
+        type: boolean
+        description: Whether a checked bag is needed
+      carry_on_only:
+        type: boolean
+        description: Carry-on only trip
+    required: [origin, destination, departure_date]
+  output:
+    type: object
+    properties:
+      success:
+        type: boolean
+      error:
+        type: string
+      options:
+        type: array
+        items:
+          type: object
+          properties:
+            rank:
+              type: integer
+            strategy:
+              type: string
+            base_cost:
+              type: number
+            bag_cost:
+              type: number
+            ff_savings:
+              type: number
+            transfer_cost:
+              type: number
+            all_in_cost:
+              type: number
+            currency:
+              type: string
+            savings_vs_baseline:
+              type: number
+            hacks_applied:
+              type: array
+              items:
+                type: string
+            legs:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  from:
+                    type: string
+                  to:
+                    type: string
+                  date:
+                    type: string
+                  price:
+                    type: number
+                  currency:
+                    type: string
+                  airline:
+                    type: string
+                  duration_min:
+                    type: integer
+                  notes:
+                    type: string
+      baseline:
+        type: object
+        properties:
+          all_in_cost:
+            type: number
+          currency:
+            type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 120
+    config:
+      command: trvl
+      args:
+        - optimize-booking
+        - "{origin}"
+        - "{destination}"
+        - "{departure_date}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 300
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, flights, optimizer, booking, all-in-cost, baggage, frequent-flyer, savings, google-flights, free, no-api-key, rail-fly, hidden-city, alternative-airports]
+  cost_category: free
+  execution_time: long
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Searches alternative origins, destinations, rail+fly stations, hidden-city
+    candidates, and date flexibility. Applies all-in pricing with baggage fees
+    and frequent flyer status benefits. Returns ranked strategies with savings
+    vs naive direct booking. No API key required.

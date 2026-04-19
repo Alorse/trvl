@@ -1,0 +1,117 @@
+fulcrum: "1.0"
+name: trvl_optimize_trip_dates
+description: >-
+  Find the cheapest dates for a trip within a date range. Searches flight
+  prices across the range and returns the optimal departure dates sorted by
+  total cost. Uses Google Flights CalendarGraph API for fast single-request
+  price retrieval. No API key required.
+
+schema:
+  input:
+    type: object
+    properties:
+      origin:
+        type: string
+        description: Origin airport IATA code (e.g., HEL)
+      destination:
+        type: string
+        description: Destination airport IATA code or city name
+      from_date:
+        type: string
+        description: Start of search range (YYYY-MM-DD)
+      to_date:
+        type: string
+        description: End of search range (YYYY-MM-DD)
+      trip_length:
+        type: integer
+        description: Trip length in nights
+      guests:
+        type: integer
+        description: "Number of guests (default: 1)"
+      currency:
+        type: string
+        description: Target currency (e.g., EUR)
+    required: [origin, destination, from_date, to_date, trip_length]
+  output:
+    type: object
+    properties:
+      success:
+        type: boolean
+      best_date:
+        type: object
+        properties:
+          depart_date:
+            type: string
+          return_date:
+            type: string
+          flight_cost:
+            type: number
+          total_cost:
+            type: number
+          currency:
+            type: string
+          savings:
+            type: number
+      options:
+        type: array
+        items:
+          type: object
+          properties:
+            depart_date:
+              type: string
+            return_date:
+              type: string
+            flight_cost:
+              type: number
+            total_cost:
+              type: number
+            currency:
+              type: string
+            savings:
+              type: number
+      max_savings:
+        type: number
+      currency:
+        type: string
+      error:
+        type: string
+
+providers:
+  primary:
+    service: cli
+    cost_per_call: 0
+    timeout: 60
+    config:
+      command: trvl
+      args:
+        - optimize-dates
+        - "{origin}"
+        - "{destination}"
+        - "--from"
+        - "{from_date}"
+        - "--to"
+        - "{to_date}"
+        - "--length"
+        - "{trip_length}"
+        - "--format"
+        - "json"
+
+cache:
+  strategy: exact
+  ttl: 600
+
+auth:
+  required: false
+
+metadata:
+  category: travel
+  tags: [travel, flights, dates, optimization, cheapest, calendar, google-flights, free, no-api-key, when-to-fly, savings, date-range]
+  cost_category: free
+  execution_time: medium
+  read_only: true
+  source: https://github.com/MikkoParkkola/trvl
+  notes: >-
+    Uses Google's CalendarGraph API for fast single-request price retrieval
+    across the entire date range. Much faster than searching day by day.
+    Returns optimal departure dates with savings vs most expensive option.
+    No API key required.
