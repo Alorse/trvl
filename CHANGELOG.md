@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-04-19
+
+### Added
+- **Trip viability pre-check**: new `assess_trip` MCP tool — GO/WAIT/NO_GO verdict checking flights, hotels, visa, weather in parallel (44th MCP tool)
+- **Flight combination optimizer**: compares round-trip vs split-airline one-ways; nested/overlapping return tickets for multi-trip savings
+- **Rail+Fly Fare Zone Arbitrage**: detects when booking via Antwerp (KLM), Cologne (Lufthansa), Brussels (Air France), Basel (Swiss) triggers cheaper fare zones — train included free
+- **Fare Breakpoint Routing**: suggests routing via IST/DOH/DXB/MAD/LIS that exploits IATA fare construction zone boundaries
+- **Destination Airport Alternatives**: 15 alternative airports across 12 primaries (BGY for Milan, GRO for Barcelona, BVA for Paris, etc.)
+- **Fuel Surcharge Avoidance**: flags high-YQ airlines (BA £400+, LH €250+) and suggests zero-YQ alternatives
+- **Advance Purchase Window**: classifies routes into 5 types and advises optimal booking timing
+- **Group Booking Split**: advises splitting 3+ passenger searches for cheaper fare buckets
+- **Alliance baggage system**: full SkyTeam/Oneworld/Star Alliance membership database with per-tier baggage benefit resolution
+- **All-in pricing**: CLI "All-in" column and MCP `all_in_cost` field add bag fees and subtract FF benefits for honest LCC vs full-service comparison
+- Now 44 MCP tools, 26 hack detectors
+
 ## [0.6.11] - 2026-04-19
 
 ### Added
