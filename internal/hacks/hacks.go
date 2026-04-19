@@ -179,6 +179,28 @@ func dedupHacks(hacks []Hack) []Hack {
 	return result
 }
 
+// DetectFlightTips runs a curated subset of zero-API-call detectors suitable
+// for auto-triggering after a flight search. It returns hacks for:
+// advance_purchase, fare_breakpoint, destination_airport, and group_split.
+// Fuel surcharge requires airline codes and is handled separately via
+// DetectFuelSurcharge.
+func DetectFlightTips(ctx context.Context, in DetectorInput) []Hack {
+	detectors := []detectFn{
+		detectAdvancePurchase,
+		detectFareBreakpoint,
+		detectDestinationAirport,
+		detectGroupSplit,
+	}
+
+	var all []Hack
+	for _, fn := range detectors {
+		if h := fn(ctx, in); len(h) > 0 {
+			all = append(all, h...)
+		}
+	}
+	return all
+}
+
 // roundSavings rounds to the nearest integer for display.
 func roundSavings(v float64) float64 {
 	return math.Round(v)

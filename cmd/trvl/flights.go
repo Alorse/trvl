@@ -5,13 +5,18 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/baggage"
 	"github.com/MikkoParkkola/trvl/internal/deals"
 	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/flights"
+	"github.com/MikkoParkkola/trvl/internal/hacks"
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"github.com/MikkoParkkola/trvl/internal/points"
 	"github.com/MikkoParkkola/trvl/internal/preferences"
 	"github.com/spf13/cobra"
 )
@@ -125,6 +130,10 @@ Examples:
 			if err := printFlightsTable(cmd.Context(), strings.Join(origins, ","), strings.Join(destinations, ","), targetCurrency, result); err != nil {
 				return err
 			}
+
+			// Auto-trigger: run applicable hack detectors and print tips
+			// below the flight results.
+			maybeShowFlightHackTips(cmd.Context(), origins, destinations, date, returnDate, adults, result)
 
 			if openFlag && result.Success && len(result.Flights) > 0 && result.Flights[0].BookingURL != "" {
 				_ = openBrowser(result.Flights[0].BookingURL)
@@ -317,6 +326,11 @@ func printFlightsTable(ctx context.Context, origin, destination, targetCurrency 
 		models.Summary(os.Stdout, fmt.Sprintf("Cheapest: %s %.0f (%s, %s)",
 			cheapest.Currency, cheapest.Price, descriptor, formatStops(cheapest.Stops)))
 		models.BookingHint(os.Stdout)
+
+		// Miles earning estimate for users with FF programmes.
+		if prefs != nil {
+			printMilesEarning(prefs, origin, destination, cheapest)
+		}
 	}
 	return nil
 }
@@ -412,5 +426,203 @@ func formatStops(stops int) string {
 		return "1 stop"
 	default:
 		return fmt.Sprintf("%d stops", stops)
+	}
+}
+
+// printMilesEarning shows a brief miles-earning summary for the cheapest
+// flight, based on the user's frequent flyer programmes.
+func printMilesEarning(prefs *preferences.Preferences, origin, destination string, cheapest models.FlightResult) {
+	if len(prefs.FrequentFlyerPrograms) == 0 {
+		return
+	}
+
+	airlineCode := ""
+	if len(cheapest.Legs) > 0 {
+		airlineCode = cheapest.Legs[0].AirlineCode
+	}
+	if airlineCode == "" {
+		return
+	}
+
+	// Determine cabin class from the flight (default to economy).
+	cabinClass := "economy"
+
+	// Use EUR as price basis for revenue-based earning.
+	priceEUR := cheapest.Price
+	if cheapest.Currency != "EUR" {
+		// Rough conversion — earning estimates are approximate anyway.
+		priceEUR = cheapest.Price // treat as-is; user sees "estimate" caveat
+	}
+
+	fmt.Println()
+	for _, ff := range prefs.FrequentFlyerPrograms {
+		est := points.EstimateMilesEarned(origin, destination, cabinClass, airlineCode, ff.Alliance, priceEUR)
+		if est.Miles <= 0 {
+			continue
+		}
+
+		programLabel := ff.ProgramName
+		if programLabel == "" {
+			programLabel = est.Program
+		}
+
+		line := fmt.Sprintf("  \u2708 %s: ~%s miles earned (%s)", programLabel, formatMiles(est.Miles), airlineCode)
+
+		if ff.MilesBalance > 0 {
+			newBalance := ff.MilesBalance + est.Miles
+			line += fmt.Sprintf(" | Balance: %s \u2192 %s", formatMiles(ff.MilesBalance), formatMiles(newBalance))
+		}
+
+		fmt.Println(line)
+	}
+}
+
+// formatMiles formats a miles number with comma separators.
+func formatMiles(n int) string {
+	s := fmt.Sprintf("%d", n)
+	if len(s) <= 3 {
+		return s
+	}
+	// Insert commas from the right.
+	var b strings.Builder
+	remainder := len(s) % 3
+	if remainder > 0 {
+		b.WriteString(s[:remainder])
+	}
+	for i := remainder; i < len(s); i += 3 {
+		if b.Len() > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(s[i : i+3])
+	}
+	return b.String()
+}
+
+// railFlyHubs lists destination airports where Rail+Fly arbitrage is possible.
+var railFlyHubs = map[string]bool{
+	"AMS": true, "FRA": true, "CDG": true, "ZRH": true,
+}
+
+// maybeShowFlightHackTips runs applicable hack detectors after a flight search
+// and prints up to 3 compact tips sorted by savings (highest first).
+func maybeShowFlightHackTips(ctx context.Context, origins, dests []string, departDate, returnDate string, passengers int, result *models.FlightSearchResult) {
+	if result == nil || !result.Success || len(result.Flights) == 0 {
+		return
+	}
+
+	// Use first origin/dest for detector input (primary route).
+	origin := origins[0]
+	dest := dests[0]
+
+	// Determine cheapest price and currency for NaivePrice.
+	cheapest := result.Flights[0]
+	for _, f := range result.Flights[1:] {
+		if f.Price > 0 && f.Price < cheapest.Price {
+			cheapest = f
+		}
+	}
+
+	currency := cheapest.Currency
+	if currency == "" {
+		currency = "EUR"
+	}
+
+	// Collect airline codes from results for fuel surcharge detection.
+	airlineCodeSet := make(map[string]bool)
+	for _, f := range result.Flights {
+		for _, leg := range f.Legs {
+			if leg.AirlineCode != "" {
+				airlineCodeSet[leg.AirlineCode] = true
+			}
+		}
+	}
+	var airlineCodes []string
+	for code := range airlineCodeSet {
+		airlineCodes = append(airlineCodes, code)
+	}
+
+	// --- Zero-API-call detectors (synchronous) ---
+
+	input := hacks.DetectorInput{
+		Origin:      origin,
+		Destination: dest,
+		Date:        departDate,
+		ReturnDate:  returnDate,
+		Currency:    currency,
+		NaivePrice:  cheapest.Price * float64(passengers),
+		Passengers:  passengers,
+	}
+
+	allHacks := hacks.DetectFlightTips(ctx, input)
+
+	// Fuel surcharge — if flight results contain airline codes.
+	if len(airlineCodes) > 0 {
+		allHacks = append(allHacks, hacks.DetectFuelSurcharge(origin, dest, airlineCodes)...)
+	}
+
+	// --- API-call detector: Rail+Fly (goroutine with 15s timeout) ---
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	if railFlyHubs[dest] {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rfCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			defer cancel()
+			if h := hacks.DetectRailFlyArbitrage(rfCtx, origin, dest, departDate, returnDate); len(h) > 0 {
+				mu.Lock()
+				allHacks = append(allHacks, h...)
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if len(allHacks) == 0 {
+		return
+	}
+
+	// Sort by savings descending, then by type for deterministic ordering.
+	sort.Slice(allHacks, func(i, j int) bool {
+		if allHacks[i].Savings != allHacks[j].Savings {
+			return allHacks[i].Savings > allHacks[j].Savings
+		}
+		return allHacks[i].Type < allHacks[j].Type
+	})
+
+	// Cap at 3 tips.
+	if len(allHacks) > 3 {
+		allHacks = allHacks[:3]
+	}
+
+	fmt.Println()
+	for _, h := range allHacks {
+		label := hackTypeLabel(h.Type)
+		tip := h.Title
+		if h.Savings > 0 {
+			tip = fmt.Sprintf("%s — saves %s %.0f", h.Title, h.Currency, h.Savings)
+		}
+		fmt.Printf("  💡 %s: %s\n", label, tip)
+	}
+}
+
+// hackTypeLabel returns a short display label for a hack type.
+func hackTypeLabel(t string) string {
+	switch t {
+	case "rail_fly_arbitrage":
+		return "Rail+Fly"
+	case "advance_purchase":
+		return "Timing"
+	case "fare_breakpoint":
+		return "Routing"
+	case "destination_airport":
+		return "Destination"
+	case "fuel_surcharge":
+		return "Surcharge"
+	case "group_split":
+		return "Group"
+	default:
+		return strings.ReplaceAll(t, "_", " ")
 	}
 }

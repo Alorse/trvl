@@ -3,11 +3,14 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/MikkoParkkola/trvl/internal/baggage"
 	"github.com/MikkoParkkola/trvl/internal/flights"
+	"github.com/MikkoParkkola/trvl/internal/hacks"
 	"github.com/MikkoParkkola/trvl/internal/models"
+	"github.com/MikkoParkkola/trvl/internal/points"
 	"github.com/MikkoParkkola/trvl/internal/preferences"
 	"github.com/MikkoParkkola/trvl/internal/trip"
 )
@@ -36,6 +39,19 @@ func flightSearchOutputSchema() interface{} {
 						"all_in_cost":    map[string]interface{}{"type": "number", "description": "Total cost including baggage fees adjusted for FF status"},
 						"bag_breakdown":  map[string]interface{}{"type": "string", "description": "Baggage cost explanation, e.g. '+€35 checked bag' or 'bags included'"},
 						"self_connect":   map[string]interface{}{"type": "boolean"},
+						"miles_earned": map[string]interface{}{
+							"type":        "array",
+							"description": "Estimated miles/points earned per FF programme",
+							"items": map[string]interface{}{
+								"type": "object",
+								"properties": map[string]interface{}{
+									"program":      map[string]interface{}{"type": "string"},
+									"miles_earned": map[string]interface{}{"type": "integer"},
+									"method":       map[string]interface{}{"type": "string", "description": "'revenue' or 'distance'"},
+								},
+							},
+						},
+						"miles_value": map[string]interface{}{"type": "number", "description": "Cents-per-mile value if this flight were redeemed with points"},
 						"warnings": map[string]interface{}{
 							"type":  "array",
 							"items": map[string]interface{}{"type": "string"},
@@ -79,6 +95,24 @@ func flightSearchOutputSchema() interface{} {
 						"action":      map[string]interface{}{"type": "string"},
 						"description": map[string]interface{}{"type": "string"},
 						"params":      map[string]interface{}{"type": "object"},
+					},
+				},
+			},
+			"hacks": map[string]interface{}{
+				"type":        "array",
+				"description": "Auto-detected travel optimization tips for this route (zero-API-call detectors only)",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"type":        map[string]interface{}{"type": "string"},
+						"title":       map[string]interface{}{"type": "string"},
+						"description": map[string]interface{}{"type": "string"},
+						"savings":     map[string]interface{}{"type": "number"},
+						"currency":    map[string]interface{}{"type": "string"},
+						"steps": map[string]interface{}{
+							"type":  "array",
+							"items": map[string]interface{}{"type": "string"},
+						},
 					},
 				},
 			},
@@ -272,10 +306,18 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 	}
 
 	// Enrich flights with all-in cost (base fare + baggage - FF benefits).
+	// Miles earning info per FF programme.
+	type milesEarningInfo struct {
+		Program     string `json:"program"`
+		MilesEarned int    `json:"miles_earned"`
+		Method      string `json:"method"` // "revenue" or "distance"
+	}
 	type enrichedFlight struct {
 		models.FlightResult
-		AllInCost    float64 `json:"all_in_cost,omitempty"`
-		BagBreakdown string  `json:"bag_breakdown,omitempty"`
+		AllInCost    float64            `json:"all_in_cost,omitempty"`
+		BagBreakdown string             `json:"bag_breakdown,omitempty"`
+		MilesEarned  []milesEarningInfo `json:"miles_earned,omitempty"`
+		MilesValue   float64            `json:"miles_value,omitempty"` // cents-per-mile if redeemed at this price
 	}
 	enrichedFlights := make([]enrichedFlight, len(result.Flights))
 	if prefs != nil && result.Success {
@@ -288,6 +330,13 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 				Tier:     fp.Tier,
 			})
 		}
+
+		// Determine cabin class for earning estimation.
+		cabinClass := "economy"
+		if cc := argString(args, "cabin_class"); cc != "" {
+			cabinClass = cc
+		}
+
 		for i, f := range result.Flights {
 			enrichedFlights[i].FlightResult = f
 			airlineCode := ""
@@ -301,6 +350,24 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 					enrichedFlights[i].BagBreakdown = breakdown
 				}
 			}
+
+			// Miles earning estimate per FF programme.
+			if airlineCode != "" {
+				for _, ff := range prefs.FrequentFlyerPrograms {
+					est := points.EstimateMilesEarned(origin, dest, cabinClass, airlineCode, ff.Alliance, f.Price)
+					if est.Miles > 0 {
+						programLabel := ff.ProgramName
+						if programLabel == "" {
+							programLabel = est.Program
+						}
+						enrichedFlights[i].MilesEarned = append(enrichedFlights[i].MilesEarned, milesEarningInfo{
+							Program:     programLabel,
+							MilesEarned: est.Miles,
+							Method:      est.Method,
+						})
+					}
+				}
+			}
 		}
 	} else {
 		for i, f := range result.Flights {
@@ -311,6 +378,62 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 	// Build suggestions for progressive disclosure.
 	suggestions := flightSuggestions(result, origin, dest, date, opts)
 
+	// Run zero-API-call hack detectors for auto-tips.
+	var flightHacks []hacks.Hack
+	if result.Success && len(result.Flights) > 0 {
+		cheapest := result.Flights[0]
+		for _, f := range result.Flights[1:] {
+			if f.Price > 0 && f.Price < cheapest.Price {
+				cheapest = f
+			}
+		}
+		hackCurrency := cheapest.Currency
+		if hackCurrency == "" {
+			hackCurrency = "EUR"
+		}
+
+		hackInput := hacks.DetectorInput{
+			Origin:      origin,
+			Destination: dest,
+			Date:        date,
+			ReturnDate:  opts.ReturnDate,
+			Currency:    hackCurrency,
+			NaivePrice:  cheapest.Price,
+			Passengers:  1,
+		}
+		flightHacks = hacks.DetectFlightTips(ctx, hackInput)
+
+		// Fuel surcharge — collect airline codes from results.
+		airlineCodeSet := make(map[string]bool)
+		for _, f := range result.Flights {
+			for _, leg := range f.Legs {
+				if leg.AirlineCode != "" {
+					airlineCodeSet[leg.AirlineCode] = true
+				}
+			}
+		}
+		if len(airlineCodeSet) > 0 {
+			var codes []string
+			for code := range airlineCodeSet {
+				codes = append(codes, code)
+			}
+			flightHacks = append(flightHacks, hacks.DetectFuelSurcharge(origin, dest, codes)...)
+		}
+
+		// Sort by savings descending, then type for deterministic ordering.
+		sort.Slice(flightHacks, func(i, j int) bool {
+			if flightHacks[i].Savings != flightHacks[j].Savings {
+				return flightHacks[i].Savings > flightHacks[j].Savings
+			}
+			return flightHacks[i].Type < flightHacks[j].Type
+		})
+
+		// Cap at 3.
+		if len(flightHacks) > 3 {
+			flightHacks = flightHacks[:3]
+		}
+	}
+
 	// Build structured response.
 	type enrichedFlightSearchResult struct {
 		Success     bool             `json:"success"`
@@ -319,6 +442,7 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 		Flights     []enrichedFlight `json:"flights"`
 		Error       string           `json:"error,omitempty"`
 		Suggestions []Suggestion     `json:"suggestions,omitempty"`
+		Hacks       []hacks.Hack     `json:"hacks,omitempty"`
 	}
 	resp := enrichedFlightSearchResult{
 		Success:     result.Success,
@@ -327,6 +451,7 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 		Flights:     enrichedFlights,
 		Error:       result.Error,
 		Suggestions: suggestions,
+		Hacks:       flightHacks,
 	}
 
 	content, err := buildAnnotatedContentBlocks(flightSummary(result, origin, dest), resp)

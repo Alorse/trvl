@@ -97,9 +97,11 @@ type FamilyMember struct {
 // treated as belonging to that specific carrier for benefit look-up purposes
 // when the flight's airline matches exactly.
 type FrequentFlyerStatus struct {
-	Alliance    string `json:"alliance"`               // "oneworld", "skyteam", "star_alliance"
-	Tier        string `json:"tier"`                   // tier name, e.g. "gold", "sapphire"
-	AirlineCode string `json:"airline_code,omitempty"` // optional specific IATA carrier code
+	Alliance     string `json:"alliance"`                // "oneworld", "skyteam", "star_alliance"
+	Tier         string `json:"tier"`                    // tier name, e.g. "gold", "sapphire"
+	AirlineCode  string `json:"airline_code,omitempty"`  // optional specific IATA carrier code
+	MilesBalance int    `json:"miles_balance,omitempty"` // current miles/points balance
+	ProgramName  string `json:"program_name,omitempty"`  // e.g. "Flying Blue", "Royal Plus"
 }
 
 // defaultPath returns the canonical preferences file path (~/.trvl/preferences.json).
