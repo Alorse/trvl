@@ -161,16 +161,14 @@ func TestTripsFullFlow_CreateAndAddLeg(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// dealsCmd — valid execution (will fail on network but covers more RunE lines)
+// dealsCmd — flag registration (skip live network which would timeout)
 // ---------------------------------------------------------------------------
 
-func TestDealsCmd_DefaultRun(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+func TestDealsCmd_FlagsV11b(t *testing.T) {
 	cmd := dealsCmd()
-	cmd.SetArgs([]string{})
-	// Will attempt network — just ensure no panic.
-	_ = cmd.Execute()
+	if cmd == nil {
+		t.Error("expected non-nil dealsCmd")
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -230,34 +228,37 @@ func TestAirportTransferCmd_RequiresThreeArgsV11(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// hacksCmd — valid IATA inputs (will fail on network but covers validation lines)
+// hacksCmd — valid IATA inputs but skip live network
 // ---------------------------------------------------------------------------
 
-func TestHacksCmd_ValidIATANoNetwork(t *testing.T) {
+func TestHacksCmd_FlagsRegisteredV11(t *testing.T) {
 	cmd := hacksCmd()
-	cmd.SetArgs([]string{"HEL", "BCN", "2026-07-01"})
-	// Will attempt network; just ensure no panic on valid input.
-	_ = cmd.Execute()
+	for _, name := range []string{"return", "carry-on", "currency"} {
+		if f := cmd.Flags().Lookup(name); f == nil {
+			t.Errorf("expected --%s flag on hacksCmd", name)
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
-// groundCmd — valid args but no network
+// groundCmd — valid args flag check (skip live network)
 // ---------------------------------------------------------------------------
 
-func TestGroundCmd_ValidArgsNoNetwork(t *testing.T) {
+func TestGroundCmd_AliasExist(t *testing.T) {
 	cmd := groundCmd()
-	cmd.SetArgs([]string{"Prague", "Vienna", "2026-07-01"})
-	// Will attempt network; cover the arg parsing code paths.
-	_ = cmd.Execute()
+	// The cmd should have Aliases ["bus", "train"].
+	if len(cmd.Aliases) == 0 {
+		t.Error("expected aliases on groundCmd")
+	}
 }
 
 // ---------------------------------------------------------------------------
-// airportTransferCmd — valid args (covers opts building, will fail on network)
+// airportTransferCmd — valid args (skip live network)
 // ---------------------------------------------------------------------------
 
-func TestAirportTransferCmd_ValidArgsNoNetwork(t *testing.T) {
+func TestAirportTransferCmd_ArrivalAfterFlag(t *testing.T) {
 	cmd := airportTransferCmd()
-	cmd.SetArgs([]string{"CDG", "Paris Gare du Nord", "2026-07-01"})
-	// Will attempt network; covers input struct construction.
-	_ = cmd.Execute()
+	if f := cmd.Flags().Lookup("arrival-after"); f == nil {
+		t.Error("expected --arrival-after flag on airportTransferCmd")
+	}
 }

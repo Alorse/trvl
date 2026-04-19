@@ -250,36 +250,44 @@ func TestWatchRemoveCmd_RemovesWatch(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// runEvents — with set API key but no network (covers more RunE lines)
+// eventsCmd — flag registration
 // ---------------------------------------------------------------------------
 
-func TestRunEvents_WithAPIKeyNoNetwork(t *testing.T) {
-	// Set a fake API key so we pass the key-check guard.
-	t.Setenv("TICKETMASTER_API_KEY", "fake-test-key-no-network")
+func TestEventsCmd_FlagsV12(t *testing.T) {
 	cmd := eventsCmd()
-	cmd.SetArgs([]string{"Barcelona", "--from", "2026-07-01", "--to", "2026-07-08"})
-	// Will fail on network; covers the key-exists path.
-	_ = cmd.Execute()
+	for _, name := range []string{"from", "to"} {
+		if f := cmd.Flags().Lookup(name); f == nil {
+			t.Errorf("expected --%s flag on eventsCmd", name)
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
-// datesCmd — adults flag and default date range
+// datesCmd — adults flag registration
 // ---------------------------------------------------------------------------
 
 func TestDatesCmd_AdultsFlag(t *testing.T) {
 	cmd := datesCmd()
-	cmd.SetArgs([]string{"HEL", "BCN", "--adults", "2"})
-	// No --from/--to → defaults; will fail on network.
-	_ = cmd.Execute()
+	if f := cmd.Flags().Lookup("adults"); f == nil {
+		t.Error("expected --adults flag on datesCmd")
+	}
+	if f := cmd.Flags().Lookup("legacy"); f == nil {
+		t.Error("expected --legacy flag on datesCmd")
+	}
 }
 
 // ---------------------------------------------------------------------------
-// weekendCmd — valid IATA no network (covers more of RunE past IATA check)
+// weekendCmd — flag defaults
 // ---------------------------------------------------------------------------
 
-func TestWeekendCmd_ValidIATANoNetwork(t *testing.T) {
+func TestWeekendCmd_NightsDefault(t *testing.T) {
 	cmd := weekendCmd()
-	cmd.SetArgs([]string{"HEL", "--month", "2026-07"})
-	// Will fail on network; covers IATA validation success path.
-	_ = cmd.Execute()
+	f := cmd.Flags().Lookup("nights")
+	if f == nil {
+		t.Error("expected --nights flag on weekendCmd")
+		return
+	}
+	if f.DefValue != "2" {
+		t.Errorf("expected default nights=2, got %s", f.DefValue)
+	}
 }
