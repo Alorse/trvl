@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -230,7 +231,7 @@ func TestPrintExploreTable_Empty(t *testing.T) {
 		Destinations: nil,
 		Count:        0,
 	}
-	if err := printExploreTable(nil, "", result, "HEL"); err != nil {
+	if err := printExploreTable(context.TODO(), "", result, "HEL"); err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -243,7 +244,7 @@ func TestPrintExploreTable_WithDestinations(t *testing.T) {
 		},
 		Count: 2,
 	}
-	if err := printExploreTable(nil, "", result, "HEL"); err != nil {
+	if err := printExploreTable(context.TODO(), "", result, "HEL"); err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 }

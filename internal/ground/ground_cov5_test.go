@@ -42,6 +42,15 @@ func dfdsTestMux(t *testing.T, availJSON string) (*httptest.Server, func()) {
 // connection to that host. Instead, we test fetchDFDSAvailability directly
 // by overriding dfdsClient with a transport that returns canned responses.
 
+func TestDFDSTestMux_ServerStarts(t *testing.T) {
+	// Verify dfdsTestMux stands up a server and restores globals on cleanup.
+	srv, cleanup := dfdsTestMux(t, `{"route":"TEST","dates":{"fromDate":"2026-01-01","toDate":"2027-12-31"},"disabledDates":[],"offerDates":[]}`)
+	defer cleanup()
+	if srv == nil {
+		t.Fatal("expected non-nil server from dfdsTestMux")
+	}
+}
+
 func TestFetchDFDSAvailability_ViaTransport_Available(t *testing.T) {
 	origClient := dfdsClient
 	origLimiter := dfdsLimiter

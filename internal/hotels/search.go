@@ -574,11 +574,16 @@ func filterHotels(hotels []models.HotelResult, opts HotelSearchOptions) []models
 			continue
 		}
 		// Rating filter: when MinRating is set, require rating data AND that
-		// it meets the minimum. Unrated properties (h.Rating == 0) are
-		// suspicious — usually new listings, private rooms, or apartments
-		// without enough reviews to establish quality.
-		if opts.MinRating > 0 && (h.Rating == 0 || h.Rating < opts.MinRating) {
-			continue
+		// it meets the minimum. However, external-provider results (Airbnb,
+		// Booking.com, Hostelworld) often lack a Google-scale rating — pass
+		// those through rather than dropping valuable cross-provider results.
+		if opts.MinRating > 0 {
+			if h.Rating > 0 && h.Rating < opts.MinRating {
+				continue
+			}
+			if h.Rating == 0 && !models.HasExternalProviderSource(h) {
+				continue
+			}
 		}
 		if h.Lat != 0 && h.Lon != 0 && opts.CenterLat != 0 {
 			dist := Haversine(opts.CenterLat, opts.CenterLon, h.Lat, h.Lon)

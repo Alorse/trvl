@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -702,7 +703,7 @@ func TestHotelSourceLabel_WithSpaces(t *testing.T) {
 
 func TestMaybeShowAccomHackTip_ShortStayNoOp(t *testing.T) {
 	// < 4 nights — should return early without panic.
-	maybeShowAccomHackTip(nil, "Prague", "2026-06-15", "2026-06-17", "EUR", 2)
+	maybeShowAccomHackTip(context.TODO(), "Prague", "2026-06-15", "2026-06-17", "EUR", 2)
 }
 
 // ---------------------------------------------------------------------------

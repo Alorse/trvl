@@ -125,9 +125,7 @@ func TestLiveChecker_TypeExists(t *testing.T) {
 	} = nil // just compile-check by reference to liveChecker existing
 	// Ensure the struct is accessible (it was declared in watch.go).
 	checker := &liveChecker{}
-	if checker == nil {
-		t.Error("liveChecker should be constructable")
-	}
+	_ = checker // ensure the struct is accessible (it was declared in watch.go)
 }
 
 // ---------------------------------------------------------------------------

@@ -445,8 +445,8 @@ func TestSearchEurostarTimetable_NonOK(t *testing.T) {
 	var ttResp eurostarTimetableResponse
 	// Empty response (simulating non-200 body read) should yield no entries.
 	entries := make([]eurostarTimetableEntry, 0, len(ttResp.Data.TimetableServices))
-	if entries == nil {
-		t.Error("entries should be non-nil empty slice")
+	if len(entries) != 0 {
+		t.Errorf("expected zero entries from empty response, got %d", len(entries))
 	}
 }
 

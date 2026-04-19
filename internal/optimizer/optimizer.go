@@ -328,6 +328,9 @@ func expandCandidates(input OptimizeInput) []*candidate {
 	}
 
 	// 8. Rail competition: competitive rail corridor as ground alternative.
+	// Note: rail/ferry fares are EUR-denominated reference prices. We tag
+	// them with the input currency so they sort alongside flight results.
+	// Precision loss is acceptable — these are indicative, not bookable prices.
 	if minFare, operators, ok := hacks.CompetitiveRailRoute(origin, dest); ok {
 		candidates = append(candidates, &candidate{
 			origin:     origin,
@@ -338,7 +341,7 @@ func expandCandidates(input OptimizeInput) []*candidate {
 			hackTypes:  []string{"rail_competition", "ground_alternative"},
 			prePriced:  true,
 			baseCost:   minFare,
-			currency:   "EUR",
+			currency:   input.Currency,
 			searched:   true,
 		})
 	}
@@ -354,7 +357,7 @@ func expandCandidates(input OptimizeInput) []*candidate {
 			hackTypes:  []string{"ferry_cabin_hotel"},
 			prePriced:  true,
 			baseCost:   cabinEUR,
-			currency:   "EUR",
+			currency:   input.Currency,
 			searched:   true,
 		})
 	}

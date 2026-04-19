@@ -145,7 +145,7 @@ func TestWatchDaemonCmd_EveryFlag(t *testing.T) {
 	cmd := watchDaemonCmd()
 	f := cmd.Flags().Lookup("every")
 	if f == nil {
-		t.Error("expected --every flag on watchDaemonCmd")
+		t.Fatal("expected --every flag on watchDaemonCmd")
 	}
 	if f.DefValue != "6h0m0s" {
 		t.Logf("default every = %q (may vary by platform)", f.DefValue)

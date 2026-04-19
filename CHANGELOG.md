@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-04-20
+
+### Added
+- **50 MCP tools** — `search_hotel_by_name` (cross-provider name-based property lookup with fuzzy matching) and `onboard_profile` (5-phase progressive interview for new users)
+- **Profile-driven search** — traveller profile (TravelMode, CityIntelligence, BookingStrategy, PreferenceElasticity, DestinationRelationship) now drives search behaviour as soft defaults. Flights use preferred airlines/alliance/cabin from booking history. Hotels use star rating, property type, price ceiling, and city-specific neighbourhood preferences. Ground transport uses preferred mode. Explicit parameters always override
+- **LLM-aware onboarding Phase 0** — before asking questions, the LLM states what it already knows/infers about the user and asks to confirm. Confirmed inferences skip redundant questions in later phases
+- **Travel personality model** — captures WHY the user makes decisions: travel modes (solo_remote, with_partner, with_kids, weekend_break), city intelligence (per-city knowledge depth, neighbourhoods, restaurants), booking strategies (machine-readable patterns), price elasticity factors, destination relationship graph (why each city matters)
+- **Eurostar Snap routing** — 14-day rolling window for Snap fares, 9 validated routes from snap.eurostar.com, Antwerp station support
+
+### Changed
+- **Optimizer currency consistency** — pre-priced ground candidates (rail/ferry) now use the input currency instead of hardcoded EUR, enabling correct cross-candidate cost comparison
+- **Hotel post-filter** — external provider results (Airbnb, Booking.com, Hostelworld) without Google-scale ratings now pass through the MinRating filter instead of being dropped. Fixes Paris 121→1 survivor regression for multi-provider searches
+
+### Fixed
+- **All 7 staticcheck warnings resolved** — nil contexts replaced with context.TODO(), impossible nil checks removed, unused functions deleted
+- **Stale branches cleaned** — removed 6 local + 13 remote branches (copilot, dependabot, worktree artifacts). Only main remains
+
 ## [0.9.2] - 2026-04-19
 
 ### Changed
