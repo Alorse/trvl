@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-04-19
+
+### Changed
+- **README overhaul** — updated to reflect 36 hack detectors (was 18), 5 hotel providers (was 3), 574 Go files / 74K LOC / 32 packages / 5400+ tests, added Traveller Profile section
+- **Coverage push** — hacks 65.6→91.9%, providers 75.5→80.0%, trip 68.6→71.4%, cmd/trvl 63.0→63.7%
+- **Traveller Profile** now tracks Eurostar, European Sleeper, FlixBus AMS↔Paris/Prague routes, Club Eurostar and Tallink Club One memberships, Uber+Bolt rides, public holiday tracking for 9 countries
+
 ## [0.9.1] - 2026-04-19
 
 ### Added
