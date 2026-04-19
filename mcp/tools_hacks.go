@@ -24,6 +24,7 @@ func detectTravelHacksTool() ToolDef {
 				"currency":     {Type: "string", Description: "Display currency (default: EUR)"},
 				"carry_on":     {Type: "boolean", Description: "Carry-on only trip — enables hidden city suggestions"},
 				"naive_price":  {Type: "number", Description: "Known baseline one-way price for comparison (optional)"},
+				"passengers":   {Type: "integer", Description: "Number of passengers (group split hack fires at 3+)"},
 			},
 			Required: []string{"origin", "destination", "date"},
 		},
@@ -66,13 +67,16 @@ func hacksOutputSchema() interface{} {
 	}
 }
 
-// detectorNames lists the 14 parallel hack detectors for progress reporting.
+// detectorNames lists the 20 parallel hack detectors for progress reporting.
 var detectorNames = []string{
 	"throwaway ticketing", "hidden city", "positioning flights",
 	"split ticketing", "night transport", "airline stopovers",
 	"date flexibility", "open jaw", "ferry positioning",
 	"multi-stop routing", "currency arbitrage", "calendar conflicts",
 	"Tuesday booking", "low-cost carriers",
+	"multimodal skip flight", "multimodal positioning",
+	"multimodal open jaw ground", "multimodal return split",
+	"advance purchase", "group split",
 }
 
 func handleDetectTravelHacks(ctx context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
@@ -86,6 +90,7 @@ func handleDetectTravelHacks(ctx context.Context, args map[string]any, _ ElicitF
 	}
 	carryOn := argBool(args, "carry_on", false)
 	naivePrice := argFloat(args, "naive_price", 0)
+	passengers := argInt(args, "passengers", 1)
 
 	sendProgress(progress, 0, 100, fmt.Sprintf("Analysing %s→%s for travel hacks...", origin, destination))
 
@@ -97,6 +102,7 @@ func handleDetectTravelHacks(ctx context.Context, args map[string]any, _ ElicitF
 		Currency:    currency,
 		CarryOnOnly: carryOn,
 		NaivePrice:  naivePrice,
+		Passengers:  passengers,
 	}
 
 	// Emit progress for each detector group (detectors run in parallel internally).
