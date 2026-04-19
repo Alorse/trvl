@@ -77,7 +77,7 @@ From?|To?|When?|Flex?|Travelers?|Budget? Check calendar (Google/Apple/manual) fo
 | `optimize_trip_dates` | Cheapest dates across range (1 API call) | origin,destination,from_date,to_date,trip_length |
 | `assess_trip` | GO/WAIT/NO_GO viability check | origin,destination,depart_date,return_date,[passport] |
 | `optimize_booking` | Unified optimizer: all combos | origin,destination,departure_date,[return_date,flex_days,carry_on_only] |
-| `detect_travel_hacks` | Run 39 parallel hack detectors | origin,destination,date,[return_date,carry_on] |
+| `detect_travel_hacks` | Run 36 parallel hack detectors | origin,destination,date,[return_date,carry_on] |
 | `detect_accommodation_hacks` | Split stay across hotels to save | city,check_in,check_out |
 
 ## ALWAYS RUN THESE CHECKS
@@ -95,7 +95,7 @@ When the user asks about a trip, ALWAYS try optimize_booking first:
 3. For each option, explain which hacks were applied
 4. Show all-in costs (including bags adjusted for FF status)
 
-## HACKS (39 detectors — apply when relevant)
+## HACKS (36 detectors — apply when relevant)
 | Hack | When | Detection |
 |------|------|-----------|
 | Positioning flights | Long-haul expensive | explore→cheap hub→search(hub,dest) |
@@ -112,6 +112,8 @@ When the user asks about a trip, ALWAYS try optimize_booking first:
 | Cross-provider savings | Multi-source hotel | hotel search auto-shows cheapest source |
 | Flight combo | RT vs split airlines | DetectFlightCombo — compares RT vs 2x one-way |
 | Nested returns | 2+ trips same route | DetectFlightCombo — swaps return legs across trips |
+| Error fare | Price anomaly | haversine distance -> route tier -> floor comparison |
+| Flash sale | Below-floor price | Same as error_fare but above error threshold |
 | Trip viability | Before booking | assess_trip — GO/WAIT/NO_GO with cost breakdown |
 
 ## OUTPUT FORMAT

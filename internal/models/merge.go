@@ -28,7 +28,7 @@ func HasExternalProviderSource(h HotelResult) bool {
 // could be ambiguous (e.g. "Hilton" in different cities), normalized address
 // equality or geo-proximity within maxDistanceMeters is used as a tiebreaker.
 func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
-	const maxDistanceMeters = 500.0
+	const maxDistanceMeters = 100.0
 
 	type key struct {
 		name string
@@ -42,10 +42,12 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 	// variants for the same physical property (e.g. "Holiday Inn Express
 	// Amsterdam Arena Towers by IHG" vs "Holiday Inn Express Amsterdam -
 	// Arena Towers"), the primary name-key lookup misses. The geo-index
-	// catches these by finding the nearest existing entry within 150m.
-	const geoMergeMeters = 150.0
+	// catches these by finding the nearest existing entry within 50m AND
+	// requiring name similarity to avoid merging unrelated nearby hotels.
+	const geoMergeMeters = 50.0
 	type geoEntry struct {
 		k        key
+		name     string // normalized name for similarity check
 		lat, lon float64
 	}
 	var geoIndex []geoEntry
@@ -55,11 +57,14 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 			k := key{name: normalizeName(h.Name)}
 
 			// Secondary geo-proximity lookup: if name-key doesn't match any
-			// existing entry, check if a nearby hotel (within 150m) exists.
-			// This catches cross-provider name variants for the same building.
+			// existing entry, check if a nearby hotel (within 50m) exists
+			// with a similar name. Both proximity AND name similarity are
+			// required to prevent merging different hotels in dense areas.
 			if _, ok := merged[k]; !ok && h.Lat != 0 {
+				incomingName := normalizeName(h.Name)
 				for _, ge := range geoIndex {
-					if haversineMeters(h.Lat, h.Lon, ge.lat, ge.lon) <= geoMergeMeters {
+					if haversineMeters(h.Lat, h.Lon, ge.lat, ge.lon) <= geoMergeMeters &&
+						nameSimilar(incomingName, ge.name) {
 						k = ge.k // remap to the existing entry's key
 						break
 					}
@@ -77,7 +82,7 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 						merged[dk] = &clone
 						order = append(order, dk)
 						if clone.Lat != 0 {
-							geoIndex = append(geoIndex, geoEntry{k: dk, lat: clone.Lat, lon: clone.Lon})
+							geoIndex = append(geoIndex, geoEntry{k: dk, name: normalizeName(clone.Name), lat: clone.Lat, lon: clone.Lon})
 						}
 					}
 					continue
@@ -135,7 +140,7 @@ func MergeHotelResults(sources ...[]HotelResult) []HotelResult {
 				merged[k] = &clone
 				order = append(order, k)
 				if clone.Lat != 0 {
-					geoIndex = append(geoIndex, geoEntry{k: k, lat: clone.Lat, lon: clone.Lon})
+					geoIndex = append(geoIndex, geoEntry{k: k, name: normalizeName(clone.Name), lat: clone.Lat, lon: clone.Lon})
 				}
 			}
 		}
@@ -210,15 +215,17 @@ func sameHotelCandidate(existing, incoming HotelResult, maxDistanceMeters float6
 		if existingAddress == incomingAddress {
 			return true
 		}
-		if existing.Lat != 0 && incoming.Lat != 0 {
-			return haversineMeters(existing.Lat, existing.Lon, incoming.Lat, incoming.Lon) <= maxDistanceMeters
-		}
+		// Different addresses — these are different hotels even if nearby.
 		return false
 	}
 	if existing.Lat != 0 && incoming.Lat != 0 {
 		return haversineMeters(existing.Lat, existing.Lon, incoming.Lat, incoming.Lon) <= maxDistanceMeters
 	}
-	return true
+	// No address or coordinates to disambiguate. Only merge if the
+	// normalized name is long enough to be specific (e.g. "Hilton" alone
+	// is too short, "Hilton Paris Opera" is specific enough).
+	existingName := normalizeName(existing.Name)
+	return len(existingName) >= 15
 }
 
 func hotelDisambiguationKey(h HotelResult) string {
@@ -323,6 +330,50 @@ func normalizeAddress(address string) string {
 		address = strings.ReplaceAll(address, "  ", " ")
 	}
 	return address
+}
+
+// nameSimilar returns true if two normalized hotel names are similar enough to
+// consider them the same property. This is used as a guard for geo-proximity
+// merging to prevent unrelated nearby hotels from collapsing.
+//
+// The algorithm uses word-level Jaccard similarity: the intersection of words
+// divided by the union of words. A threshold of 0.5 means at least half the
+// words must overlap. Both names must also have at least 2 words each to
+// prevent trivially short names from matching.
+func nameSimilar(a, b string) bool {
+	wordsA := strings.Fields(a)
+	wordsB := strings.Fields(b)
+	if len(wordsA) < 2 || len(wordsB) < 2 {
+		return a == b // very short names must match exactly
+	}
+
+	setA := make(map[string]struct{}, len(wordsA))
+	for _, w := range wordsA {
+		setA[w] = struct{}{}
+	}
+	setB := make(map[string]struct{}, len(wordsB))
+	for _, w := range wordsB {
+		setB[w] = struct{}{}
+	}
+
+	intersection := 0
+	for w := range setA {
+		if _, ok := setB[w]; ok {
+			intersection++
+		}
+	}
+
+	union := len(setA)
+	for w := range setB {
+		if _, ok := setA[w]; !ok {
+			union++
+		}
+	}
+
+	if union == 0 {
+		return false
+	}
+	return float64(intersection)/float64(union) >= 0.5
 }
 
 // haversineMeters returns the distance in meters between two lat/lon points.

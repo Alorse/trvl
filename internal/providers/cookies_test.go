@@ -337,6 +337,177 @@ func TestWithInteractive(t *testing.T) {
 	}
 }
 
+// --- Warm cache tests ---
+
+// resetWarmCache clears the warm cache between tests. Must not run in
+// parallel with tests that read the cache.
+func resetWarmCache(t *testing.T) {
+	t.Helper()
+	warmCache.mu.Lock()
+	warmCache.entries = make(map[string]*warmCacheEntry)
+	warmCache.mu.Unlock()
+	t.Cleanup(func() {
+		warmCache.mu.Lock()
+		warmCache.entries = make(map[string]*warmCacheEntry)
+		warmCache.mu.Unlock()
+	})
+}
+
+// TestWarmBrowserCookies_CachedResultServedInstantly verifies that
+// WarmBrowserCookies starts a background read and warmBrowserCookiesResult
+// returns the cached cookies without hitting kooky again.
+func TestWarmBrowserCookies_CachedResultServedInstantly(t *testing.T) {
+	resetWarmCache(t)
+
+	targetURL := "https://www.booking.com/searchresults.html"
+	hint := "brave"
+
+	// Manually populate the warm cache with synthetic cookies to avoid
+	// hitting the real Keychain during tests.
+	entry := &warmCacheEntry{done: make(chan struct{})}
+	entry.cookies = []*http.Cookie{
+		{Name: "sid", Value: "test123", Domain: ".booking.com"},
+		{Name: "bkng_sso_ses", Value: "session456", Domain: ".booking.com"},
+	}
+	close(entry.done)
+
+	key := warmCacheKey(targetURL, hint)
+	warmCache.mu.Lock()
+	warmCache.entries[key] = entry
+	warmCache.mu.Unlock()
+
+	// warmBrowserCookiesResult should return the cached cookies instantly.
+	start := time.Now()
+	got := warmBrowserCookiesResult(targetURL, hint, time.Second)
+	elapsed := time.Since(start)
+
+	if elapsed > 50*time.Millisecond {
+		t.Errorf("warm cache lookup took %v, expected < 50ms", elapsed)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 cookies from warm cache, got %d", len(got))
+	}
+	if got[0].Name != "sid" || got[0].Value != "test123" {
+		t.Errorf("first cookie = %s=%s, want sid=test123", got[0].Name, got[0].Value)
+	}
+}
+
+// TestWarmBrowserCookies_DeduplicatesCalls verifies that calling
+// WarmBrowserCookies multiple times for the same URL only creates one entry.
+func TestWarmBrowserCookies_DeduplicatesCalls(t *testing.T) {
+	resetWarmCache(t)
+
+	targetURL := "https://www.example.com/page"
+	hint := "chrome"
+
+	// Pre-populate to simulate an existing entry.
+	entry := &warmCacheEntry{done: make(chan struct{})}
+	close(entry.done)
+
+	key := warmCacheKey(targetURL, hint)
+	warmCache.mu.Lock()
+	warmCache.entries[key] = entry
+	warmCache.mu.Unlock()
+
+	// Calling WarmBrowserCookies again should not overwrite the entry.
+	WarmBrowserCookies(targetURL, hint)
+
+	warmCache.mu.Lock()
+	got := warmCache.entries[key]
+	warmCache.mu.Unlock()
+
+	if got != entry {
+		t.Error("WarmBrowserCookies replaced existing entry instead of deduplicating")
+	}
+}
+
+// TestWarmBrowserCookiesResult_NoEntry verifies that warmBrowserCookiesResult
+// returns nil when no warm-up was started for the URL.
+func TestWarmBrowserCookiesResult_NoEntry(t *testing.T) {
+	resetWarmCache(t)
+
+	got := warmBrowserCookiesResult("https://unknown.example.com", "", 50*time.Millisecond)
+	if got != nil {
+		t.Errorf("expected nil for un-warmed URL, got %d cookies", len(got))
+	}
+}
+
+// TestWarmBrowserCookiesResult_TimesOut verifies that warmBrowserCookiesResult
+// returns nil when the warm-up is still in progress and the timeout expires.
+func TestWarmBrowserCookiesResult_TimesOut(t *testing.T) {
+	resetWarmCache(t)
+
+	targetURL := "https://slow.example.com"
+	// Create an entry whose done channel is never closed (simulates slow read).
+	entry := &warmCacheEntry{done: make(chan struct{})}
+
+	key := warmCacheKey(targetURL, "")
+	warmCache.mu.Lock()
+	warmCache.entries[key] = entry
+	warmCache.mu.Unlock()
+
+	start := time.Now()
+	got := warmBrowserCookiesResult(targetURL, "", 50*time.Millisecond)
+	elapsed := time.Since(start)
+
+	if got != nil {
+		t.Error("expected nil when warm-up times out")
+	}
+	if elapsed < 40*time.Millisecond {
+		t.Errorf("returned too quickly: %v, expected >= 50ms", elapsed)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("took too long: %v, expected ~50ms", elapsed)
+	}
+}
+
+// TestInvalidateWarmCache verifies that InvalidateWarmCache removes the
+// cached entry so a subsequent read falls through to kooky.
+func TestInvalidateWarmCache(t *testing.T) {
+	resetWarmCache(t)
+
+	targetURL := "https://www.booking.com/searchresults.html"
+	hint := "brave"
+
+	// Populate cache.
+	entry := &warmCacheEntry{done: make(chan struct{})}
+	entry.cookies = []*http.Cookie{{Name: "old", Value: "stale"}}
+	close(entry.done)
+
+	key := warmCacheKey(targetURL, hint)
+	warmCache.mu.Lock()
+	warmCache.entries[key] = entry
+	warmCache.mu.Unlock()
+
+	// Invalidate.
+	InvalidateWarmCache(targetURL, hint)
+
+	// Result should be nil now.
+	got := warmBrowserCookiesResult(targetURL, hint, 50*time.Millisecond)
+	if got != nil {
+		t.Errorf("expected nil after invalidation, got %d cookies", len(got))
+	}
+}
+
+// TestWarmCacheKey_DifferentHints verifies that different browser hints
+// produce different cache keys for the same URL.
+func TestWarmCacheKey_DifferentHints(t *testing.T) {
+	url := "https://www.booking.com"
+	k1 := warmCacheKey(url, "brave")
+	k2 := warmCacheKey(url, "chrome")
+	k3 := warmCacheKey(url, "")
+
+	if k1 == k2 {
+		t.Error("brave and chrome hints must produce different keys")
+	}
+	if k1 == k3 {
+		t.Error("brave and empty hints must produce different keys")
+	}
+	if k2 == k3 {
+		t.Error("chrome and empty hints must produce different keys")
+	}
+}
+
 // TestIsAkamaiChallenge verifies detection of Akamai/AWS WAF challenge pages.
 func TestIsAkamaiChallenge(t *testing.T) {
 	cases := []struct {

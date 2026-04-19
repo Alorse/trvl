@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/browserutils/kooky"
@@ -212,6 +213,170 @@ func cookieSnapshotKey(cookies []*http.Cookie) string {
 // stale lookups to delay searches significantly.
 const browserCookieLookupTimeout = 5 * time.Second
 
+// --- Browser cookie warm-up cache ---
+//
+// On cold start, kooky's first Keychain access takes 2-8 seconds on macOS.
+// The tier cascade in auth.go calls browserCookiesForURL multiple times
+// (initial apply, Tier 3a retry, Tier 4 snapshot), each blocking on the
+// same slow Keychain lookup. This warm-up cache eliminates that latency by
+// starting the kooky read as soon as the provider client is created
+// (in getOrCreateClient), then serving the cached result to all subsequent
+// callers.
+
+// warmCacheEntry holds the result of a background cookie warm-up.
+type warmCacheEntry struct {
+	cookies []*http.Cookie
+	done    chan struct{} // closed when the read completes
+}
+
+// warmCache stores in-flight and completed cookie warm-up results.
+var warmCache = struct {
+	mu      sync.Mutex
+	entries map[string]*warmCacheEntry
+}{entries: make(map[string]*warmCacheEntry)}
+
+// warmCacheKey builds a lookup key from URL + browser hint.
+func warmCacheKey(targetURL, browserHint string) string {
+	return browserHint + "\x00" + targetURL
+}
+
+// WarmBrowserCookies starts a non-blocking background read of browser
+// cookies for targetURL. The result is cached so that subsequent calls to
+// browserCookiesForURLWithHint return immediately. Safe to call multiple
+// times for the same URL; only the first call triggers a read.
+func WarmBrowserCookies(targetURL, browserHint string) {
+	key := warmCacheKey(targetURL, browserHint)
+
+	warmCache.mu.Lock()
+	if _, exists := warmCache.entries[key]; exists {
+		warmCache.mu.Unlock()
+		return // already warming or warmed
+	}
+	entry := &warmCacheEntry{done: make(chan struct{})}
+	warmCache.entries[key] = entry
+	warmCache.mu.Unlock()
+
+	go func() {
+		defer close(entry.done)
+		entry.cookies = readBrowserCookiesDirect(targetURL, browserHint)
+	}()
+}
+
+// warmBrowserCookiesResult blocks until the warm-up for targetURL completes
+// (up to the given timeout) and returns the cached cookies. Returns nil if
+// no warm-up was started or the timeout expires.
+func warmBrowserCookiesResult(targetURL, browserHint string, timeout time.Duration) []*http.Cookie {
+	key := warmCacheKey(targetURL, browserHint)
+
+	warmCache.mu.Lock()
+	entry, exists := warmCache.entries[key]
+	warmCache.mu.Unlock()
+
+	if !exists {
+		return nil
+	}
+
+	select {
+	case <-entry.done:
+		return entry.cookies
+	case <-time.After(timeout):
+		return nil
+	}
+}
+
+// readBrowserCookiesDirect performs the actual kooky cookie read. This is
+// the same logic as browserCookiesForURLWithHint but extracted so it can
+// run in a background goroutine without recursive cache lookups.
+func readBrowserCookiesDirect(targetURL, browserHint string) []*http.Cookie {
+	if os.Getenv("TRVL_ALLOW_BROWSER_COOKIES") == "" && isTestBinary() {
+		return nil
+	}
+
+	u, err := url.Parse(targetURL)
+	if err != nil || u.Host == "" {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), browserCookieLookupTimeout)
+	defer cancel()
+
+	host := u.Hostname()
+	domainSuffix := registrableSuffix(host)
+
+	if browserHint != "" {
+		var kookyCookies []*kooky.Cookie
+		switch strings.ToLower(browserHint) {
+		case "brave":
+			if path := findBraveCookiePath(); path != "" {
+				kookyCookies, _ = brave.ReadCookies(ctx, path, kooky.Valid, kooky.DomainHasSuffix(domainSuffix))
+			}
+		case "chrome":
+			if path := findChromeCookiePath(); path != "" {
+				kookyCookies, _ = chrome.ReadCookies(ctx, path, kooky.Valid, kooky.DomainHasSuffix(domainSuffix))
+			}
+		}
+		if len(kookyCookies) > 0 {
+			result := make([]*http.Cookie, 0, len(kookyCookies))
+			seen := make(map[string]struct{}, len(kookyCookies))
+			for _, c := range kookyCookies {
+				if c == nil || !cookieDomainMatchesHost(c.Cookie.Domain, host) {
+					continue
+				}
+				key := c.Cookie.Name + "\x00" + c.Cookie.Domain + "\x00" + c.Cookie.Path
+				if _, dup := seen[key]; dup {
+					continue
+				}
+				seen[key] = struct{}{}
+				cp := c.Cookie
+				result = append(result, &cp)
+			}
+			return result
+		}
+	}
+
+	// Fall through to all-browser auto-discovery.
+	cookies, err := kooky.ReadCookies(ctx, kooky.Valid, kooky.DomainHasSuffix(domainSuffix))
+	if err != nil && len(cookies) == 0 {
+		return nil
+	}
+
+	result := make([]*http.Cookie, 0, len(cookies))
+	type dedupEntry struct {
+		cookie http.Cookie
+		idx    int
+	}
+	seen := make(map[string]*dedupEntry, len(cookies))
+	for _, c := range cookies {
+		if c == nil || !cookieDomainMatchesHost(c.Cookie.Domain, host) {
+			continue
+		}
+		key := c.Cookie.Name + "\x00" + c.Cookie.Domain + "\x00" + c.Cookie.Path
+		if prev, dup := seen[key]; dup {
+			if len(c.Cookie.Value) > len(prev.cookie.Value) {
+				prev.cookie = c.Cookie
+				if prev.idx >= 0 {
+					result[prev.idx] = &prev.cookie
+				}
+			}
+			continue
+		}
+		cp := c.Cookie
+		idx := len(result)
+		result = append(result, &cp)
+		seen[key] = &dedupEntry{cookie: cp, idx: idx}
+	}
+	return result
+}
+
+// InvalidateWarmCache removes the warm cache entry for the given URL and
+// browser hint. Used after the browser escape hatch to force a fresh read.
+func InvalidateWarmCache(targetURL, browserHint string) {
+	key := warmCacheKey(targetURL, browserHint)
+	warmCache.mu.Lock()
+	delete(warmCache.entries, key)
+	warmCache.mu.Unlock()
+}
+
 // browserCookiesForURL reads cookies from the user's browsers matching the
 // given URL's domain. Iterates all registered browser cookie stores and
 // returns every cookie whose domain matches the URL host (or is a parent
@@ -223,6 +388,11 @@ const browserCookieLookupTimeout = 5 * time.Second
 // browser has already solved any JS challenges and has valid session
 // cookies, which we can read directly from their disk-backed cookie jars.
 func browserCookiesForURL(targetURL string) []*http.Cookie {
+	// Check warm cache first — returns instantly if pre-warmed.
+	if cached := warmBrowserCookiesResult(targetURL, "", browserCookieLookupTimeout); cached != nil {
+		return cached
+	}
+
 	// Skip browser cookie lookups during `go test` to avoid macOS Keychain
 	// prompts. Every recompiled test binary gets a new code signature, so
 	// "Always Allow" doesn't persist and the user gets prompted repeatedly.
@@ -295,6 +465,11 @@ func browserCookiesForURL(targetURL string) []*http.Cookie {
 func browserCookiesForURLWithHint(targetURL, browserHint string) []*http.Cookie {
 	if browserHint == "" {
 		return browserCookiesForURL(targetURL)
+	}
+
+	// Check warm cache first — returns instantly if pre-warmed.
+	if cached := warmBrowserCookiesResult(targetURL, browserHint, browserCookieLookupTimeout); cached != nil {
+		return cached
 	}
 
 	// Same test-binary guard as browserCookiesForURL.

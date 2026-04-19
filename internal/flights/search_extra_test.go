@@ -644,3 +644,75 @@ func TestBuildFilters_MultipleAdults(t *testing.T) {
 		t.Errorf("adults = %d, want 4", adults)
 	}
 }
+
+// --- CurrencyToGL ---
+
+func TestCurrencyToGL_KnownCurrencies(t *testing.T) {
+	tests := []struct {
+		currency string
+		wantGL   string
+	}{
+		{"EUR", "FI"},
+		{"USD", "US"},
+		{"GBP", "GB"},
+		{"CHF", "CH"},
+		{"SEK", "SE"},
+		{"NOK", "NO"},
+		{"DKK", "DK"},
+		{"PLN", "PL"},
+		{"JPY", "JP"},
+		{"RUB", "RU"},
+		{"AUD", "AU"},
+		{"CAD", "CA"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.currency, func(t *testing.T) {
+			got := CurrencyToGL(tt.currency)
+			if got != tt.wantGL {
+				t.Errorf("CurrencyToGL(%q) = %q, want %q", tt.currency, got, tt.wantGL)
+			}
+		})
+	}
+}
+
+func TestCurrencyToGL_CaseInsensitive(t *testing.T) {
+	if got := CurrencyToGL("eur"); got != "FI" {
+		t.Errorf("CurrencyToGL(\"eur\") = %q, want \"FI\"", got)
+	}
+	if got := CurrencyToGL("Gbp"); got != "GB" {
+		t.Errorf("CurrencyToGL(\"Gbp\") = %q, want \"GB\"", got)
+	}
+}
+
+func TestCurrencyToGL_Empty(t *testing.T) {
+	if got := CurrencyToGL(""); got != "" {
+		t.Errorf("CurrencyToGL(\"\") = %q, want \"\"", got)
+	}
+}
+
+func TestCurrencyToGL_Unknown(t *testing.T) {
+	if got := CurrencyToGL("XYZ"); got != "" {
+		t.Errorf("CurrencyToGL(\"XYZ\") = %q, want \"\"", got)
+	}
+}
+
+// --- SearchOptions.Currency ---
+
+func TestSearchOptions_CurrencyField(t *testing.T) {
+	// Verify Currency field is preserved through defaults.
+	opts := SearchOptions{Currency: "EUR"}
+	opts.defaults()
+	if opts.Currency != "EUR" {
+		t.Errorf("Currency = %q, want EUR after defaults()", opts.Currency)
+	}
+}
+
+func TestSearchOptions_CurrencyEmpty(t *testing.T) {
+	// Empty currency should remain empty (no forced default).
+	opts := SearchOptions{}
+	opts.defaults()
+	if opts.Currency != "" {
+		t.Errorf("Currency = %q, want \"\" (empty) after defaults()", opts.Currency)
+	}
+}

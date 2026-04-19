@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -250,5 +251,77 @@ func TestDoWithRetry_AllRetriesFail_NetworkError(t *testing.T) {
 	_, _, err := c.Get(context.Background(), ts.URL)
 	if err == nil {
 		t.Error("expected error when server is closed")
+	}
+}
+
+// --- SearchFlightsGL ---
+
+func TestSearchFlightsGL_EmptyGL_UsesBaseURL(t *testing.T) {
+	// When gl is empty, SearchFlightsGL should behave identically to SearchFlights.
+	var gotURL string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotURL = r.URL.String()
+		w.WriteHeader(200)
+		w.Write([]byte("ok"))
+	}))
+	defer ts.Close()
+
+	c := NewTestClient(ts.URL)
+	status, _, err := c.SearchFlightsGL(context.Background(), "filters", "")
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if status != 200 {
+		t.Errorf("status = %d, want 200", status)
+	}
+	// Should NOT contain gl= parameter.
+	if strings.Contains(gotURL, "gl=") {
+		t.Errorf("URL should not contain gl= when gl is empty: %s", gotURL)
+	}
+}
+
+func TestSearchFlightsGL_WithGL_AppendsParam(t *testing.T) {
+	var gotURL string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotURL = r.URL.String()
+		w.WriteHeader(200)
+		w.Write([]byte("ok"))
+	}))
+	defer ts.Close()
+
+	c := NewTestClient(ts.URL)
+	status, _, err := c.SearchFlightsGL(context.Background(), "filters", "FI")
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if status != 200 {
+		t.Errorf("status = %d, want 200", status)
+	}
+	// Should contain gl=FI parameter.
+	if !strings.Contains(gotURL, "gl=FI") {
+		t.Errorf("URL should contain gl=FI: %s", gotURL)
+	}
+}
+
+func TestSearchFlightsGL_DelegatesFromSearchFlights(t *testing.T) {
+	// SearchFlights should delegate to SearchFlightsGL with empty gl.
+	var gotURL string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotURL = r.URL.String()
+		w.WriteHeader(200)
+		w.Write([]byte("ok"))
+	}))
+	defer ts.Close()
+
+	c := NewTestClient(ts.URL)
+	status, _, err := c.SearchFlights(context.Background(), "filters")
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if status != 200 {
+		t.Errorf("status = %d, want 200", status)
+	}
+	if strings.Contains(gotURL, "gl=") {
+		t.Errorf("SearchFlights should not add gl= param: %s", gotURL)
 	}
 }

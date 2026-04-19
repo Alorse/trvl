@@ -368,13 +368,26 @@ func backoffSleep(ctx context.Context, attempt int) error {
 // doWithRetry is thoroughly tested (client_test.go, client_extra_test.go).
 // Covered by integration proof tests.
 func (c *Client) SearchFlights(ctx context.Context, encodedFilters string) (int, []byte, error) {
+	return c.SearchFlightsGL(ctx, encodedFilters, "")
+}
+
+// SearchFlightsGL is like SearchFlights but optionally appends a gl= (geolocation)
+// query parameter to force Google to return prices in a specific country's currency.
+// When gl is empty, the request uses the default FlightsURL (IP-based geolocation).
+//
+// Example: gl="FI" forces EUR pricing, gl="US" forces USD pricing.
+func (c *Client) SearchFlightsGL(ctx context.Context, encodedFilters, gl string) (int, []byte, error) {
+	url := FlightsURL
+	if gl != "" {
+		url += "&gl=" + gl
+	}
 	payload := "f.req=" + encodedFilters
-	if data, ok := c.getCached(FlightsURL, payload); ok {
+	if data, ok := c.getCached(url, payload); ok {
 		return 200, data, nil
 	}
-	status, body, err := c.PostForm(ctx, FlightsURL, payload)
+	status, body, err := c.PostForm(ctx, url, payload)
 	if err == nil && status == 200 {
-		c.setCached(FlightsURL, payload, body, FlightCacheTTL)
+		c.setCached(url, payload, body, FlightCacheTTL)
 	}
 	return status, body, err
 }

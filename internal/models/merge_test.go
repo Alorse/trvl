@@ -31,9 +31,9 @@ func TestMergeHotelResults_MergesSameHotel(t *testing.T) {
 }
 
 func TestMergeHotelResults_KeepsLowestPrice(t *testing.T) {
-	a := []HotelResult{{Name: "Test Hotel", Price: 200, Currency: "EUR", Sources: []PriceSource{{Provider: "google_hotels", Price: 200, Currency: "EUR"}}}}
-	b := []HotelResult{{Name: "Test Hotel", Price: 180, Currency: "EUR", Sources: []PriceSource{{Provider: "trivago", Price: 180, Currency: "EUR"}}}}
-	c := []HotelResult{{Name: "Test Hotel", Price: 195, Currency: "EUR", Sources: []PriceSource{{Provider: "airbnb", Price: 195, Currency: "EUR"}}}}
+	a := []HotelResult{{Name: "Test Hotel", Price: 200, Currency: "EUR", Address: "10 Rue Example", Sources: []PriceSource{{Provider: "google_hotels", Price: 200, Currency: "EUR"}}}}
+	b := []HotelResult{{Name: "Test Hotel", Price: 180, Currency: "EUR", Address: "10 Rue Example", Sources: []PriceSource{{Provider: "trivago", Price: 180, Currency: "EUR"}}}}
+	c := []HotelResult{{Name: "Test Hotel", Price: 195, Currency: "EUR", Address: "10 Rue Example", Sources: []PriceSource{{Provider: "airbnb", Price: 195, Currency: "EUR"}}}}
 
 	result := MergeHotelResults(a, b, c)
 	if len(result) != 1 {
@@ -103,6 +103,7 @@ func TestMergeHotelResults_PreservesHotelIDFromLaterSource(t *testing.T) {
 		Name:       "Grand Hotel",
 		Price:      120,
 		Currency:   "EUR",
+		Address:    "Mannerheimintie 10, Helsinki",
 		BookingURL: "https://www.booking.com/hotel/fi/grand.html",
 		Sources:    []PriceSource{{Provider: "booking", Price: 120, Currency: "EUR"}},
 	}}
@@ -111,6 +112,7 @@ func TestMergeHotelResults_PreservesHotelIDFromLaterSource(t *testing.T) {
 		HotelID:    "/g/123",
 		Price:      130,
 		Currency:   "EUR",
+		Address:    "Mannerheimintie 10, Helsinki",
 		BookingURL: "https://www.google.com/travel/hotels/example",
 		Sources:    []PriceSource{{Provider: "google_hotels", Price: 130, Currency: "EUR"}},
 	}}
@@ -191,8 +193,8 @@ func TestMergeHotelResults_GeoProximityDedup(t *testing.T) {
 }
 
 func TestMergeHotelResults_MergesMissingFields(t *testing.T) {
-	a := []HotelResult{{Name: "Hotel X", Price: 100, Currency: "EUR", Rating: 9.0, Stars: 4}}
-	b := []HotelResult{{Name: "hotel x", Price: 90, Currency: "EUR", Address: "123 Main St", ReviewCount: 500}}
+	a := []HotelResult{{Name: "Hotel X", Price: 100, Currency: "EUR", Rating: 9.0, Stars: 4, Lat: 48.8566, Lon: 2.3522}}
+	b := []HotelResult{{Name: "hotel x", Price: 90, Currency: "EUR", Address: "123 Main St", ReviewCount: 500, Lat: 48.8566, Lon: 2.3522}}
 
 	result := MergeHotelResults(a, b)
 	if len(result) != 1 {
@@ -434,11 +436,11 @@ func TestComputeSavings_EmptySources(t *testing.T) {
 func TestComputeSavings_CalledByMerge(t *testing.T) {
 	// Verify that MergeHotelResults populates savings.
 	batch1 := []HotelResult{{
-		Name: "Hotel Foo", Price: 120, Currency: "EUR",
+		Name: "Hotel Foo", Price: 120, Currency: "EUR", Address: "42 Rue de Rivoli",
 		Sources: []PriceSource{{Provider: "google_hotels", Price: 120, Currency: "EUR"}},
 	}}
 	batch2 := []HotelResult{{
-		Name: "Hotel Foo", Price: 95, Currency: "EUR",
+		Name: "Hotel Foo", Price: 95, Currency: "EUR", Address: "42 Rue de Rivoli",
 		Sources: []PriceSource{{Provider: "booking", Price: 95, Currency: "EUR"}},
 	}}
 	merged := MergeHotelResults(batch1, batch2)
@@ -450,6 +452,129 @@ func TestComputeSavings_CalledByMerge(t *testing.T) {
 	}
 	if merged[0].CheapestSource != "booking" {
 		t.Errorf("CheapestSource = %q, want booking", merged[0].CheapestSource)
+	}
+}
+
+func TestMergeHotelResults_NearbyDifferentHotelsDoNotMerge(t *testing.T) {
+	// Two different hotels 80m apart in central Paris. The old logic would
+	// merge these via geo-proximity (150m threshold, no name check).
+	a := []HotelResult{{
+		Name: "Hotel de Ville", Price: 150, Currency: "EUR",
+		Lat: 48.8566, Lon: 2.3522, Address: "1 Place de l'Hotel de Ville",
+		Sources: []PriceSource{{Provider: "google_hotels", Price: 150, Currency: "EUR"}},
+	}}
+	b := []HotelResult{{
+		Name: "Le Marais Boutique", Price: 180, Currency: "EUR",
+		Lat: 48.8572, Lon: 2.3530, Address: "15 Rue des Archives",
+		Sources: []PriceSource{{Provider: "booking", Price: 180, Currency: "EUR"}},
+	}}
+
+	result := MergeHotelResults(a, b)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 distinct hotels, got %d — nearby different hotels should not merge", len(result))
+	}
+}
+
+func TestMergeHotelResults_SimilarNamesNearbyDoMerge(t *testing.T) {
+	// Same hotel, slightly different name across providers, 30m apart.
+	a := []HotelResult{{
+		Name: "Holiday Inn Express Paris Canal de la Villette", Price: 120, Currency: "EUR",
+		Lat: 48.8800, Lon: 2.3700,
+		Sources: []PriceSource{{Provider: "google_hotels", Price: 120, Currency: "EUR"}},
+	}}
+	b := []HotelResult{{
+		Name: "Holiday Inn Express Paris Canal de la Villette by IHG", Price: 110, Currency: "EUR",
+		Lat: 48.8802, Lon: 2.3702, // ~30m away
+		Sources: []PriceSource{{Provider: "booking", Price: 110, Currency: "EUR"}},
+	}}
+
+	result := MergeHotelResults(a, b)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 merged hotel, got %d — same hotel with brand suffix should merge", len(result))
+	}
+}
+
+func TestMergeHotelResults_ShortNameNoLocationDoesNotMerge(t *testing.T) {
+	// Short generic names without location data should NOT auto-merge.
+	a := []HotelResult{{
+		Name: "Hilton", Price: 200, Currency: "EUR",
+		Sources: []PriceSource{{Provider: "google_hotels", Price: 200, Currency: "EUR"}},
+	}}
+	b := []HotelResult{{
+		Name: "Hilton", Price: 250, Currency: "EUR",
+		Sources: []PriceSource{{Provider: "booking", Price: 250, Currency: "EUR"}},
+	}}
+
+	result := MergeHotelResults(a, b)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 hotels (ambiguous short name, no location), got %d", len(result))
+	}
+}
+
+func TestMergeHotelResults_LongNameNoLocationDoesMerge(t *testing.T) {
+	// A sufficiently specific name (>=15 chars) should merge even without
+	// address/coordinates, since the name itself disambiguates.
+	a := []HotelResult{{
+		Name: "Hilton Paris Opera", Price: 200, Currency: "EUR",
+		Sources: []PriceSource{{Provider: "google_hotels", Price: 200, Currency: "EUR"}},
+	}}
+	b := []HotelResult{{
+		Name: "Hilton Paris Opera", Price: 180, Currency: "EUR",
+		Sources: []PriceSource{{Provider: "booking", Price: 180, Currency: "EUR"}},
+	}}
+
+	result := MergeHotelResults(a, b)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 merged hotel (specific long name), got %d", len(result))
+	}
+}
+
+func TestMergeHotelResults_DifferentAddressesNeverMerge(t *testing.T) {
+	// Same normalized name, different addresses, close coordinates.
+	// The old code would merge via geo fallback; now different addresses = different hotel.
+	a := []HotelResult{{
+		Name: "Hotel Paris", Price: 120, Currency: "EUR",
+		Lat: 48.8566, Lon: 2.3522, Address: "5 Rue de Rivoli",
+		Sources: []PriceSource{{Provider: "google_hotels", Price: 120, Currency: "EUR"}},
+	}}
+	b := []HotelResult{{
+		Name: "Hotel Paris", Price: 140, Currency: "EUR",
+		Lat: 48.8570, Lon: 2.3525, Address: "12 Rue Saint-Antoine",
+		Sources: []PriceSource{{Provider: "booking", Price: 140, Currency: "EUR"}},
+	}}
+
+	result := MergeHotelResults(a, b)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 hotels (same name, different addresses), got %d", len(result))
+	}
+}
+
+func TestNameSimilar(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		// Same hotel, brand suffix stripped by normalizeName
+		{"holiday inn express amsterdam arena towers", "holiday inn express amsterdam arena towers", true},
+		// High overlap
+		{"hotel & residence paris bastille", "hotel and residence paris bastille", true},
+		// Completely different hotels
+		{"hotel de ville", "le marais boutique", false},
+		// Short names — must match exactly
+		{"hilton", "hilton", true},
+		{"hilton", "marriott", false},
+		// One-word names
+		{"hilton", "hyatt", false},
+		// Partial overlap below threshold
+		{"hotel paris opera", "hotel lyon bellecour", false},
+	}
+	for _, tt := range tests {
+		a := normalizeName(tt.a)
+		b := normalizeName(tt.b)
+		got := nameSimilar(a, b)
+		if got != tt.want {
+			t.Errorf("nameSimilar(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
 	}
 }
 

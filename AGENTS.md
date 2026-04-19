@@ -50,7 +50,7 @@ The skill at `.claude/skills/trvl.md` teaches you how to:
 - Use the unified optimizer (`optimize_booking`) for trip planning
 - Show the "Naive -> Optimized -> Saved" comparison after every plan
 - Use all-in pricing with FF benefits (bag fees included, status benefits subtracted)
-- Apply 39 travel hack detectors to find savings opportunities
+- Apply 36 travel hack detectors to find savings opportunities
 
 ### Step 4: Verify
 
@@ -62,7 +62,7 @@ trvl flights HEL LHR 2026-07-01 --format json | head -5
 # Expected: JSON with flight results
 ```
 
-Tell the user: "trvl is installed with 45 MCP tools and 2 bundled Claude skills. It includes 39 travel hack detectors that auto-fire on searches, a unified optimizer (optimize_booking) that searches all combinations of origins, destinations, dates, and transport modes, all-in pricing with FF status (bag fees included, FF benefits subtracted), miles tracking and earning estimates, and cross-provider hotel price comparison with savings display. I can search flights, hotels, destinations, plan trips, find weekend getaways, find optimal travel windows, optimize multi-city routes, find nearby restaurants, check local events, search ground transport (buses, trains, ferries, night trains), detect travel hacks, check weather forecasts, look up airline baggage rules, find airport lounges, check visa requirements, calculate points-vs-cash redemptions, and configure additional data providers (Airbnb, Booking.com, Hostelworld). Just ask me anything about travel."
+Tell the user: "trvl is installed with 45 MCP tools and 2 bundled Claude skills. It includes 36 travel hack detectors (including error fare and flash sale detection) that auto-fire on searches, a unified optimizer (optimize_booking) with 9 expansion strategies (alternative origins/destinations, rail+fly, date flex, hidden city, departure tax avoidance, rail competition alternatives, ferry cabin as hotel) that searches all combinations in parallel, all-in pricing with FF status (bag fees included, FF benefits subtracted), pre-priced candidate pipeline for ground alternatives, miles tracking and earning estimates, and cross-provider hotel price comparison with cross-currency savings display. I can search flights, hotels, destinations, plan trips, find weekend getaways, find optimal travel windows, optimize multi-city routes, find nearby restaurants, check local events, search ground transport (buses, trains, ferries, night trains), detect travel hacks, check weather forecasts, look up airline baggage rules, find airport lounges, check visa requirements, calculate points-vs-cash redemptions, and configure additional data providers (Airbnb, Booking.com, Hostelworld). Just ask me anything about travel."
 
 ### Step 5: (Optional) Set up free API keys for enhanced data
 

@@ -216,6 +216,10 @@ func tryBrowserEscapeHatch(ctx context.Context, pc *providerClient, auth *AuthCo
 		"browser", browserPref,
 	)
 
+	// Invalidate warm cache so the escape hatch reads fresh cookies
+	// from the browser after the user completes the challenge.
+	InvalidateWarmCache(targetURL, browserPref)
+
 	prev := browserCookiesForURL(targetURL)
 	if err := openURLInBrowser(targetURL, browserPref); err != nil {
 		slog.Warn("browser escape hatch: open failed",

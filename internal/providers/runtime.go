@@ -166,6 +166,19 @@ func (rt *Runtime) getOrCreateClient(cfg *ProviderConfig) *providerClient {
 		authValues: make(map[string]string),
 	}
 	rt.clients[cfg.ID] = pc
+
+	// Pre-warm browser cookies in the background so the first search
+	// doesn't block on the macOS Keychain lookup (2-8s cold start).
+	// The warm cache is checked by browserCookiesForURL/WithHint before
+	// falling through to a synchronous kooky read.
+	if cfg.Cookies.Source == "browser" {
+		warmURL := cfg.Endpoint
+		if cfg.Auth != nil && cfg.Auth.PreflightURL != "" {
+			warmURL = cfg.Auth.PreflightURL
+		}
+		WarmBrowserCookies(warmURL, cfg.Cookies.Browser)
+	}
+
 	return pc
 }
 

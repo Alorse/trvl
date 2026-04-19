@@ -431,8 +431,9 @@ func searchCandidates(ctx context.Context, candidates []*candidate, client *batc
 			}
 
 			opts := flights.SearchOptions{
-				SortBy: models.SortCheapest,
-				Adults: input.Guests,
+				SortBy:   models.SortCheapest,
+				Adults:   input.Guests,
+				Currency: input.Currency, // Force consistent currency across all candidates
 			}
 			if c.returnDate != "" {
 				opts.ReturnDate = c.returnDate

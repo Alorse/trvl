@@ -36,6 +36,13 @@ type SearchOptions struct {
 	Airlines   []string          // Restrict to these airline IATA codes
 	Adults     int               // Number of adult passengers (default: 1)
 
+	// Currency forces Google Flights to return prices in this currency by
+	// setting the gl= (geolocation) query parameter. When empty, no gl= is
+	// added and Google uses IP-based geolocation (which may return RUB, PLN,
+	// etc. depending on the user's IP). This is used by the optimizer to
+	// ensure all candidates are priced in the same currency (EUR).
+	Currency string
+
 	// Server-side filters passed to Google Flights batchexecute.
 	MaxPrice    int // Max price in whole currency units (0 = no limit)
 	MaxDuration int // Max total flight duration in minutes (0 = no limit)
@@ -151,7 +158,8 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 		}, fmt.Errorf("encode filters: %w", err)
 	}
 
-	status, body, err := client.SearchFlights(ctx, encoded)
+	gl := CurrencyToGL(opts.Currency)
+	status, body, err := client.SearchFlightsGL(ctx, encoded, gl)
 	if err != nil {
 		return &models.FlightSearchResult{
 			Error: fmt.Sprintf("request failed: %v", err),
@@ -466,6 +474,51 @@ func parseHour(hhmm string) int {
 		return -1
 	}
 	return hour
+}
+
+// currencyGLMap maps ISO 4217 currency codes to Google's gl= country codes.
+// When gl= is set, Google Flights returns prices in that country's currency.
+var currencyGLMap = map[string]string{
+	"EUR": "FI", // Finland (Eurozone)
+	"USD": "US",
+	"GBP": "GB",
+	"CHF": "CH",
+	"SEK": "SE",
+	"NOK": "NO",
+	"DKK": "DK",
+	"PLN": "PL",
+	"CZK": "CZ",
+	"HUF": "HU",
+	"TRY": "TR",
+	"JPY": "JP",
+	"AUD": "AU",
+	"CAD": "CA",
+	"NZD": "NZ",
+	"INR": "IN",
+	"BRL": "BR",
+	"MXN": "MX",
+	"THB": "TH",
+	"SGD": "SG",
+	"HKD": "HK",
+	"KRW": "KR",
+	"TWD": "TW",
+	"ILS": "IL",
+	"AED": "AE",
+	"ZAR": "ZA",
+	"RUB": "RU",
+	"RON": "RO",
+	"BGN": "BG",
+	"ISK": "IS",
+}
+
+// CurrencyToGL returns the gl= country code for a currency, or "" if unknown
+// or empty. When the result is "", no gl= parameter should be appended to the
+// request URL (Google will use IP-based geolocation).
+func CurrencyToGL(currency string) string {
+	if currency == "" {
+		return ""
+	}
+	return currencyGLMap[strings.ToUpper(currency)]
 }
 
 // emissionsFilter returns the emissions flag for the batchexecute filter.
