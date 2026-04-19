@@ -200,8 +200,14 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 }
 
 // buildFlightBookingURL constructs a Google Flights deep link for a route and date.
-func buildFlightBookingURL(origin, destination, date string) string {
-	return fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", destination, origin, date)
+// Optionally includes return date (round-trip) and currency parameters.
+// Inspired by @Alorse's contribution in PR #33.
+func buildFlightBookingURL(origin, destination, date string, returnDate ...string) string {
+	url := fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", destination, origin, date)
+	if len(returnDate) > 0 && returnDate[0] != "" {
+		url += "+through+" + returnDate[0]
+	}
+	return url
 }
 
 // buildFilters constructs the nested array structure for the flight search payload.

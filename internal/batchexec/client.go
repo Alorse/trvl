@@ -371,15 +371,25 @@ func (c *Client) SearchFlights(ctx context.Context, encodedFilters string) (int,
 	return c.SearchFlightsGL(ctx, encodedFilters, "")
 }
 
-// SearchFlightsGL is like SearchFlights but optionally appends a gl= (geolocation)
-// query parameter to force Google to return prices in a specific country's currency.
-// When gl is empty, the request uses the default FlightsURL (IP-based geolocation).
+// SearchFlightsGL is like SearchFlights but optionally appends gl= (geolocation)
+// and/or curr= (currency) query parameters.
+//   - gl controls the country context (affects which fares are shown)
+//   - curr controls the display currency (ISO 4217, e.g. "USD", "EUR")
 //
-// Example: gl="FI" forces EUR pricing, gl="US" forces USD pricing.
+// When both are empty, the request uses the default FlightsURL (IP-based defaults).
+// Inspired by @Alorse's contribution in PR #33.
 func (c *Client) SearchFlightsGL(ctx context.Context, encodedFilters, gl string) (int, []byte, error) {
+	return c.SearchFlightsGLCurr(ctx, encodedFilters, gl, "")
+}
+
+// SearchFlightsGLCurr is the full variant with both gl= and curr= parameters.
+func (c *Client) SearchFlightsGLCurr(ctx context.Context, encodedFilters, gl, curr string) (int, []byte, error) {
 	url := FlightsURL
 	if gl != "" {
 		url += "&gl=" + gl
+	}
+	if curr != "" {
+		url += "&curr=" + curr
 	}
 	payload := "f.req=" + encodedFilters
 	if data, ok := c.getCached(url, payload); ok {
