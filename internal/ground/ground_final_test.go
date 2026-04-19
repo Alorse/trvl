@@ -194,6 +194,9 @@ func TestSearchTallink_OvernightAmenities(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSearchStenaLine_HappyPath(t *testing.T) {
+	origLimiter := stenalineLimiter
+	t.Cleanup(func() { stenalineLimiter = origLimiter })
+	stenalineLimiter = rate.NewLimiter(rate.Inf, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -231,6 +234,9 @@ func TestSearchStenaLine_HappyPath(t *testing.T) {
 }
 
 func TestSearchStenaLine_NoSailingsForRoute(t *testing.T) {
+	origLimiter := stenalineLimiter
+	t.Cleanup(func() { stenalineLimiter = origLimiter })
+	stenalineLimiter = rate.NewLimiter(rate.Inf, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -245,6 +251,9 @@ func TestSearchStenaLine_NoSailingsForRoute(t *testing.T) {
 }
 
 func TestSearchStenaLine_EmptyCurrencyDefaultsEUR(t *testing.T) {
+	origLimiter := stenalineLimiter
+	t.Cleanup(func() { stenalineLimiter = origLimiter })
+	stenalineLimiter = rate.NewLimiter(rate.Inf, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -261,6 +270,9 @@ func TestSearchStenaLine_EmptyCurrencyDefaultsEUR(t *testing.T) {
 }
 
 func TestSearchStenaLine_OvernightArrival(t *testing.T) {
+	origLimiter := stenalineLimiter
+	t.Cleanup(func() { stenalineLimiter = origLimiter })
+	stenalineLimiter = rate.NewLimiter(rate.Inf, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -996,7 +1008,13 @@ func TestSearchEurostar_UnknownStation(t *testing.T) {
 
 func TestSearchEurostar_200OK(t *testing.T) {
 	origDo := eurostarDo
-	t.Cleanup(func() { eurostarDo = origDo })
+	origLimiter := eurostarLimiter
+	origClient := eurostarClient
+	t.Cleanup(func() { eurostarDo = origDo; eurostarLimiter = origLimiter; eurostarClient = origClient })
+	eurostarLimiter = rate.NewLimiter(rate.Inf, 1)
+	eurostarClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, fmt.Errorf("test: timetable disabled")
+	})}
 
 	gqlResponse := `{
 		"data": {
@@ -1034,7 +1052,13 @@ func TestSearchEurostar_200OK(t *testing.T) {
 
 func TestSearchEurostar_DefaultCurrency(t *testing.T) {
 	origDo := eurostarDo
-	t.Cleanup(func() { eurostarDo = origDo })
+	origLimiter := eurostarLimiter
+	origClient := eurostarClient
+	t.Cleanup(func() { eurostarDo = origDo; eurostarLimiter = origLimiter; eurostarClient = origClient })
+	eurostarLimiter = rate.NewLimiter(rate.Inf, 1)
+	eurostarClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, fmt.Errorf("test: timetable disabled")
+	})}
 
 	eurostarDo = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -1055,7 +1079,9 @@ func TestSearchEurostar_DefaultCurrency(t *testing.T) {
 
 func TestSearchEurostar_NonOKStatus(t *testing.T) {
 	origDo := eurostarDo
-	t.Cleanup(func() { eurostarDo = origDo })
+	origLimiter := eurostarLimiter
+	t.Cleanup(func() { eurostarDo = origDo; eurostarLimiter = origLimiter })
+	eurostarLimiter = rate.NewLimiter(rate.Inf, 1)
 
 	eurostarDo = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -1075,11 +1101,14 @@ func TestSearchEurostar_403_NabFallback(t *testing.T) {
 	origDo := eurostarDo
 	origBrowserCookies := eurostarBrowserCookies
 	origFetchViaNab := eurostarFetchViaNab
+	origLimiter := eurostarLimiter
 	t.Cleanup(func() {
 		eurostarDo = origDo
 		eurostarBrowserCookies = origBrowserCookies
 		eurostarFetchViaNab = origFetchViaNab
+		eurostarLimiter = origLimiter
 	})
+	eurostarLimiter = rate.NewLimiter(rate.Inf, 1)
 
 	eurostarDo = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -1110,11 +1139,19 @@ func TestSearchEurostar_403_BrowserCookieRetry(t *testing.T) {
 	origDo := eurostarDo
 	origBrowserCookies := eurostarBrowserCookies
 	origFetchViaNab := eurostarFetchViaNab
+	origLimiter := eurostarLimiter
+	origClient := eurostarClient
 	t.Cleanup(func() {
 		eurostarDo = origDo
 		eurostarBrowserCookies = origBrowserCookies
 		eurostarFetchViaNab = origFetchViaNab
+		eurostarLimiter = origLimiter
+		eurostarClient = origClient
 	})
+	eurostarLimiter = rate.NewLimiter(rate.Inf, 1)
+	eurostarClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, fmt.Errorf("test: timetable disabled")
+	})}
 
 	callCount := 0
 	eurostarDo = func(req *http.Request) (*http.Response, error) {
@@ -1149,7 +1186,13 @@ func TestSearchEurostar_403_BrowserCookieRetry(t *testing.T) {
 
 func TestSearchEurostar_SnapOnly(t *testing.T) {
 	origDo := eurostarDo
-	t.Cleanup(func() { eurostarDo = origDo })
+	origLimiter := eurostarLimiter
+	origClient := eurostarClient
+	t.Cleanup(func() { eurostarDo = origDo; eurostarLimiter = origLimiter; eurostarClient = origClient })
+	eurostarLimiter = rate.NewLimiter(rate.Inf, 1)
+	eurostarClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, fmt.Errorf("test: timetable disabled")
+	})}
 
 	eurostarDo = func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
@@ -1229,7 +1272,9 @@ func TestSearchSNCF_403_NoBrowserFallbacks(t *testing.T) {
 
 func TestSearchSNCF_CalendarSucceeds(t *testing.T) {
 	origDo := sncfDo
-	t.Cleanup(func() { sncfDo = origDo })
+	origLimiter := sncfLimiter
+	t.Cleanup(func() { sncfDo = origDo; sncfLimiter = origLimiter })
+	sncfLimiter = rate.NewLimiter(rate.Inf, 1)
 
 	sncfDo = func(req *http.Request) (*http.Response, error) {
 		body := `[{"date":"2026-04-10","price":3200}]`
@@ -1257,7 +1302,9 @@ func TestSearchSNCF_CalendarSucceeds(t *testing.T) {
 
 func TestSearchSNCF_CalendarEmpty_NoBrowserFallback(t *testing.T) {
 	origDo := sncfDo
-	t.Cleanup(func() { sncfDo = origDo })
+	origLimiter := sncfLimiter
+	t.Cleanup(func() { sncfDo = origDo; sncfLimiter = origLimiter })
+	sncfLimiter = rate.NewLimiter(rate.Inf, 1)
 
 	sncfDo = func(req *http.Request) (*http.Response, error) {
 		body := `[{"date":"2026-04-11","price":3200}]` // Different date, no match.
