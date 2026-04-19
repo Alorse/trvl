@@ -590,7 +590,7 @@ func TestNewRegistryAt_LoadsExistingJSON(t *testing.T) {
 	}
 }
 
-func TestNewRegistryAt_SkipsNonJSON(t *testing.T) {
+func TestNewRegistryAt_SkipsNonJSON_Extra(t *testing.T) {
 	dir := t.TempDir()
 	// Write a non-JSON file.
 	if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("hello"), 0o644); err != nil {

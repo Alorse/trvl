@@ -684,7 +684,7 @@ func TestFetchAirbnbDescription_NoNiobeScript(t *testing.T) {
 	}
 }
 
-func TestFetchAirbnbDescription_HTTP500(t *testing.T) {
+func TestFetchAirbnbDescription_HTTP500_Max(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 	}))

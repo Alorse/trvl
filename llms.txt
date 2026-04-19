@@ -1,8 +1,8 @@
 # trvl
 
-> Google Flights + Hotels from your terminal. Free, no API keys.
+> Google Flights + 5 hotel sources + 20 ground providers from your terminal. Free, no API keys.
 
-trvl is a single Go binary that searches Google Flights and Google Hotels by speaking Google's internal batchexecute protocol directly. No scraping, no browser automation, no API keys.
+trvl is a single Go binary that searches Google Flights, Google Hotels, Trivago, Airbnb, Booking.com, Hostelworld, and 20 ground transport providers by speaking their APIs directly. No scraping, no browser automation, no API keys.
 
 ## Install
 
@@ -23,7 +23,7 @@ for s in trvl travel-hacks travel-agent travel-agent-compact; do
   curl -fsSL "https://raw.githubusercontent.com/MikkoParkkola/trvl/main/.claude/skills/$s.md" -o "$HOME/.claude/skills/$s.md"
 done
 
-## MCP Tools (45 total)
+## MCP Tools (48 total)
 
 - search_flights(origin, destination, departure_date, [return_date, cabin_class, max_stops, sort_by, alliances, depart_after, depart_before, less_emissions, carry_on_bags, checked_bags, require_checked_bag, max_price, max_duration, exclude_basic, airlines])
   - checked_bags: HIDDEN GOOGLE FEATURE — server-side filter not exposed in Google's own UI
@@ -65,6 +65,9 @@ done
 - add_trip_leg(trip_id, type, ...)
 - mark_trip_booked(trip_id, leg_index)
 - get_baggage_rules(airline, [type])
+- build_profile() — build traveller profile from booking history (email parsing + LLM)
+- add_booking(type, provider, [reference], [notes]) — add a booking to the profile
+- interview_trip(destination, [dates]) — generate pre-search interview questions, skipping what the profile already knows
 - search_lounges(airport)
   - Returns lounges with name, terminal, type, accepted access cards, amenities, and opening hours. Type indicates access network: "card" (Priority Pass/LoungeKey), "airline" (frequent flyer status), "bank" (credit card programme), "amex" (Centurion). Annotates results with the user's own lounge cards and frequent flyer status (from preferences) so you can show which lounges they can enter for free.
 - optimize_booking(origin, destination, departure_date, [return_date, flex_days, guests, currency, max_results, max_api_calls, need_checked_bag, carry_on_only])
