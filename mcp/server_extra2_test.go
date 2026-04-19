@@ -51,11 +51,11 @@ func TestNewServer(t *testing.T) {
 	if s == nil {
 		t.Fatal("NewServer returned nil")
 	}
-	if len(s.tools) != 48 {
-		t.Errorf("expected 48 tools, got %d", len(s.tools))
+	if len(s.tools) != 49 {
+		t.Errorf("expected 49 tools, got %d", len(s.tools))
 	}
-	if len(s.handlers) != 48 {
-		t.Errorf("expected 48 handlers, got %d", len(s.handlers))
+	if len(s.handlers) != 49 {
+		t.Errorf("expected 49 handlers, got %d", len(s.handlers))
 	}
 }
 

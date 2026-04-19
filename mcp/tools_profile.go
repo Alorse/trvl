@@ -9,6 +9,118 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/profile"
 )
 
+// onboardProfileTool returns the MCP tool definition for onboard_profile.
+func onboardProfileTool() ToolDef {
+	return ToolDef{
+		Name:  "onboard_profile",
+		Title: "Onboard Traveller Profile",
+		Description: `Returns questions for a progressive onboarding interview that builds the traveller's profile.
+
+Call this tool to conduct a structured 4-phase interview:
+- Phase 1 — Basics: home airport, travel frequency, companions, kids, loyalty memberships.
+- Phase 2 — Travel Style: accommodation preferences, budget, transport modes, remote work, travel days.
+- Phase 3 — Deep Patterns: favourite destinations, neighbourhoods, properties, food style, travel hacks, lounges.
+- Phase 4 — Specifics: companion details, wishlist, avoidances, languages, travel motivation.
+
+Questions already answerable from the existing profile are skipped automatically.
+Ask questions conversationally — follow up on interesting answers and save responses using update_preferences or add_booking.`,
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"phase": {Type: "integer", Description: "Onboarding phase: 1 (Basics), 2 (Travel Style), 3 (Deep Patterns), 4 (Specifics)."},
+				"answers": {Type: "string", Description: "JSON object of answers collected so far, keyed by question key. Pass empty string or omit for first call."},
+			},
+			Required: []string{"phase"},
+		},
+		OutputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"questions": schemaArray(map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"key":      schemaString(),
+						"text":     schemaString(),
+						"type":     schemaString(),
+						"options":  schemaStringArray(),
+						"default":  schemaString(),
+						"required": schemaBool(),
+					},
+				}),
+				"llm_instructions": schemaString(),
+				"phase_complete":   schemaBool(),
+				"next_phase":       schemaInt(),
+			},
+		},
+		Annotations: &ToolAnnotations{
+			Title:          "Onboard Traveller Profile",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+		},
+	}
+}
+
+// handleOnboardProfile returns onboarding questions for the requested phase.
+func handleOnboardProfile(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
+	return handleOnboardProfileWithPath(args, "")
+}
+
+// handleOnboardProfileWithPath is the testable core.
+func handleOnboardProfileWithPath(args map[string]any, path string) ([]ContentBlock, interface{}, error) {
+	phase := argInt(args, "phase", 1)
+	if phase < 1 || phase > 4 {
+		return nil, nil, fmt.Errorf("phase must be 1–4, got %d", phase)
+	}
+
+	answersRaw := argString(args, "answers")
+	answers := map[string]string{}
+	if answersRaw != "" {
+		if err := json.Unmarshal([]byte(answersRaw), &answers); err != nil {
+			return nil, nil, fmt.Errorf("parse answers JSON: %w", err)
+		}
+	}
+
+	var (
+		prof *profile.TravelProfile
+		err  error
+	)
+	if path != "" {
+		prof, err = profile.LoadFrom(path)
+	} else {
+		prof, err = profile.Load()
+	}
+	if err != nil {
+		prof = &profile.TravelProfile{}
+	}
+
+	questions, instructions := profile.OnboardingQuestions(phase, prof, answers)
+
+	phaseComplete := len(questions) == 0
+	nextPhase := phase + 1
+	if nextPhase > 4 {
+		nextPhase = 4
+	}
+
+	result := map[string]interface{}{
+		"questions":        questions,
+		"llm_instructions": instructions,
+		"phase_complete":   phaseComplete,
+		"next_phase":       nextPhase,
+	}
+
+	var summary string
+	if phaseComplete {
+		summary = fmt.Sprintf("Phase %d complete — profile already covers these topics. Move to phase %d.", phase, nextPhase)
+	} else {
+		summary = fmt.Sprintf("Phase %d: ask the user these %d questions conversationally.", phase, len(questions))
+	}
+
+	content, buildErr := buildAnnotatedContentBlocks(summary, result)
+	if buildErr != nil {
+		return nil, nil, buildErr
+	}
+	return content, result, nil
+}
+
 // buildProfileTool returns the MCP tool definition for build_profile.
 func buildProfileTool() ToolDef {
 	return ToolDef{
