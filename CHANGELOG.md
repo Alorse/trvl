@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-04-19
+
+### Added
+- **Optimizer: departure tax avoidance** — when origin is in a high-tax country (NL €26, DE €15, GB €14), automatically expands candidates to nearby zero-tax airports where tax savings exceed ground transport cost
+- **Optimizer: rail competition alternatives** — for routes matching competitive rail corridors (MAD→BCN 4 operators from €7, Italy duopoly from €10, PRG→VIE from €9), the optimizer includes pre-priced train options ranked alongside flights
+- **Optimizer: ferry cabin as hotel** — overnight ferry routes (HEL→ARN €35 cabin vs €120 hotel) appear as pre-priced candidates that combine transport + accommodation savings
+- **Pre-priced candidate pipeline** — ground transport alternatives (rail, ferry) skip flight search and bag fee computation, ranked directly by all-in cost against flight options
+- **Error fare detection** — 36th hack detector flags prices below 50% of the route-distance floor as likely error fares (book immediately) and below-floor prices as flash sales; zero API calls, uses haversine distance classification across 5 route tiers
+- **New accessor functions**: `DepartureTaxSavings`, `ZeroTaxAlternatives`, `CompetitiveRailRoute`, `OvernightFerryRoute` expose hack data to the optimizer
+- Optimizer now has 9 expansion strategies (was 6): baseline, alternative origins, alternative destinations, rail+fly, date flex, hidden city, departure tax, rail competition, ferry cabin
+- Now 45 MCP tools, 36 hack detectors
+
+### Fixed
+- **Cross-currency savings display** — optimizer no longer shows misleading savings when comparing candidates in different currencies (e.g. EUR ferry vs RUB flight); same-currency candidates sort first, cross-currency options show no savings
+- **Hotel cross-currency savings** — ComputeSavings now groups price sources by currency before comparing; prevents nonsensical "Save €17824" when comparing RUB vs EUR sources for the same hotel
+
 ## [0.8.1] - 2026-04-19
 
 ### Added

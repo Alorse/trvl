@@ -534,3 +534,281 @@ func TestOptimize_validation_error(t *testing.T) {
 		t.Error("expected error message in result")
 	}
 }
+
+func TestExpandCandidates_departure_tax_AMS(t *testing.T) {
+	// AMS is in NL (€26 tax). Some nearby airports may be in zero-tax countries.
+	input := OptimizeInput{
+		Origin:      "AMS",
+		Destination: "BCN",
+		DepartDate:  "2026-06-01",
+	}
+	input.defaults()
+	candidates := expandCandidates(input)
+
+	// Check for departure_tax + positioning candidates.
+	var taxCandidates []*candidate
+	for _, c := range candidates {
+		for _, h := range c.hackTypes {
+			if h == "departure_tax" {
+				taxCandidates = append(taxCandidates, c)
+				break
+			}
+		}
+	}
+
+	// Whether we get candidates depends on whether any zero-tax alternative
+	// has ground cost < €26. We verify the ones that appear are correct.
+	for _, c := range taxCandidates {
+		if c.origin == c.dest {
+			t.Errorf("departure_tax candidate has same origin and dest: %s", c.origin)
+		}
+		// Must have both departure_tax and positioning hack types.
+		hasTax, hasPos := false, false
+		for _, h := range c.hackTypes {
+			if h == "departure_tax" {
+				hasTax = true
+			}
+			if h == "positioning" {
+				hasPos = true
+			}
+		}
+		if !hasTax || !hasPos {
+			t.Errorf("departure_tax candidate %s missing hack types: tax=%v pos=%v", c.origin, hasTax, hasPos)
+		}
+	}
+}
+
+func TestExpandCandidates_rail_competition(t *testing.T) {
+	// MAD→BCN is a competitive rail corridor.
+	input := OptimizeInput{
+		Origin:      "MAD",
+		Destination: "BCN",
+		DepartDate:  "2026-06-01",
+		FlexDays:    -1, // disable date flex to simplify
+	}
+	input.defaults()
+	candidates := expandCandidates(input)
+
+	var railCandidate *candidate
+	for _, c := range candidates {
+		for _, h := range c.hackTypes {
+			if h == "rail_competition" {
+				railCandidate = c
+				break
+			}
+		}
+		if railCandidate != nil {
+			break
+		}
+	}
+
+	if railCandidate == nil {
+		t.Fatal("expected rail_competition candidate for MAD→BCN")
+	}
+	if !railCandidate.prePriced {
+		t.Error("rail_competition candidate should be prePriced")
+	}
+	if !railCandidate.searched {
+		t.Error("rail_competition candidate should be marked searched")
+	}
+	if railCandidate.baseCost != 7 {
+		t.Errorf("rail baseCost: got %.0f, want 7", railCandidate.baseCost)
+	}
+
+	// Verify both hack types.
+	hasRail, hasGround := false, false
+	for _, h := range railCandidate.hackTypes {
+		if h == "rail_competition" {
+			hasRail = true
+		}
+		if h == "ground_alternative" {
+			hasGround = true
+		}
+	}
+	if !hasRail || !hasGround {
+		t.Errorf("expected hackTypes [rail_competition, ground_alternative], got %v", railCandidate.hackTypes)
+	}
+}
+
+func TestExpandCandidates_ferry_cabin(t *testing.T) {
+	// HEL→ARN has an overnight ferry.
+	input := OptimizeInput{
+		Origin:      "HEL",
+		Destination: "ARN",
+		DepartDate:  "2026-06-01",
+		FlexDays:    -1, // disable date flex
+	}
+	input.defaults()
+	candidates := expandCandidates(input)
+
+	var ferryCandidate *candidate
+	for _, c := range candidates {
+		for _, h := range c.hackTypes {
+			if h == "ferry_cabin_hotel" {
+				ferryCandidate = c
+				break
+			}
+		}
+		if ferryCandidate != nil {
+			break
+		}
+	}
+
+	if ferryCandidate == nil {
+		t.Fatal("expected ferry_cabin_hotel candidate for HEL→ARN")
+	}
+	if !ferryCandidate.prePriced {
+		t.Error("ferry_cabin_hotel candidate should be prePriced")
+	}
+	if !ferryCandidate.searched {
+		t.Error("ferry_cabin_hotel candidate should be marked searched")
+	}
+	if ferryCandidate.baseCost != 35 {
+		t.Errorf("ferry baseCost: got %.0f, want 35", ferryCandidate.baseCost)
+	}
+}
+
+func TestExpandCandidates_no_rail_for_non_corridor(t *testing.T) {
+	input := OptimizeInput{
+		Origin:      "HEL",
+		Destination: "BCN",
+		DepartDate:  "2026-06-01",
+		FlexDays:    -1,
+	}
+	input.defaults()
+	candidates := expandCandidates(input)
+
+	for _, c := range candidates {
+		for _, h := range c.hackTypes {
+			if h == "rail_competition" {
+				t.Error("unexpected rail_competition candidate for HEL→BCN")
+			}
+		}
+	}
+}
+
+func TestExpandCandidates_no_ferry_for_non_route(t *testing.T) {
+	input := OptimizeInput{
+		Origin:      "HEL",
+		Destination: "BCN",
+		DepartDate:  "2026-06-01",
+		FlexDays:    -1,
+	}
+	input.defaults()
+	candidates := expandCandidates(input)
+
+	for _, c := range candidates {
+		for _, h := range c.hackTypes {
+			if h == "ferry_cabin_hotel" {
+				t.Error("unexpected ferry_cabin_hotel candidate for HEL→BCN")
+			}
+		}
+	}
+}
+
+func TestPriceCandidate_prePriced(t *testing.T) {
+	c := &candidate{
+		searched:     true,
+		prePriced:    true,
+		baseCost:     7,
+		transferCost: 0,
+		currency:     "EUR",
+	}
+	input := OptimizeInput{}
+	input.defaults()
+	priceCandidate(c, input)
+
+	if c.allInCost != 7 {
+		t.Errorf("prePriced allInCost: got %.0f, want 7", c.allInCost)
+	}
+	if c.bagCost != 0 {
+		t.Errorf("prePriced bagCost: got %.0f, want 0", c.bagCost)
+	}
+}
+
+func TestPriceCandidate_prePriced_with_transfer(t *testing.T) {
+	c := &candidate{
+		searched:     true,
+		prePriced:    true,
+		baseCost:     35,
+		transferCost: 10,
+		currency:     "EUR",
+	}
+	input := OptimizeInput{}
+	input.defaults()
+	priceCandidate(c, input)
+
+	if c.allInCost != 45 {
+		t.Errorf("prePriced allInCost: got %.0f, want 45 (35+10)", c.allInCost)
+	}
+}
+
+func TestCandidateToOption_prePriced_ground_leg(t *testing.T) {
+	c := &candidate{
+		origin:     "MAD",
+		dest:       "BCN",
+		departDate: "2026-06-01",
+		strategy:   "Take train (AVE, AVLO, Ouigo, Iryo) — fares from €7",
+		hackTypes:  []string{"rail_competition", "ground_alternative"},
+		prePriced:  true,
+		searched:   true,
+		baseCost:   7,
+		currency:   "EUR",
+		allInCost:  7,
+	}
+
+	input := OptimizeInput{Origin: "MAD", Destination: "BCN"}
+	opt := candidateToOption(c, 1, input)
+
+	if len(opt.Legs) == 0 {
+		t.Fatal("expected at least 1 leg for pre-priced candidate")
+	}
+	if opt.Legs[0].Type != "ground" {
+		t.Errorf("pre-priced leg type: want ground, got %s", opt.Legs[0].Type)
+	}
+	if opt.Legs[0].Price != 7 {
+		t.Errorf("pre-priced leg price: want 7, got %.0f", opt.Legs[0].Price)
+	}
+}
+
+func TestRankCandidates_cross_currency_no_savings(t *testing.T) {
+	// When baseline is RUB and option is EUR, savings should be 0 (not cross-currency nonsense).
+	candidates := []*candidate{
+		{searched: true, allInCost: 7000, baseCost: 7000, currency: "RUB", strategy: "Direct"},
+		{searched: true, prePriced: true, allInCost: 7, baseCost: 7, currency: "EUR", strategy: "Train", hackTypes: []string{"rail_competition"}},
+	}
+
+	input := OptimizeInput{MaxResults: 5, Currency: "RUB"}
+	result := rankCandidates(candidates, input)
+
+	if !result.Success {
+		t.Fatal("expected success")
+	}
+
+	// The RUB baseline should rank first (same currency as input).
+	if result.Options[0].Currency != "RUB" {
+		t.Errorf("rank 1 should be same-currency (RUB), got %s", result.Options[0].Currency)
+	}
+
+	// The EUR option should have zero savings (can't compare cross-currency).
+	for _, opt := range result.Options {
+		if opt.Currency == "EUR" && opt.SavingsVsBaseline != 0 {
+			t.Errorf("cross-currency option should have 0 savings, got %.0f", opt.SavingsVsBaseline)
+		}
+	}
+}
+
+func TestRankCandidates_same_currency_savings(t *testing.T) {
+	candidates := []*candidate{
+		{searched: true, allInCost: 200, baseCost: 200, currency: "EUR", strategy: "Direct"},
+		{searched: true, allInCost: 150, baseCost: 150, currency: "EUR", strategy: "Alt", hackTypes: []string{"positioning"}},
+	}
+
+	input := OptimizeInput{MaxResults: 5, Currency: "EUR"}
+	result := rankCandidates(candidates, input)
+
+	// Same currency — savings should be computed.
+	if result.Options[0].SavingsVsBaseline != 50 {
+		t.Errorf("same-currency savings: want 50, got %.0f", result.Options[0].SavingsVsBaseline)
+	}
+}

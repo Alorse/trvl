@@ -275,6 +275,7 @@ func DetectAll(ctx context.Context, in DetectorInput) []Hack {
 		detectBackToBack,
 		detectMileageRun,
 		detectDayUse,
+		detectErrorFare,
 	}
 
 	// Each detector gets a child context with a per-detector timeout so a
@@ -372,6 +373,7 @@ func DetectFlightTips(ctx context.Context, in DetectorInput) []Hack {
 		detectDestinationAirport,
 		detectGroupSplit,
 		detectDepartureTax,
+		detectErrorFare,
 	}
 
 	var all []Hack

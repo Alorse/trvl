@@ -158,13 +158,36 @@ func ComputeSavings(hotels []HotelResult) {
 		if len(h.Sources) < 2 {
 			continue
 		}
+
+		// Group sources by currency to avoid cross-currency comparison.
+		// Only compute savings within each currency group.
+		byCurrency := make(map[string][]PriceSource)
+		for _, s := range h.Sources {
+			if s.Price <= 0 || s.Currency == "" {
+				continue
+			}
+			byCurrency[strings.ToUpper(s.Currency)] = append(byCurrency[strings.ToUpper(s.Currency)], s)
+		}
+
+		// Find the currency group with the most sources (best comparison).
+		var bestCurrency string
+		var bestSources []PriceSource
+		for currency, sources := range byCurrency {
+			if len(sources) > len(bestSources) {
+				bestCurrency = currency
+				bestSources = sources
+			}
+		}
+		_ = bestCurrency
+
+		if len(bestSources) < 2 {
+			continue
+		}
+
 		minPrice := math.MaxFloat64
 		maxPrice := 0.0
 		cheapest := ""
-		for _, s := range h.Sources {
-			if s.Price <= 0 {
-				continue
-			}
+		for _, s := range bestSources {
 			if s.Price < minPrice {
 				minPrice = s.Price
 				cheapest = s.Provider

@@ -89,6 +89,10 @@ type candidate struct {
 	transferCost float64
 	transferTime int // minutes
 
+	// prePriced marks candidates whose cost is known without a flight search
+	// (e.g. rail corridors, ferry cabins). These skip the SEARCH phase.
+	prePriced bool
+
 	// Populated during SEARCH phase.
 	searched bool
 	flights  []models.FlightResult
@@ -300,6 +304,61 @@ func expandCandidates(input OptimizeInput) []*candidate {
 		}
 	}
 
+	// 7. Departure tax: fly from a zero-tax country to avoid aviation tax.
+	if taxEUR, _, ok := hacks.DepartureTaxSavings(origin); ok {
+		for _, alt := range hacks.ZeroTaxAlternatives(origin) {
+			if alt.IATA == dest {
+				continue
+			}
+			// Only worth it when the tax saving exceeds the ground transport cost.
+			if taxEUR <= alt.Cost {
+				continue
+			}
+			candidates = append(candidates, &candidate{
+				origin:       alt.IATA,
+				dest:         dest,
+				departDate:   input.DepartDate,
+				returnDate:   input.ReturnDate,
+				strategy:     fmt.Sprintf("Zero-tax departure from %s (%s) — saves €%.0f/person", alt.City, alt.IATA, taxEUR),
+				hackTypes:    []string{"departure_tax", "positioning"},
+				transferCost: alt.Cost,
+				transferTime: alt.Minutes,
+			})
+		}
+	}
+
+	// 8. Rail competition: competitive rail corridor as ground alternative.
+	if minFare, operators, ok := hacks.CompetitiveRailRoute(origin, dest); ok {
+		candidates = append(candidates, &candidate{
+			origin:     origin,
+			dest:       dest,
+			departDate: input.DepartDate,
+			returnDate: input.ReturnDate,
+			strategy:   fmt.Sprintf("Take train (%s) — fares from €%.0f", strings.Join(operators, ", "), minFare),
+			hackTypes:  []string{"rail_competition", "ground_alternative"},
+			prePriced:  true,
+			baseCost:   minFare,
+			currency:   "EUR",
+			searched:   true,
+		})
+	}
+
+	// 9. Ferry cabin: overnight ferry replaces a hotel night.
+	if cabinEUR, hotelSavings, operator, ok := hacks.OvernightFerryRoute(origin, dest); ok {
+		candidates = append(candidates, &candidate{
+			origin:     origin,
+			dest:       dest,
+			departDate: input.DepartDate,
+			returnDate: input.ReturnDate,
+			strategy:   fmt.Sprintf("Overnight ferry (%s) — saves €%.0f vs hotel", operator, hotelSavings),
+			hackTypes:  []string{"ferry_cabin_hotel"},
+			prePriced:  true,
+			baseCost:   cabinEUR,
+			currency:   "EUR",
+			searched:   true,
+		})
+	}
+
 	return candidates
 }
 
@@ -331,8 +390,8 @@ func searchCandidates(ctx context.Context, candidates []*candidate, client *batc
 	// Sort remaining candidates: baseline (no hacks) first, then by transfer cost.
 	var remaining []*candidate
 	for _, c := range candidates {
-		if c.searched {
-			continue // already resolved (date-flex)
+		if c.searched || c.prePriced {
+			continue // already resolved (date-flex or pre-priced ground)
 		}
 		remaining = append(remaining, c)
 	}
@@ -463,6 +522,13 @@ func resolveFlexDatesViaCalendar(ctx context.Context, candidates []*candidate, i
 
 // priceCandidate computes all-in cost for a searched candidate.
 func priceCandidate(c *candidate, input OptimizeInput) {
+	// Pre-priced candidates (rail, ferry) already have baseCost set.
+	// No bag fees for ground transport.
+	if c.prePriced {
+		c.allInCost = c.baseCost + c.transferCost
+		return
+	}
+
 	if len(c.flights) == 0 {
 		return
 	}
@@ -534,12 +600,8 @@ func rankCandidates(candidates []*candidate, input OptimizeInput) *OptimizeResul
 		}
 	}
 
-	// Sort by all-in cost ascending.
-	sort.Slice(priced, func(i, j int) bool {
-		return priced[i].allInCost < priced[j].allInCost
-	})
-
-	// Identify baseline (the direct booking candidate).
+	// Identify baseline (the direct booking candidate) to determine the
+	// reference currency for cross-candidate comparison.
 	var baseline *candidate
 	for _, c := range priced {
 		if len(c.hackTypes) == 0 {
@@ -547,6 +609,24 @@ func rankCandidates(candidates []*candidate, input OptimizeInput) *OptimizeResul
 			break
 		}
 	}
+
+	// Determine the reference currency from the baseline (or the most common
+	// currency). Candidates in a different currency can't be compared by raw
+	// cost, so they sort after same-currency candidates.
+	refCurrency := input.Currency
+	if baseline != nil && baseline.currency != "" {
+		refCurrency = baseline.currency
+	}
+
+	// Sort: same-currency candidates by all-in cost first, then cross-currency.
+	sort.SliceStable(priced, func(i, j int) bool {
+		iMatch := strings.EqualFold(priced[i].currency, refCurrency)
+		jMatch := strings.EqualFold(priced[j].currency, refCurrency)
+		if iMatch != jMatch {
+			return iMatch // same-currency sorts before cross-currency
+		}
+		return priced[i].allInCost < priced[j].allInCost
+	})
 
 	// Build result.
 	n := input.MaxResults
@@ -563,8 +643,9 @@ func rankCandidates(candidates []*candidate, input OptimizeInput) *OptimizeResul
 		c := priced[i]
 		opt := candidateToOption(c, i+1, input)
 
-		// Compute savings vs baseline.
-		if baseline != nil && baseline.allInCost > 0 {
+		// Compute savings vs baseline (only when currencies match).
+		if baseline != nil && baseline.allInCost > 0 &&
+			strings.EqualFold(c.currency, baseline.currency) {
 			opt.SavingsVsBaseline = math.Round(baseline.allInCost - opt.AllInCost)
 		}
 
@@ -597,8 +678,18 @@ func candidateToOption(c *candidate, rank int, input OptimizeInput) BookingOptio
 		})
 	}
 
-	// Add outbound flight leg.
-	if len(c.flights) > 0 {
+	// Add outbound leg: ground for pre-priced, flight otherwise.
+	if c.prePriced {
+		legs = append(legs, Leg{
+			Type:     "ground",
+			From:     c.origin,
+			To:       c.dest,
+			Date:     c.departDate,
+			Price:    c.baseCost,
+			Currency: c.currency,
+			Notes:    c.strategy,
+		})
+	} else if len(c.flights) > 0 {
 		best := cheapestFlight(c.flights)
 		airline := ""
 		duration := best.Duration
