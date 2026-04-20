@@ -210,6 +210,7 @@ var AirportNames = map[string]string{
 	"EZE": "Buenos Aires",
 	"SCL": "Santiago",
 	"BOG": "Bogota",
+	"MDE": "Medellin",
 	"LIM": "Lima",
 	"UIO": "Quito",
 	"CCS": "Caracas",
