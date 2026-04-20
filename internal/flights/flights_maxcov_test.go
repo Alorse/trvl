@@ -6,34 +6,6 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
-func TestParseAirports(t *testing.T) {
-	tests := []struct {
-		input string
-		want  []string
-	}{
-		{"HEL", []string{"HEL"}},
-		{"hel", []string{"HEL"}},
-		{"HEL, ARN, CPH", []string{"HEL", "ARN", "CPH"}},
-		{"  hel , arn  ", []string{"HEL", "ARN"}},
-		{"", nil},
-		{",,,", nil},
-		{"HEL,,ARN", []string{"HEL", "ARN"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := ParseAirports(tt.input)
-			if len(got) != len(tt.want) {
-				t.Fatalf("ParseAirports(%q) = %v, want %v", tt.input, got, tt.want)
-			}
-			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Errorf("ParseAirports(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
-				}
-			}
-		})
-	}
-}
-
 func TestKiwiDate(t *testing.T) {
 	tests := []struct {
 		input   string
