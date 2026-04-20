@@ -25,6 +25,21 @@ const ProductID = "-//Mikko Parkkola//trvl//EN"
 // Lines longer than this MUST be folded with CRLF + space.
 const MaxLineLength = 75
 
+// ExportICS converts a trip into RFC 5545 compliant iCalendar text.
+// It validates that the trip has at least one leg with usable dates before
+// generating the .ics body. Returns the ICS string content or an error
+// if the trip cannot produce a valid calendar.
+func ExportICS(t trips.Trip) (string, error) {
+	if t.ID == "" {
+		return "", fmt.Errorf("trip has no ID")
+	}
+	if len(t.Legs) == 0 {
+		return "", fmt.Errorf("trip %q has no legs", t.ID)
+	}
+	ics := WriteICS(&t)
+	return ics, nil
+}
+
 // WriteICS converts a trip into the iCalendar text representation.
 // Each leg becomes one VEVENT. Legs without parseable start/end times are
 // emitted as all-day events on the StartTime date. Returns the .ics body

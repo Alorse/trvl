@@ -99,8 +99,7 @@ func setInstallTestHome(t *testing.T) {
 	t.Helper()
 
 	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	t.Setenv("USERPROFILE", dir)
+	setTestHome(t, dir)
 	t.Setenv("APPDATA", filepath.Join(dir, "AppData", "Roaming"))
 }
 

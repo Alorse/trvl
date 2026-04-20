@@ -22,7 +22,7 @@ func TestWatchAddCmd_FlagsExist(t *testing.T) {
 
 func TestWatchAddCmd_InvalidOriginIATA(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchAddCmd()
 	cmd.SetArgs([]string{"12", "BCN", "2026-07-01"})
 	err := cmd.Execute()
@@ -33,7 +33,7 @@ func TestWatchAddCmd_InvalidOriginIATA(t *testing.T) {
 
 func TestWatchAddCmd_InvalidDestIATA(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchAddCmd()
 	cmd.SetArgs([]string{"HEL", "12", "2026-07-01"})
 	err := cmd.Execute()
@@ -44,7 +44,7 @@ func TestWatchAddCmd_InvalidDestIATA(t *testing.T) {
 
 func TestWatchListCmd_EmptyStore(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchListCmd()
 	cmd.SetArgs([]string{})
 	_ = cmd.Execute()
@@ -52,7 +52,7 @@ func TestWatchListCmd_EmptyStore(t *testing.T) {
 
 func TestWatchRemoveCmd_NotFoundInEmptyStore(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchRemoveCmd()
 	cmd.SetArgs([]string{"nonexistent-watch-id"})
 	err := cmd.Execute()
@@ -62,7 +62,7 @@ func TestWatchRemoveCmd_NotFoundInEmptyStore(t *testing.T) {
 
 func TestWatchAddCmd_RouteWatch(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchAddCmd()
 
 	cmd.SetArgs([]string{"HEL", "BCN"})
@@ -73,7 +73,7 @@ func TestWatchAddCmd_RouteWatch(t *testing.T) {
 
 func TestWatchAddCmd_DateRange(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchAddCmd()
 
 	cmd.SetArgs([]string{"HEL", "BCN", "--from", "2026-07-01", "--to", "2026-07-31"})
@@ -84,7 +84,7 @@ func TestWatchAddCmd_DateRange(t *testing.T) {
 
 func TestWatchAddCmd_SpecificDate_NoBelowPrice(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchAddCmd()
 
 	cmd.SetArgs([]string{"HEL", "BCN", "--depart", "2026-07-01"})
@@ -95,7 +95,7 @@ func TestWatchAddCmd_SpecificDate_NoBelowPrice(t *testing.T) {
 
 func TestWatchAddCmd_HotelType(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchAddCmd()
 
 	cmd.SetArgs([]string{"Prague", "--type", "hotel", "--depart", "2026-07-01", "--return", "2026-07-08"})
@@ -115,7 +115,7 @@ func TestWatchRoomsCmd_FlagsExist(t *testing.T) {
 
 func TestWatchRoomsCmd_NoArgs(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchRoomsCmd()
 	cmd.SetArgs([]string{})
 	err := cmd.Execute()
@@ -126,7 +126,7 @@ func TestWatchRoomsCmd_NoArgs(t *testing.T) {
 
 func TestWatchCheckCmd_EmptyStore(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchCheckCmd()
 	cmd.SetArgs([]string{})
 
@@ -135,7 +135,7 @@ func TestWatchCheckCmd_EmptyStore(t *testing.T) {
 
 func TestWatchListCmd_ShowsAddedWatch(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"HEL", "BCN"})
@@ -152,7 +152,7 @@ func TestWatchListCmd_ShowsAddedWatch(t *testing.T) {
 
 func TestWatchRemoveCmd_RemovesWatch(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"HEL", "BCN"})
@@ -177,7 +177,7 @@ func TestWatchRemoveCmd_RemovesWatch(t *testing.T) {
 
 func TestWatchHistoryCmd_WatchExistsNoHistory(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"HEL", "BCN"})
@@ -191,7 +191,7 @@ func TestWatchHistoryCmd_WatchExistsNoHistory(t *testing.T) {
 
 func TestRunWatchCheckCycleWithRooms_EmptyStoreNoNetwork(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := watchCheckCmd()
 	cmd.SetArgs([]string{})
@@ -200,7 +200,7 @@ func TestRunWatchCheckCycleWithRooms_EmptyStoreNoNetwork(t *testing.T) {
 
 func TestWatchDaemonCmd_InvalidInterval(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchDaemonCmd()
 	cmd.SetArgs([]string{"--every", "invalid-duration"})
 	err := cmd.Execute()
@@ -253,7 +253,7 @@ func TestRunWatchDaemon_RunNow_EmptyStoreV14(t *testing.T) {
 
 func TestWatchListCmd_JSONFormat(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"HEL", "BCN"})
@@ -274,7 +274,7 @@ func TestWatchListCmd_JSONFormat(t *testing.T) {
 
 func TestWatchListCmd_TableWithDateRangeWatch(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"HEL", "BCN", "--from", "2026-07-01", "--to", "2026-07-31", "--below", "200"})
@@ -291,7 +291,7 @@ func TestWatchListCmd_TableWithDateRangeWatch(t *testing.T) {
 
 func TestWatchListCmd_SpecificDateWatchTable(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"HEL", "BCN", "--depart", "2026-07-01"})
@@ -308,7 +308,7 @@ func TestWatchListCmd_SpecificDateWatchTable(t *testing.T) {
 
 func TestWatchAddCmd_HotelTypeWithReturnV15(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"Prague", "--type", "hotel", "--depart", "2026-07-01", "--return", "2026-07-08", "--below", "100"})
@@ -323,7 +323,7 @@ func TestWatchAddCmd_HotelTypeWithReturnV15(t *testing.T) {
 
 func TestWatchRemoveCmd_ActuallyRemoves(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"HEL", "BCN"})
@@ -412,7 +412,7 @@ func TestWatchDaemonCmd_RunNowFlag(t *testing.T) {
 
 func TestRunWatchCheckCycleWithRooms_EmptyStoreV19(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	n, err := runWatchCheckCycleWithRooms(t.Context(), &liveChecker{}, &liveRoomChecker{}, nil)
 	if err != nil {
@@ -425,7 +425,7 @@ func TestRunWatchCheckCycleWithRooms_EmptyStoreV19(t *testing.T) {
 
 func TestWatchHistoryCmd_NotFoundV22(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := watchHistoryCmd()
 	cmd.SetArgs([]string{"nonexistent-watch-id"})
@@ -437,7 +437,7 @@ func TestWatchHistoryCmd_NotFoundV22(t *testing.T) {
 
 func TestWatchHistoryCmd_NoHistoryV22(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"HEL", "BCN"})
@@ -467,7 +467,7 @@ func TestWatchHistoryCmd_NoHistoryV22(t *testing.T) {
 
 func TestWatchHistoryCmd_JSONFormatEmptyV22(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := watchAddCmd()
 	addCmd.SetArgs([]string{"HEL", "BCN"})
@@ -867,7 +867,7 @@ func TestWatchDaemonCmd_FlagsV6(t *testing.T) {
 func TestRunWatchCheckCycleWithRooms_EmptyStore(t *testing.T) {
 
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := watchDaemonCmd()
 	if cmd == nil {
@@ -896,7 +896,7 @@ func TestWatchHistoryCmd_MissingArg(t *testing.T) {
 
 func TestWatchHistoryCmd_NotFoundInEmptyStore(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := watchHistoryCmd()
 	cmd.SetArgs([]string{"nonexistent-id"})
 	err := cmd.Execute()

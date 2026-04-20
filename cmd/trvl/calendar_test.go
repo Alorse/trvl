@@ -20,7 +20,7 @@ func TestCalendarCmd_Use(t *testing.T) {
 
 func TestCalendarCmd_Flags(t *testing.T) {
 	cmd := calendarCmd()
-	for _, name := range []string{"output", "last"} {
+	for _, name := range []string{"output", "last", "trip-id", "ics"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Errorf("missing flag --%s", name)
 		}
@@ -112,5 +112,27 @@ func TestLastSearchName_Empty(t *testing.T) {
 	name := lastSearchName(ls)
 	if name == "" {
 		t.Error("Name should never be empty")
+	}
+}
+
+func TestIcsFilename(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"Krakow Weekend", "krakow_weekend.ics"},
+		{"Helsinki → Tokyo", "helsinki__tokyo.ics"},
+		{"", "trip.ics"},
+		{"trip-2026", "trip_2026.ics"},
+		{"UPPER case", "upper_case.ics"},
+		{"special!@#chars", "specialchars.ics"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := icsFilename(tt.name)
+			if got != tt.want {
+				t.Errorf("icsFilename(%q) = %q, want %q", tt.name, got, tt.want)
+			}
+		})
 	}
 }

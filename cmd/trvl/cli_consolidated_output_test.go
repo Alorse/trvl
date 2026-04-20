@@ -65,7 +65,7 @@ func TestPrintSuggestTable_WithInsightsV14(t *testing.T) {
 
 func TestTripsAlertsCmd_JSONFormatEmptyV14(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	oldFormat := format
 	format = "json"
 	defer func() { format = oldFormat }()
@@ -76,7 +76,7 @@ func TestTripsAlertsCmd_JSONFormatEmptyV14(t *testing.T) {
 
 func TestRunProfileShow_WithBookingsTable(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := profileAddCmd()
 	addCmd.SetArgs([]string{
@@ -99,7 +99,7 @@ func TestRunProfileShow_WithBookingsTable(t *testing.T) {
 
 func TestRunProfileShow_WithBookingsJSON(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := profileAddCmd()
 	addCmd.SetArgs([]string{
@@ -125,7 +125,7 @@ func TestRunProfileShow_WithBookingsJSON(t *testing.T) {
 
 func TestRunProfileSummary_WithBookings(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	addCmd := profileAddCmd()
 	addCmd.SetArgs([]string{
@@ -160,7 +160,7 @@ func TestPrintSuggestTable_FailureBranchV21(t *testing.T) {
 
 func TestShareCmd_LastFormatLinkV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	ls := &LastSearch{
 		Command:        "flights",
@@ -181,7 +181,7 @@ func TestShareCmd_LastFormatLinkV21(t *testing.T) {
 
 func TestTripsShowCmd_JSONFormatV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "JSON Show Trip"})
@@ -212,7 +212,7 @@ func TestTripsShowCmd_JSONFormatV21(t *testing.T) {
 
 func TestTripsListCmd_JSONFormatV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "JSON List Trip"})
@@ -1392,7 +1392,7 @@ func TestRunProfileSummary_NoBookings(t *testing.T) {
 	if err := os.WriteFile(profilePath, []byte(`{"bookings":[]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := profileCmd()
 	cmd.SetArgs([]string{"summary"})

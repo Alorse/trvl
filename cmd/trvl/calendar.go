@@ -26,24 +26,28 @@ func calendarCmd() *cobra.Command {
 	var (
 		output string
 		last   bool
+		tripID string
+		icsFlag bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "calendar [trip_id]",
 		Short: "Export a trip as an iCalendar (.ics) file",
-		Long: `Export a saved trip as an iCalendar (.ics) file for import into
-Apple Calendar, Google Calendar, Outlook, or any RFC 5545-compatible calendar.
+		Long: `Export a saved trip as an iCalendar (.ics) file. Compatible with
+Apple Calendar, Google Calendar, Outlook, and all RFC 5545 calendar apps.
 
 Each trip leg becomes a calendar event:
   • Flights / trains / buses / ferries — timed events using leg start/end
   • Hotel stays — multi-day all-day events spanning check-in to check-out
-  • Confirmed bookings → STATUS:CONFIRMED, planned legs → STATUS:TENTATIVE
+  • Confirmed bookings get STATUS:CONFIRMED, planned legs get STATUS:TENTATIVE
 
 Output goes to stdout by default. Use --output FILE to write to disk.
+Use --ics with --trip-id to auto-generate a filename from the trip name.
 
 Examples:
   trvl calendar trip_abc123
   trvl calendar trip_abc123 --output ~/Desktop/krakow-trip.ics
+  trvl calendar --trip-id trip_abc123 --ics
   trvl calendar --last
   trvl calendar --last --output last-search.ics`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -57,6 +61,17 @@ Examples:
 				}
 				trip = lastSearchToTrip(ls)
 
+			case tripID != "":
+				store, err := loadTripStore()
+				if err != nil {
+					return err
+				}
+				t, err := store.Get(tripID)
+				if err != nil {
+					return err
+				}
+				trip = t
+
 			case len(args) == 1:
 				store, err := loadTripStore()
 				if err != nil {
@@ -69,17 +84,22 @@ Examples:
 				trip = t
 
 			default:
-				return fmt.Errorf("provide a trip_id or use --last")
+				return fmt.Errorf("provide a trip_id argument, --trip-id flag, or --last flag")
 			}
 
-			ics := calendar.WriteICS(trip)
+			icsContent := calendar.WriteICS(trip)
+
+			// When --ics is set, auto-generate the output filename from the trip name.
+			if icsFlag && output == "" {
+				output = icsFilename(trip.Name)
+			}
 
 			if output == "" || output == "-" {
-				fmt.Print(ics)
+				fmt.Print(icsContent)
 				return nil
 			}
 
-			if err := os.WriteFile(output, []byte(ics), 0o644); err != nil {
+			if err := os.WriteFile(output, []byte(icsContent), 0o644); err != nil {
 				return fmt.Errorf("write %s: %w", output, err)
 			}
 			fmt.Fprintf(os.Stderr, "Wrote %d events to %s\n", len(trip.Legs), output)
@@ -89,7 +109,33 @@ Examples:
 
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: stdout)")
 	cmd.Flags().BoolVar(&last, "last", false, "Export the most recent search instead of a saved trip")
+	cmd.Flags().StringVar(&tripID, "trip-id", "", "Trip ID to export")
+	cmd.Flags().BoolVar(&icsFlag, "ics", false, "Write to an auto-named .ics file (trip_name.ics)")
 	return cmd
+}
+
+// icsFilename generates a safe .ics filename from a trip name.
+// "Krakow Weekend" becomes "krakow_weekend.ics"
+func icsFilename(name string) string {
+	if name == "" {
+		return "trip.ics"
+	}
+	safe := strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_' {
+			return r
+		}
+		if r >= 'A' && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		if r == ' ' || r == '-' {
+			return '_'
+		}
+		return -1 // drop
+	}, name)
+	if safe == "" {
+		return "trip.ics"
+	}
+	return safe + ".ics"
 }
 
 // lastSearchToTrip synthesizes a one-leg Trip from a cached LastSearch so the

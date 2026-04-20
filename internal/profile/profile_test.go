@@ -3,6 +3,7 @@ package profile
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -157,6 +158,9 @@ func TestSaveToCreatesDir(t *testing.T) {
 }
 
 func TestSaveToFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file permissions not applicable on Windows")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "profile.json")
 

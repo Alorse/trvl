@@ -779,7 +779,7 @@ func TestFormatTripMarkdown_NoPrices(t *testing.T) {
 func TestSaveLoadLastSearch_RoundTripMax(t *testing.T) {
 	// Override HOME to use temp dir.
 	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	setTestHome(t, dir)
 
 	ls := &LastSearch{
 		Command:     "flights",

@@ -50,7 +50,7 @@ release:
   header: |
     ## trvl {{ .Version }}
 
-    AI travel agent — 54 MCP tools for flights, hotels, ground transport, price alerts. Free, no API keys.
+    AI travel agent — 55 MCP tools for flights, hotels, ground transport, price alerts. Free, no API keys.
 
     ### Install
 
@@ -74,7 +74,7 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
     homepage: https://github.com/MikkoParkkola/trvl
-    description: "AI travel agent — 54 MCP tools for flights, hotels, ground transport, price alerts. Free, no API keys."
+    description: "AI travel agent — 55 MCP tools for flights, hotels, ground transport, price alerts. Free, no API keys."
     license: "PolyForm-Noncommercial-1.0.0"
     install: |
       bin.install "trvl"
@@ -107,6 +107,13 @@ dockers:
       - "--label=org.opencontainers.image.source=https://github.com/MikkoParkkola/trvl"
       - "--label=org.opencontainers.image.version={{ .Version }}"
       - "--label=org.opencontainers.image.licenses=MIT"
+
+after:
+  hooks:
+    - cmd: |
+        cd npm &&
+        sed -i.bak "s/\"version\": \".*\"/\"version\": \"{{ .Version }}\"/" package.json &&
+        rm -f package.json.bak
 
 docker_manifests:
   - name_template: "ghcr.io/mikkoparkkola/trvl:{{ .Version }}"
