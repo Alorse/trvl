@@ -648,7 +648,7 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | **Personal profile** | Learns from your booking history (email parsing + LLM). Remembers FF status, luggage needs, favourite properties, departure preferences, travel hacks used, accommodation preferences, family composition. Pre-search interviews skip questions the profile already answers. |
 | **Output** | Pretty tables with color (default) or JSON (`--format json`) |
 | **Platforms** | Linux, macOS (amd64, arm64). Windows CI in progress. |
-| **Code** | 574 Go files, ~74K LOC, 32 packages, 5400+ tests |
+| **Code** | 622 Go files, 203K LOC, 32 packages, 6400+ tests, 82% coverage |
 | **License** | PolyForm Noncommercial 1.0 |
 
 ## Attribution
@@ -662,7 +662,9 @@ Built on the shoulders of:
 
 ## Legal
 
-`trvl` accesses Google's public-facing internal APIs. It does not bypass authentication, access protected content, or circumvent rate limits. Same approach as [fli](https://github.com/punitarani/fli) (1K+ stars, MIT licensed).
+`trvl` is a **personal-use tool** that accesses public-facing web APIs from Google Flights, Google Hotels, and other travel providers. It does not bypass authentication, access protected content, or circumvent rate limits. Request patterns are rate-limited to be indistinguishable from manual browsing (0.5-2 req/s per provider).
+
+**Important:** Automated access may violate some providers' Terms of Service. This tool is licensed under PolyForm Noncommercial 1.0 — commercial use, operation as a service, or redistribution of scraped data is prohibited. You are responsible for ensuring your use complies with applicable terms and laws in your jurisdiction. Same approach as [fli](https://github.com/punitarani/fli) (1K+ stars, MIT licensed).
 
 ## Ecosystem
 
@@ -671,7 +673,7 @@ trvl is part of a suite of MCP tools:
 | Tool | Description |
 |------|-------------|
 | [mcp-gateway](https://github.com/MikkoParkkola/mcp-gateway) | Universal MCP gateway — compact 12-15 tool surface replaces 100+ registrations |
-| **[trvl](https://github.com/MikkoParkkola/trvl)** | **AI travel agent — 48 MCP tools for flights, hotels, ground transport** |
+| **[trvl](https://github.com/MikkoParkkola/trvl)** | **AI travel agent — 50+ MCP tools for flights, hotels, ground transport** |
 | [nab](https://github.com/MikkoParkkola/nab) | Web content extraction — fetch any URL with cookies + anti-bot bypass |
 | [axterminator](https://github.com/MikkoParkkola/axterminator) | macOS GUI automation — 35 MCP tools via Accessibility API |
 
