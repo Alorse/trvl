@@ -412,6 +412,43 @@ Optional: `passport` (ISO country code for visa check)
 
 Returns: GO / WAIT / NO_GO verdict with parallel checks for flights, hotels, visa requirements, and weather. Use before detailed planning to quickly validate a trip idea.
 
+### search_hotel_by_name — Find a specific property by name
+```json
+{"name": "CORU House", "location": "Prague", "check_in": "2026-07-01", "check_out": "2026-07-05"}
+```
+Searches all providers (Google Hotels, Trivago, Airbnb, Booking.com, Hostelworld) using the property name as the search query, then fuzzy-matches results. Use when the user knows the exact hotel name.
+
+### search_ground — Buses, trains, ferries between cities
+```json
+{"from": "Amsterdam", "to": "Paris", "date": "2026-07-01"}
+```
+Optional: `type` ("bus"|"train"|"ferry"), `currency`, `max_price`, `provider`
+Searches 20+ providers in parallel including FlixBus, RegioJet, Eurostar, DB, NS, SNCF, Trainline, ferries. Eurostar Snap fares auto-searched for valid routes.
+
+### onboard_profile — Progressive user interview
+```json
+{"phase": 0}
+```
+5-phase interview (0=LLM context confirmation, 1=basics, 2=style, 3=deep, 4=specifics, 5=reasoning). Builds a traveller personality model that drives search defaults.
+
+### watch_price — Create a price alert
+```json
+{"type": "flight", "origin": "HEL", "destination": "BCN", "date": "2026-07-01", "target_price": 89, "currency": "EUR"}
+```
+Stores watch in `~/.trvl/watches.json`. Use `check_watches` to re-check prices, `list_watches` to see all active watches.
+
+### provider_health — Provider status dashboard
+```json
+{}
+```
+Shows per-provider success rate, average latency, and last error from `~/.trvl/health.jsonl`. Use to diagnose why a provider isn't returning results.
+
+### detect_travel_hacks — Find savings opportunities
+```json
+{"origin": "HEL", "destination": "BCN", "date": "2026-07-01"}
+```
+Runs 36 detectors in parallel: hidden-city, throwaway, positioning, back-to-back, rail competition, ferry cabin, error fare, date flex, and more. Optional: `return_date`, `carry_on_only`.
+
 ### MCP Prompts (for complex workflows)
 - `plan-trip` — Full trip planning: flights + hotels + budget analysis
 - `find-cheapest-dates` — Month-wide price calendar for a route

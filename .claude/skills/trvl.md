@@ -79,6 +79,12 @@ From?|To?|When?|Flex?|Travelers?|Budget? Check calendar (Google/Apple/manual) fo
 | `optimize_booking` | Unified optimizer: all combos | origin,destination,departure_date,[return_date,flex_days,carry_on_only] |
 | `detect_travel_hacks` | Run 36 parallel hack detectors | origin,destination,date,[return_date,carry_on] |
 | `detect_accommodation_hacks` | Split stay across hotels to save | city,check_in,check_out |
+| `search_hotel_by_name` | Find specific property across all providers | name,check_in,check_out,[location] |
+| `onboard_profile` | Progressive traveller interview (5 phases) | phase,[answers] |
+| `watch_price` | Create price alert with target | type,origin,destination,date,target_price |
+| `list_watches` | Show all active price watches | (none) |
+| `check_watches` | Re-check all watches for price drops | (none) |
+| `provider_health` | Provider success rate + latency | (none) |
 
 ## ALWAYS RUN THESE CHECKS
 1. **Nearby airports** — HEL/TMP/TKU, LHR/LGW/STN, CDG/ORY/BVA, JFK/EWR
