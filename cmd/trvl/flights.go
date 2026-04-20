@@ -36,15 +36,17 @@ func flightsCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "flights ORIGIN DESTINATION DATE",
-		Short: "Search flights between airports (supports multi-airport)",
-		Long: `Search flights between airports on a specific date.
+		Short: "Search flights between airports or cities (supports multi-airport)",
+		Long: `Search flights between airports or cities on a specific date.
 
-ORIGIN and DESTINATION are IATA codes, comma-separated for multi-airport.
+ORIGIN and DESTINATION are IATA codes or city names, comma-separated for multi-airport.
 DATE is the departure date in YYYY-MM-DD format.
 
 Examples:
   trvl flights HEL NRT 2026-06-15
   trvl flights AMS,EIN,ANR HEL,TKU,TLL 2026-06-15
+  trvl flights Paris Tokyo 2026-06-15
+  trvl flights "New York" London 2026-06-15
   trvl flights HEL NRT 2026-06-15 --return 2026-06-22
   trvl flights HEL NRT 2026-06-15 --cabin business --stops nonstop`,
 		Args: cobra.ExactArgs(3),
@@ -58,8 +60,8 @@ Examples:
 				}
 			}
 
-			origins := flights.ParseAirports(originArg)
-			destinations := flights.ParseAirports(args[1])
+			origins := flights.ParseFlightLocations(originArg)
+			destinations := flights.ParseFlightLocations(args[1])
 			date := args[2]
 
 			cabinClass, err := models.ParseCabinClass(cabin)
