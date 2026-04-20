@@ -43,8 +43,9 @@ func validateDate(args map[string]any, key string) (string, error) {
 
 // resolveMCPLocation converts a city name to an IATA code for MCP tool use.
 // If already an IATA code, returns it uppercased. If a city name resolves to
-// airports, returns the first airport (alphabetically). Unknown inputs are
-// uppercased and passed through for ValidateIATA to reject with a clear error.
+// airports, returns the first airport alphabetically — note this may not be
+// the most-trafficked airport for a given city (e.g. London → LGW, not LHR).
+// Unknown inputs are uppercased and passed through for ValidateIATA to reject.
 func resolveMCPLocation(s string) string {
 	upper := strings.ToUpper(s)
 	if models.IsIATACode(upper) {
