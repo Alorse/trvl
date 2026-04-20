@@ -1,8 +1,12 @@
 package watch
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"time"
 )
 
@@ -134,6 +138,11 @@ func checkOne(ctx context.Context, store *Store, checker PriceChecker, w Watch) 
 
 		// Update the result's watch to reflect saved state.
 		result.Watch = w
+
+		// Fire webhook on price drop.
+		if result.PriceDrop < 0 {
+			go fireWebhook(result)
+		}
 	}
 
 	return result
@@ -202,5 +211,71 @@ func checkRoom(ctx context.Context, store *Store, checker RoomChecker, w Watch) 
 	}
 
 	result.Watch = w
+
+	// Fire webhook on price drop.
+	if result.PriceDrop < 0 {
+		go fireWebhook(result)
+	}
+
 	return result
+}
+
+// webhookPayload is the JSON body POSTed to a watch's WebhookURL on price drop.
+type webhookPayload struct {
+	WatchID     string  `json:"watch_id"`
+	Type        string  `json:"type"`
+	Origin      string  `json:"origin,omitempty"`
+	Destination string  `json:"destination,omitempty"`
+	HotelName   string  `json:"hotel_name,omitempty"`
+	NewPrice    float64 `json:"new_price"`
+	PrevPrice   float64 `json:"prev_price"`
+	Currency    string  `json:"currency"`
+	PriceDrop   float64 `json:"price_drop"`
+	BelowGoal   bool    `json:"below_goal"`
+	Timestamp   string  `json:"timestamp"`
+}
+
+// fireWebhook sends a price-drop notification to the watch's WebhookURL.
+// It is fire-and-forget with a 10-second timeout; errors are logged but not returned.
+func fireWebhook(r CheckResult) {
+	if r.Watch.WebhookURL == "" {
+		return
+	}
+
+	payload := webhookPayload{
+		WatchID:     r.Watch.ID,
+		Type:        r.Watch.Type,
+		Origin:      r.Watch.Origin,
+		Destination: r.Watch.Destination,
+		HotelName:   r.Watch.HotelName,
+		NewPrice:    r.NewPrice,
+		PrevPrice:   r.PrevPrice,
+		Currency:    r.Currency,
+		PriceDrop:   r.PriceDrop,
+		BelowGoal:   r.BelowGoal,
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		slog.Warn("webhook: marshal payload", "watch_id", r.Watch.ID, "err", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.Watch.WebhookURL, bytes.NewReader(body))
+	if err != nil {
+		slog.Warn("webhook: create request", "watch_id", r.Watch.ID, "err", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		slog.Warn("webhook: POST failed", "watch_id", r.Watch.ID, "url", r.Watch.WebhookURL, "err", err)
+		return
+	}
+	resp.Body.Close()
 }

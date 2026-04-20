@@ -112,11 +112,6 @@ func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error
 
 	// Enumerate candidate trip windows: every Friday in [from, until]
 	// with nights = MinNights..MaxNights.
-	type candidateWindow struct {
-		start  time.Time
-		end    time.Time
-		nights int
-	}
 	var windows []candidateWindow
 	for d := fromDate; !d.After(untilDate); d = d.AddDate(0, 0, 1) {
 		if d.Weekday() != time.Friday {
@@ -209,41 +204,27 @@ func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error
 
 	// Phase 2: for each (window, destination) candidate, search real hotels
 	// with user preferences applied. Bounded concurrency (5 parallel).
-	type trialKey struct {
-		airport string
-		nights  int
-	}
-	type trial struct {
-		window candidateWindow
-		dest   models.ExploreDestination
-	}
 	// Dedupe by airport code + nights — multiple explore responses may return
 	// the same destination on different dates, but we only need to cost the
 	// cheapest window per destination.
-	bestPerKey := make(map[trialKey]*trial)
+	bestPerKey := make(map[discoverTrialKey]*discoverTrial)
 	for i := range findings {
 		f := &findings[i]
 		for _, d := range f.dests {
-			k := trialKey{airport: d.AirportCode, nights: f.window.nights}
+			k := discoverTrialKey{airport: d.AirportCode, nights: f.window.nights}
 			if existing, ok := bestPerKey[k]; !ok || d.Price < existing.dest.Price {
-				bestPerKey[k] = &trial{window: f.window, dest: d}
+				bestPerKey[k] = &discoverTrial{window: f.window, dest: d}
 			}
 		}
 	}
 
-	var trials []trial
+	var trials []discoverTrial
 	for _, t := range bestPerKey {
 		trials = append(trials, *t)
 	}
 
-	type hotelInfo struct {
-		price  float64
-		total  float64
-		name   string
-		rating float64
-	}
 	hotelMu := sync.Mutex{}
-	hotelResults := make(map[trialKey]*hotelInfo)
+	hotelResults := make(map[discoverTrialKey]*discoverHotelInfo)
 
 	hotelSem := make(chan struct{}, 3) // reduced from 5: each hotel search fetches ~1MB HTML
 	var hotelWg sync.WaitGroup
@@ -305,7 +286,7 @@ func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error
 			}
 
 			hotelMu.Lock()
-			hotelResults[trialKey{airport: t.dest.AirportCode, nights: t.window.nights}] = &hotelInfo{
+			hotelResults[discoverTrialKey{airport: t.dest.AirportCode, nights: t.window.nights}] = &discoverHotelInfo{
 				price:  cheapest.Price,
 				total:  cheapest.Price * float64(t.window.nights),
 				name:   cheapest.Name,
@@ -316,28 +297,74 @@ func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error
 	}
 	hotelWg.Wait()
 
-	// Phase 3: build ranked results. Score each candidate by value:
-	// value = budget_fit * quality
-	// where:
-	//   budget_fit = max(0, 1 - total/budget)  (1.0 when free, 0 when at budget)
-	//   quality   = 0.5 + 0.5 * (rating / 5)   (0.5..1.0 — rating is a multiplier)
-	//
-	// This rewards trips that come in well under budget AT a quality hotel,
-	// and penalizes trips that blow budget or have weak ratings.
+	results := rankDiscoverTrials(trials, hotelResults, opts.Budget, currency, opts.Top)
+
+	return &DiscoverOutput{
+		Success: true,
+		Origin:  opts.Origin,
+		From:    opts.From,
+		Until:   opts.Until,
+		Budget:  opts.Budget,
+		Count:   len(results),
+		Trips:   results,
+	}, nil
+}
+
+// candidateWindow is a departure/return date pair with a night count.
+type candidateWindow struct {
+	start  time.Time
+	end    time.Time
+	nights int
+}
+
+// discoverTrialKey identifies a unique (airport, nights) combination.
+type discoverTrialKey struct {
+	airport string
+	nights  int
+}
+
+// discoverTrial pairs an explore destination with a candidate window.
+type discoverTrial struct {
+	window candidateWindow
+	dest   models.ExploreDestination
+}
+
+// discoverHotelInfo holds the cheapest hotel for a trial key.
+type discoverHotelInfo struct {
+	price  float64
+	total  float64
+	name   string
+	rating float64
+}
+
+// rankDiscoverTrials scores and ranks discover candidates by value.
+//
+// Phase 3: build ranked results. Score each candidate by value:
+//
+//	value = budget_fit * quality
+//
+// where:
+//
+//	budget_fit = max(0, 1 - total/budget)  (1.0 when free, 0 when at budget)
+//	quality   = 0.5 + 0.5 * (rating / 5)   (0.5..1.0 — rating is a multiplier)
+//
+// This rewards trips that come in well under budget AT a quality hotel,
+// and penalizes trips that blow budget or have weak ratings.
+func rankDiscoverTrials(trials []discoverTrial, hotelResults map[discoverTrialKey]*discoverHotelInfo, budget float64, currency string, top int) []DiscoverResult {
 	var results []DiscoverResult
 	for _, t := range trials {
-		k := trialKey{airport: t.dest.AirportCode, nights: t.window.nights}
+		k := discoverTrialKey{airport: t.dest.AirportCode, nights: t.window.nights}
 		h, ok := hotelResults[k]
 		if !ok {
 			continue
 		}
 
 		total := t.dest.Price + h.total
-		if total > opts.Budget {
+		if total > budget {
 			continue
 		}
 
-		budgetFit := 1.0 - (total / opts.Budget)
+		budgetFit := 1.0 - (total / budget)
 		if budgetFit < 0 {
 			budgetFit = 0
 		}
@@ -346,7 +373,7 @@ func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error
 			quality = 0.5 + 0.5*(h.rating/5.0)
 		}
 		valueScore := budgetFit * quality
-		slack := opts.Budget - total
+		slack := budget - total
 
 		cityName := t.dest.CityName
 		if cityName == "" {
@@ -377,19 +404,11 @@ func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].ValueScore > results[j].ValueScore
 	})
-	if len(results) > opts.Top {
-		results = results[:opts.Top]
+	if len(results) > top {
+		results = results[:top]
 	}
 
-	return &DiscoverOutput{
-		Success: true,
-		Origin:  opts.Origin,
-		From:    opts.From,
-		Until:   opts.Until,
-		Budget:  opts.Budget,
-		Count:   len(results),
-		Trips:   results,
-	}, nil
+	return results
 }
 
 func buildDiscoverReasoning(quality, budgetFit, rating, slack float64, currency string) string {

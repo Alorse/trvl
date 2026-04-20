@@ -31,6 +31,7 @@ type Cache struct {
 	items      map[string]cacheItem
 	maxEntries int
 	stop       chan struct{}
+	done       chan struct{}
 }
 
 // New creates a new Cache with the default max-entries limit and starts a
@@ -49,6 +50,7 @@ func NewWithMax(maxEntries int) *Cache {
 		items:      make(map[string]cacheItem),
 		maxEntries: maxEntries,
 		stop:       make(chan struct{}),
+		done:       make(chan struct{}),
 	}
 	go c.janitor()
 	return c
@@ -116,13 +118,19 @@ func (c *Cache) Len() int {
 	return len(c.items)
 }
 
-// Close stops the background cleanup goroutine.
+// Close stops the background cleanup goroutine and waits up to 5 seconds
+// for it to exit. This prevents hanging indefinitely if the janitor is stuck.
 func (c *Cache) Close() {
 	close(c.stop)
+	select {
+	case <-c.done:
+	case <-time.After(5 * time.Second):
+	}
 }
 
 // janitor periodically removes expired entries.
 func (c *Cache) janitor() {
+	defer close(c.done)
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 	for {

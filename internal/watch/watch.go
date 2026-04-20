@@ -39,6 +39,10 @@ type Watch struct {
 	LowestPrice  float64   `json:"lowest_price"`
 	CheapestDate string    `json:"cheapest_date,omitempty"` // which date had the lowest price
 
+	// Webhook notification URL. When set and a price drop is detected, a JSON
+	// payload is POSTed to this URL (fire-and-forget, 10s timeout).
+	WebhookURL string `json:"webhook_url,omitempty"`
+
 	// Room watch fields (Type == "room").
 	HotelName    string   `json:"hotel_name,omitempty"`    // hotel name for room availability lookups
 	RoomKeywords []string `json:"room_keywords,omitempty"` // all keywords must match room name+description
