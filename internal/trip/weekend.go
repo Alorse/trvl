@@ -138,13 +138,8 @@ func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions
 	// Concurrency=3 (not 5): each hotel search fetches a full HTML page (~0.5-1MB).
 	// With 10 destinations, 5 concurrent searches peaked at ~10MB of live HTML
 	// bodies + JSON parse trees, triggering OOM on constrained systems.
-	type hotelResult struct {
-		perNight float64
-		total    float64
-		name     string
-	}
 	var mu sync.Mutex
-	hotelPrices := make(map[int]*hotelResult)
+	hotelPrices := make(map[int]*weekendHotelResult)
 
 	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
@@ -204,7 +199,7 @@ func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions
 			}
 
 			mu.Lock()
-			hotelPrices[idx] = &hotelResult{
+			hotelPrices[idx] = &weekendHotelResult{
 				perNight: cheapest.Price,
 				total:    cheapest.Price * float64(opts.Nights),
 				name:     cheapest.Name,
@@ -214,7 +209,28 @@ func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions
 	}
 	wg.Wait()
 
-	// Build results with real hotel prices.
+	results := assembleWeekendResults(dests, hotelPrices, opts.MaxBudget, apiCurrency)
+
+	return &WeekendResult{
+		Success:      true,
+		Origin:       origin,
+		Month:        displayMonth,
+		Nights:       opts.Nights,
+		Count:        len(results),
+		Destinations: results,
+	}, nil
+}
+
+// weekendHotelResult holds the cheapest hotel price for one destination.
+type weekendHotelResult struct {
+	perNight float64
+	total    float64
+	name     string
+}
+
+// assembleWeekendResults builds the ranked destination list from explore
+// destinations and their hotel prices. Results are sorted by total cost.
+func assembleWeekendResults(dests []models.ExploreDestination, hotelPrices map[int]*weekendHotelResult, maxBudget float64, apiCurrency string) []WeekendDestination {
 	var results []WeekendDestination
 	for i, d := range dests {
 		hp := hotelPrices[i]
@@ -223,7 +239,7 @@ func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions
 		}
 
 		total := d.Price + hp.total
-		if opts.MaxBudget > 0 && total > opts.MaxBudget {
+		if maxBudget > 0 && total > maxBudget {
 			continue
 		}
 
@@ -249,12 +265,5 @@ func FindWeekendGetaways(ctx context.Context, origin string, opts WeekendOptions
 		return results[i].Total < results[j].Total
 	})
 
-	return &WeekendResult{
-		Success:      true,
-		Origin:       origin,
-		Month:        displayMonth,
-		Nights:       opts.Nights,
-		Count:        len(results),
-		Destinations: results,
-	}, nil
+	return results
 }

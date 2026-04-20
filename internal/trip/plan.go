@@ -269,22 +269,7 @@ func PlanTrip(ctx context.Context, input PlanInput) (*PlanResult, error) {
 			if err != nil || reviews == nil || len(reviews.Reviews) == 0 {
 				return
 			}
-			snippets := make([]PlanReviewSnippet, 0, len(reviews.Reviews))
-			for _, r := range reviews.Reviews {
-				if r.Text == "" {
-					continue
-				}
-				snippets = append(snippets, PlanReviewSnippet{
-					Rating:    r.Rating,
-					Text:      trimReview(r.Text, 180),
-					Author:    r.Author,
-					Date:      r.Date,
-					HotelName: hotelName,
-				})
-				if len(snippets) >= 3 {
-					break
-				}
-			}
+			snippets := buildReviewSnippets(reviews.Reviews, hotelName)
 			enrichMu.Lock()
 			result.ReviewSnippets = snippets
 			enrichMu.Unlock()
@@ -300,24 +285,12 @@ func PlanTrip(ctx context.Context, input PlanInput) (*PlanResult, error) {
 		if err != nil || guide == nil {
 			return
 		}
-		planCtx := &PlanDestinationContext{
-			Source: guide.URL,
+		planCtx := buildDestinationContext(guide)
+		if planCtx != nil {
+			enrichMu.Lock()
+			result.Context = planCtx
+			enrichMu.Unlock()
 		}
-		if guide.Summary != "" {
-			planCtx.Summary = trimGuideSection(guide.Summary, 280)
-		}
-		if s, ok := firstSectionByKey(guide.Sections, "When to go", "Understand", "Climate"); ok {
-			planCtx.WhenToGo = trimGuideSection(s, 220)
-		}
-		if s, ok := firstSectionByKey(guide.Sections, "Get around", "Getting around"); ok {
-			planCtx.GetAround = trimGuideSection(s, 220)
-		}
-		if planCtx.Summary == "" && planCtx.WhenToGo == "" && planCtx.GetAround == "" {
-			return
-		}
-		enrichMu.Lock()
-		result.Context = planCtx
-		enrichMu.Unlock()
 	}()
 
 	// Enrich the chosen hotel with OSM tags (stars, website, wheelchair,
@@ -330,17 +303,7 @@ func PlanTrip(ctx context.Context, input PlanInput) (*PlanResult, error) {
 			if extra == nil {
 				return
 			}
-			enrichMu.Lock()
-			if extra.Stars > 0 && chosenHotel.OSMStars == 0 {
-				chosenHotel.OSMStars = extra.Stars
-			}
-			if extra.Website != "" && chosenHotel.Website == "" {
-				chosenHotel.Website = extra.Website
-			}
-			if extra.Wheelchair != "" {
-				chosenHotel.Wheelchair = extra.Wheelchair
-			}
-			enrichMu.Unlock()
+			applyOSMEnrichment(chosenHotel, extra)
 		}(chosenHotel.Name, chosenHotel.Lat, chosenHotel.Lon)
 	}
 
@@ -515,7 +478,12 @@ func findBreakfastNearHotel(ctx context.Context, lat, lon float64) []PlanBreakfa
 	if err != nil || result == nil {
 		return nil
 	}
+	return filterBreakfastSpots(result)
+}
 
+// filterBreakfastSpots extracts cafes and restaurants from nearby POI data,
+// deduplicates by name, sorts by distance, and caps to 5 results.
+func filterBreakfastSpots(result *destinations.NearbyResult) []PlanBreakfast {
 	// Filter to cafes and restaurants (both can serve breakfast).
 	breakfastTypes := map[string]bool{
 		"cafe":       true,
@@ -697,5 +665,61 @@ func convertPlanHotels(ctx context.Context, hotels []PlanHotel, currency string)
 			hotels[i].Total = convertedPlanAmount(ctx, hotels[i].Total, hotels[i].Currency, currency)
 		}
 		hotels[i].Currency = currency
+	}
+}
+
+// buildReviewSnippets converts raw hotel reviews into plan review snippets.
+// Returns up to 3 snippets, skipping reviews with empty text.
+func buildReviewSnippets(reviews []models.HotelReview, hotelName string) []PlanReviewSnippet {
+	snippets := make([]PlanReviewSnippet, 0, len(reviews))
+	for _, r := range reviews {
+		if r.Text == "" {
+			continue
+		}
+		snippets = append(snippets, PlanReviewSnippet{
+			Rating:    r.Rating,
+			Text:      trimReview(r.Text, 180),
+			Author:    r.Author,
+			Date:      r.Date,
+			HotelName: hotelName,
+		})
+		if len(snippets) >= 3 {
+			break
+		}
+	}
+	return snippets
+}
+
+// buildDestinationContext extracts a short travel-guide blurb from a
+// Wikivoyage guide. Returns nil if no useful content was found.
+func buildDestinationContext(guide *models.WikivoyageGuide) *PlanDestinationContext {
+	planCtx := &PlanDestinationContext{
+		Source: guide.URL,
+	}
+	if guide.Summary != "" {
+		planCtx.Summary = trimGuideSection(guide.Summary, 280)
+	}
+	if s, ok := firstSectionByKey(guide.Sections, "When to go", "Understand", "Climate"); ok {
+		planCtx.WhenToGo = trimGuideSection(s, 220)
+	}
+	if s, ok := firstSectionByKey(guide.Sections, "Get around", "Getting around"); ok {
+		planCtx.GetAround = trimGuideSection(s, 220)
+	}
+	if planCtx.Summary == "" && planCtx.WhenToGo == "" && planCtx.GetAround == "" {
+		return nil
+	}
+	return planCtx
+}
+
+// applyOSMEnrichment merges OpenStreetMap enrichment data into a plan hotel.
+func applyOSMEnrichment(hotel *PlanHotel, extra *destinations.HotelEnrichment) {
+	if extra.Stars > 0 && hotel.OSMStars == 0 {
+		hotel.OSMStars = extra.Stars
+	}
+	if extra.Website != "" && hotel.Website == "" {
+		hotel.Website = extra.Website
+	}
+	if extra.Wheelchair != "" {
+		hotel.Wheelchair = extra.Wheelchair
 	}
 }
