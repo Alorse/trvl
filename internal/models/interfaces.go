@@ -11,6 +11,7 @@ type FlightSearchOptions struct {
 	SortBy     SortBy     // Result sort order
 	Airlines   []string   // Restrict to these airline IATA codes
 	Adults     int        // Number of adult passengers (default: 1)
+	Currency   string     // Target currency (ISO 4217, e.g. "USD"); empty = IP default
 }
 
 // HotelSearchOptions mirrors hotels.HotelSearchOptions for the provider interface.
