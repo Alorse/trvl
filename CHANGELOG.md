@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **MCP flight search**: plumb `Currency` through `FlightSearchOptions` and include `returnDate` + `currency` in booking deep links, so prices and booking URLs stay consistent for MCP clients (#34, thanks @Alorse — first external contributor!)
+- **Race conditions in `mcp` handlers under `-race`**: singleflight-coalesced callers each receive their own `*HotelSearchResult` / `*FlightSearchResult` header with independent slice headers, so post-filter mutations no longer race with sibling JSON marshaling (#39 hotels, #40 flights)
+
+### Notes
+- Windows CI runners hit external-provider rate limits (Kiwi, Nominatim) on slower hardware; tracked in #41 as a separate hardening item. Ubuntu CI is the source of truth for test correctness until that lands.
+
 ## [1.0.3] - 2026-04-20
 
 ### Added

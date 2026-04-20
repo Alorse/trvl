@@ -689,6 +689,10 @@ trvl is part of a suite of MCP tools:
 
 **MCP server crashes on startup?** Run `trvl mcp` directly in your terminal to see the error. Common cause: port conflict when using `--http`. Try a different port with `--port 8081`.
 
+## Thanks
+
+Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the upstream-first rule and how to run the test suite. The [`CONTRIBUTORS.md`](CONTRIBUTORS.md) file lists the people who have helped make trvl better.
+
 ## License
 
 [PolyForm Noncommercial 1.0.0](LICENSE) — free for personal and noncommercial use. Commercial use requires a separate license.
