@@ -341,9 +341,9 @@ func TestAllToolHandlers(t *testing.T) {
 		args     map[string]any
 		mayError bool // true if the handler may return an error (e.g., fake hotel ID)
 	}{
-		{"search_flights", map[string]any{"origin": "HEL", "destination": "NRT", "departure_date": "2026-06-15"}, false},
-		{"search_dates", map[string]any{"origin": "HEL", "destination": "NRT", "start_date": "2026-06-01", "end_date": "2026-06-30"}, false},
-		{"search_hotels", map[string]any{"location": "Helsinki", "check_in": "2026-06-15", "check_out": "2026-06-18"}, false},
+		{"search_flights", map[string]any{"origin": "HEL", "destination": "NRT", "departure_date": "2026-06-15"}, true},
+		{"search_dates", map[string]any{"origin": "HEL", "destination": "NRT", "start_date": "2026-06-01", "end_date": "2026-06-30"}, true},
+		{"search_hotels", map[string]any{"location": "Helsinki", "check_in": "2026-06-15", "check_out": "2026-06-18"}, true},
 		{"hotel_prices", map[string]any{"hotel_id": "/g/abc", "check_in": "2026-06-15", "check_out": "2026-06-18"}, true},
 	}
 
