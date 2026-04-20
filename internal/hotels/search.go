@@ -207,7 +207,27 @@ func SearchHotelsWithClient(ctx context.Context, client *batchexec.Client, locat
 	if sfErr != nil {
 		return nil, sfErr
 	}
-	return v.(*models.HotelSearchResult), nil
+	// singleflight.Do returns the same *HotelSearchResult to all callers that
+	// coalesce on the same key. Callers mutate result.Hotels and result.Count
+	// (e.g. preferences.FilterHotels post-processing), which would race across
+	// concurrent callers. Return a shallow copy per caller: a fresh struct
+	// header with its own Hotels slice header so Count / Hotels writes are
+	// caller-private. The underlying HotelResult elements are treated as
+	// immutable after search completes and remain safely shared.
+	shared := v.(*models.HotelSearchResult)
+	if shared == nil {
+		return nil, nil
+	}
+	cp := *shared
+	if shared.Hotels != nil {
+		cp.Hotels = make([]models.HotelResult, len(shared.Hotels))
+		copy(cp.Hotels, shared.Hotels)
+	}
+	if shared.ProviderStatuses != nil {
+		cp.ProviderStatuses = make([]models.ProviderStatus, len(shared.ProviderStatuses))
+		copy(cp.ProviderStatuses, shared.ProviderStatuses)
+	}
+	return &cp, nil
 }
 
 // searchHotelsCore performs the actual hotel search without singleflight wrapping.
