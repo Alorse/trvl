@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -505,6 +506,9 @@ func TestSaveLocked_EnsureDirError(t *testing.T) {
 }
 
 func TestSaveJSON_WriteError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("read-only directory permissions not enforced on Windows")
+	}
 	// Try writing to a read-only directory.
 	dir := t.TempDir()
 	readOnlyDir := filepath.Join(dir, "readonly")

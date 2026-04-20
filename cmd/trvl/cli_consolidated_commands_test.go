@@ -54,7 +54,7 @@ func TestVisaCmd_LookupJSON(t *testing.T) {
 
 func TestUpgradeCmd_DefaultRun(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := upgradeCmd()
 	cmd.SetArgs([]string{})
 
@@ -63,7 +63,7 @@ func TestUpgradeCmd_DefaultRun(t *testing.T) {
 
 func TestTripsStatusCmd_NoUpcoming(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsCmd()
 	cmd.SetArgs([]string{"status"})
 	_ = cmd.Execute()
@@ -71,7 +71,7 @@ func TestTripsStatusCmd_NoUpcoming(t *testing.T) {
 
 func TestTripsDeleteCmd_NotFound(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsCmd()
 	cmd.SetArgs([]string{"delete", "nonexistent-id"})
 	err := cmd.Execute()
@@ -81,7 +81,7 @@ func TestTripsDeleteCmd_NotFound(t *testing.T) {
 
 func TestTripsAlertsCmd_NoAlerts(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsCmd()
 	cmd.SetArgs([]string{"alerts"})
 	_ = cmd.Execute()
@@ -89,7 +89,7 @@ func TestTripsAlertsCmd_NoAlerts(t *testing.T) {
 
 func TestTripsListCmd_AllFlagEmptyStore(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsCmd()
 	cmd.SetArgs([]string{"list", "--all"})
 	_ = cmd.Execute()
@@ -97,7 +97,7 @@ func TestTripsListCmd_AllFlagEmptyStore(t *testing.T) {
 
 func TestTripsCreateCmd_CreatesTrip(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsCmd()
 	cmd.SetArgs([]string{"create", "My Test Trip"})
 	if err := cmd.Execute(); err != nil {
@@ -107,7 +107,7 @@ func TestTripsCreateCmd_CreatesTrip(t *testing.T) {
 
 func TestTripsListCmd_ShowsCreatedTrip(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := tripsCmd()
 	cmd.SetArgs([]string{"create", "Test Trip"})
@@ -168,7 +168,7 @@ func TestTripsAddLegCmd_FlagsExist(t *testing.T) {
 
 func TestTripsAddLegCmd_RequiresArgs(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsAddLegCmd()
 	cmd.SetArgs([]string{})
 	err := cmd.Execute()
@@ -188,7 +188,7 @@ func TestTripsBookCmd_FlagsExist(t *testing.T) {
 
 func TestTripsBookCmd_RequiresArg(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsBookCmd()
 	cmd.SetArgs([]string{})
 	err := cmd.Execute()
@@ -199,7 +199,7 @@ func TestTripsBookCmd_RequiresArg(t *testing.T) {
 
 func TestTripsFullFlow_CreateAndAddLeg(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Prague Trip 2026"})
@@ -240,7 +240,7 @@ func TestDiscoverCmd_FlagsV11(t *testing.T) {
 
 func TestRunTripsList_AllEmpty(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	if err := runTripsList(true); err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -249,7 +249,7 @@ func TestRunTripsList_AllEmpty(t *testing.T) {
 
 func TestRunTripsList_InactiveEmpty(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	if err := runTripsList(false); err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -323,7 +323,7 @@ func TestDatesCmd_RoundTripFlag(t *testing.T) {
 
 func TestTripsAddLeg_CreatesLeg(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Test Trip"})
@@ -370,7 +370,7 @@ func TestTripsAddLeg_CreatesLeg(t *testing.T) {
 
 func TestTripsBookCmd_AddsBooking(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Book Test Trip"})
@@ -401,7 +401,7 @@ func TestTripsBookCmd_AddsBooking(t *testing.T) {
 
 func TestTripsStatusCmd_HasTripNoLegs(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Future Trip"})
@@ -414,7 +414,7 @@ func TestTripsStatusCmd_HasTripNoLegs(t *testing.T) {
 
 func TestTripsDeleteCmd_DeletesTrip(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Delete Me"})
@@ -438,7 +438,7 @@ func TestTripsDeleteCmd_DeletesTrip(t *testing.T) {
 
 func TestTripsAlertsCmd_MarkReadEmpty(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsCmd()
 	cmd.SetArgs([]string{"alerts", "--mark-read"})
 	_ = cmd.Execute()
@@ -486,7 +486,7 @@ func TestWhenCmd_ValidArgsNoNetwork(t *testing.T) {
 
 func TestWhenCmd_InvalidOrigin(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := whenCmd()
 	cmd.SetArgs([]string{
 		"--to", "BCN",
@@ -511,7 +511,7 @@ func TestWhenCmd_FlagsV13(t *testing.T) {
 
 func TestUpgradeCmd_FreshInstall(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := upgradeCmd()
 	cmd.SetArgs([]string{})
 
@@ -520,7 +520,7 @@ func TestUpgradeCmd_FreshInstall(t *testing.T) {
 
 func TestUpgradeCmd_DryRunFreshInstall(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := upgradeCmd()
 	cmd.SetArgs([]string{"--dry-run"})
 	_ = cmd.Execute()
@@ -542,7 +542,7 @@ func TestFlightsCmd_CompareCabinsFlag(t *testing.T) {
 
 func TestTripsShowCmd_NotFoundV13(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsShowCmd()
 	cmd.SetArgs([]string{"nonexistent-trip-id-v13"})
 
@@ -627,7 +627,7 @@ func TestUpgradeCmd_FlagsExistV14(t *testing.T) {
 
 func TestDiscoverCmd_InvalidOriginIATA(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := discoverCmd()
 	cmd.SetArgs([]string{"--origin", "12", "--from", "2026-07-01", "--until", "2026-07-31", "--budget", "500"})
 	err := cmd.Execute()
@@ -754,7 +754,7 @@ func TestEventsCmd_MissingRequiredFlagsV15(t *testing.T) {
 
 func TestCalendarCmd_WithTripID(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Calendar Test Trip"})
@@ -781,7 +781,7 @@ func TestCalendarCmd_WithTripID(t *testing.T) {
 
 func TestCalendarCmd_WithTripIDToFile(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Calendar File Trip"})
@@ -813,7 +813,7 @@ func TestCalendarCmd_WithTripIDToFile(t *testing.T) {
 
 func TestCalendarCmd_WithTripIDNotFound(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := calendarCmd()
 	cmd.SetArgs([]string{"nonexistent-id-v16"})
 
@@ -822,7 +822,7 @@ func TestCalendarCmd_WithTripIDNotFound(t *testing.T) {
 
 func TestUpgradeCmd_QuietV16(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := upgradeCmd()
 	cmd.SetArgs([]string{"--quiet"})
 	if err := cmd.Execute(); err != nil {
@@ -833,7 +833,7 @@ func TestUpgradeCmd_QuietV16(t *testing.T) {
 func TestUpgradeCmd_AlreadyUpToDate(t *testing.T) {
 
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd1 := upgradeCmd()
 	cmd1.SetArgs([]string{})
@@ -855,7 +855,7 @@ func TestAccomHackCmd_MissingCheckIn(t *testing.T) {
 
 func TestShareTrip_WithRealTrip(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Share Test Trip"})
@@ -895,7 +895,7 @@ func TestShareTrip_WithRealTrip(t *testing.T) {
 
 func TestShareTrip_NotFound(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := shareCmd()
 	cmd.SetArgs([]string{"nonexistent-id-v17"})
 
@@ -905,7 +905,7 @@ func TestShareTrip_NotFound(t *testing.T) {
 
 func TestShareCmd_LastWithSearch(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	ls := &LastSearch{
 		Command:        "flights",
@@ -946,7 +946,7 @@ func TestRunNearby_InvalidLon(t *testing.T) {
 
 func TestProvidersDisableCmd_NotFound(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := providersDisableCmd()
 	cmd.SetArgs([]string{"nonexistent-provider-id"})
 	err := cmd.Execute()
@@ -957,7 +957,7 @@ func TestProvidersDisableCmd_NotFound(t *testing.T) {
 
 func TestRunProvidersList_EmptyV18(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := providersCmd()
 	cmd.SetArgs([]string{"list"})
 	_ = cmd.Execute()
@@ -965,7 +965,7 @@ func TestRunProvidersList_EmptyV18(t *testing.T) {
 
 func TestRunProvidersList_JSONEmpty(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := providersCmd()
 	cmd.SetArgs([]string{"list", "--format", "json"})
 	_ = cmd.Execute()
@@ -973,7 +973,7 @@ func TestRunProvidersList_JSONEmpty(t *testing.T) {
 
 func TestRunProvidersStatus_EmptyV18(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := providersCmd()
 	cmd.SetArgs([]string{"status"})
 	_ = cmd.Execute()
@@ -981,7 +981,7 @@ func TestRunProvidersStatus_EmptyV18(t *testing.T) {
 
 func TestRunProvidersStatus_JSONEmpty(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := providersCmd()
 	cmd.SetArgs([]string{"status", "--format", "json"})
 	_ = cmd.Execute()
@@ -1008,7 +1008,7 @@ func TestGridCmd_RequiredFlagsMissing(t *testing.T) {
 
 func TestMultiCityCmd_ValidArgsNoNetwork(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := multiCityCmd()
 
 	cmd.SetArgs([]string{"HEL", "--visit", "BCN,ROM", "--dates", "2026-07-01,2026-07-21"})
@@ -1055,7 +1055,7 @@ func writeTestProviderV19(t *testing.T, tmp, id string) {
 
 func TestRunProvidersList_WithProviderV19(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	writeTestProviderV19(t, tmp, "test-hotel-provider")
 
 	cmd := providersCmd()
@@ -1067,7 +1067,7 @@ func TestRunProvidersList_WithProviderV19(t *testing.T) {
 
 func TestRunProvidersList_WithProviderJSONV19(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	writeTestProviderV19(t, tmp, "test-hotel-provider-json")
 
 	oldFormat := format
@@ -1081,7 +1081,7 @@ func TestRunProvidersList_WithProviderJSONV19(t *testing.T) {
 
 func TestRunProvidersStatus_WithProviderV19(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	writeTestProviderV19(t, tmp, "test-status-provider")
 
 	cmd := providersCmd()
@@ -1093,7 +1093,7 @@ func TestRunProvidersStatus_WithProviderV19(t *testing.T) {
 
 func TestRunProvidersStatus_WithErrorProviderV19(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	dir := filepath.Join(tmp, ".trvl", "providers")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -1121,7 +1121,7 @@ func TestRunProvidersStatus_WithErrorProviderV19(t *testing.T) {
 
 func TestRunProvidersStatus_WithStaleProviderV19(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	dir := filepath.Join(tmp, ".trvl", "providers")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -1148,7 +1148,7 @@ func TestRunProvidersStatus_WithStaleProviderV19(t *testing.T) {
 
 func TestRunProvidersDisable_WithProviderV19(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	writeTestProviderV19(t, tmp, "to-delete-provider")
 
 	cmd := providersCmd()
@@ -1186,7 +1186,7 @@ func TestRouteCmd_MissingArgsV19(t *testing.T) {
 
 func TestRunInstall_CodexDryRunV19(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	t.Setenv("USERPROFILE", tmp)
 	err := runInstall("codex", false, true)
 	if err != nil {
@@ -1196,7 +1196,7 @@ func TestRunInstall_CodexDryRunV19(t *testing.T) {
 
 func TestRunInstall_CodexCreatesConfigV19(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	t.Setenv("USERPROFILE", tmp)
 	err := runInstall("codex", false, false)
 	if err != nil {
@@ -1213,7 +1213,7 @@ func TestOpenBrowser_EmptyURL_V20(t *testing.T) {
 
 func TestTripsAlertsCmd_MarkReadEmptyV20(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := tripsCmd()
 	cmd.SetArgs([]string{"alerts", "--mark-read"})
@@ -1251,7 +1251,7 @@ func TestSuggestCmd_FlagsExistV20(t *testing.T) {
 
 func TestTripsBookCmd_BooksTripV20(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Book Test Trip"})
@@ -1283,7 +1283,7 @@ func TestTripsBookCmd_BooksTripV20(t *testing.T) {
 
 func TestTripsDeleteCmd_DeletesTripV20(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Delete Test Trip"})
@@ -1310,7 +1310,7 @@ func TestTripsDeleteCmd_DeletesTripV20(t *testing.T) {
 
 func TestTripsStatusCmd_WithTripV20(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Status Test Trip"})
@@ -1350,7 +1350,7 @@ func TestTripsStatusCmd_WithTripV20(t *testing.T) {
 
 func TestShareCmd_GistFlagWithLastSearchV20(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	ls := &LastSearch{
 		Command:        "flights",
@@ -1371,7 +1371,7 @@ func TestShareCmd_GistFlagWithLastSearchV20(t *testing.T) {
 
 func TestTripsAlertsCmd_TableWithAlertsV20(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "Alert Test Trip"})
@@ -1426,7 +1426,7 @@ func TestDatesCmd_FlagsExistV20(t *testing.T) {
 
 func TestTripCostCmd_ValidArgsNoNetworkV20(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripCostCmd()
 	cmd.SetArgs([]string{"HEL", "BCN", "--depart", "2026-07-01", "--return", "2026-07-08"})
 
@@ -1461,7 +1461,7 @@ func TestShareCmd_NoArgsNoLastV21(t *testing.T) {
 
 func TestWeekendCmd_ValidIATANoNetworkV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := weekendCmd()
 	cmd.SetArgs([]string{"HEL", "--month", "2026-08"})
 
@@ -1470,7 +1470,7 @@ func TestWeekendCmd_ValidIATANoNetworkV21(t *testing.T) {
 
 func TestTripsListCmd_WithTripsV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	createCmd := tripsCmd()
 	createCmd.SetArgs([]string{"create", "List Test Trip"})
@@ -1554,7 +1554,7 @@ func TestCabinResult_StructV22(t *testing.T) {
 
 func TestRunProvidersDisable_SucceedsV22(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	writeTestProviderV19(t, tmp, "deletable-provider")
 
 	cmd := providersDisableCmd()
@@ -1593,7 +1593,7 @@ func TestDealsCmd_NonNilV22(t *testing.T) {
 
 func TestRunProvidersDisable_ConfirmsNonTerminalV23(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	writeTestProviderV19(t, tmp, "confirm-delete-provider")
 
 	err := runProvidersDisable("confirm-delete-provider")
@@ -1662,7 +1662,7 @@ func TestWeatherCmd_FlagsV24(t *testing.T) {
 
 func TestUpgradeCmd_DryRunV24(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := upgradeCmd()
 	cmd.SetArgs([]string{"--dry-run"})
 	if err := cmd.Execute(); err != nil {
@@ -1672,7 +1672,7 @@ func TestUpgradeCmd_DryRunV24(t *testing.T) {
 
 func TestUpgradeCmd_QuietV24(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := upgradeCmd()
 	cmd.SetArgs([]string{"--quiet"})
 	if err := cmd.Execute(); err != nil {
@@ -1682,7 +1682,7 @@ func TestUpgradeCmd_QuietV24(t *testing.T) {
 
 func TestUpgradeCmd_DefaultRunV24(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := upgradeCmd()
 	cmd.SetArgs([]string{})
 	if err := cmd.Execute(); err != nil {
@@ -2951,7 +2951,7 @@ func TestAccomHackCmd_FlagsExist(t *testing.T) {
 
 func TestCalendarCmd_LastNoSearch(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := calendarCmd()
 	cmd.SetArgs([]string{"--last"})
 	err := cmd.Execute()
@@ -2980,7 +2980,7 @@ func TestCalendarCmd_NoArgNoLast(t *testing.T) {
 
 func TestCalendarCmd_LastWithSearch(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	ls := &LastSearch{
 		Command:        "flights",
@@ -3003,7 +3003,7 @@ func TestCalendarCmd_LastWithSearch(t *testing.T) {
 
 func TestCalendarCmd_LastWriteToFile(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	ls := &LastSearch{
 		Command:        "flights",
@@ -3039,7 +3039,7 @@ func TestRunCabinComparison_JSONNoNetwork(t *testing.T) {
 
 func TestTripsShowCmd_NotFound(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := tripsShowCmd()
 	cmd.SetArgs([]string{"nonexistent-id"})
 	err := cmd.Execute()

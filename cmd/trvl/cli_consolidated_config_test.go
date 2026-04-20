@@ -13,7 +13,7 @@ import (
 
 func TestLoadLastSearch_NotFoundV10(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	_, err := loadLastSearch()
 	if err == nil {
 		t.Error("expected error when no last_search.json")
@@ -33,7 +33,7 @@ func TestSecureTempPath_ReturnsPath(t *testing.T) {
 
 func TestKeysPath_ReturnsPath(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	path, err := keysPath()
 	if err != nil {
 		t.Fatalf("keysPath: %v", err)
@@ -45,7 +45,7 @@ func TestKeysPath_ReturnsPath(t *testing.T) {
 
 func TestLoadExistingKeys_NonexistentFile(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	keys := loadExistingKeys()
 
@@ -54,7 +54,7 @@ func TestLoadExistingKeys_NonexistentFile(t *testing.T) {
 
 func TestSaveKeys_WritesFile(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	keys := APIKeys{
 		SeatsAero: "test-key",
 	}
@@ -122,7 +122,7 @@ func TestSaveNudgeState_ShownTrueV14(t *testing.T) {
 func TestDiscoverCmd_MissingOriginNoPrefs(t *testing.T) {
 
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := discoverCmd()
 	cmd.SetArgs([]string{"--from", "2026-07-01", "--until", "2026-07-31", "--budget", "500"})
 	err := cmd.Execute()
@@ -133,7 +133,7 @@ func TestDiscoverCmd_MissingOriginNoPrefs(t *testing.T) {
 
 func TestPrefsAddFamilyMemberCmd_AddsV16(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsAddFamilyMemberCmd()
 	cmd.SetArgs([]string{"family_member", "Father", "--notes", "prefers window seat"})
 	if err := cmd.Execute(); err != nil {
@@ -143,7 +143,7 @@ func TestPrefsAddFamilyMemberCmd_AddsV16(t *testing.T) {
 
 func TestPrefsAddFamilyMemberCmd_WrongKeyV16(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsAddFamilyMemberCmd()
 	cmd.SetArgs([]string{"not_family_member", "Bob"})
 	err := cmd.Execute()
@@ -154,7 +154,7 @@ func TestPrefsAddFamilyMemberCmd_WrongKeyV16(t *testing.T) {
 
 func TestProfileAddCmd_AddsFlightBooking(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := profileAddCmd()
 	cmd.SetArgs([]string{
@@ -173,7 +173,7 @@ func TestProfileAddCmd_AddsFlightBooking(t *testing.T) {
 
 func TestProfileAddCmd_AddsHotelBooking(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := profileAddCmd()
 	cmd.SetArgs([]string{
@@ -192,7 +192,7 @@ func TestProfileAddCmd_AddsHotelBooking(t *testing.T) {
 
 func TestProfileAddCmd_PrintsFrom_To(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := profileAddCmd()
 	cmd.SetArgs([]string{
@@ -210,7 +210,7 @@ func TestProfileAddCmd_PrintsFrom_To(t *testing.T) {
 
 func TestPrefsSetCmd_HomeAirports(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"home_airports", "HEL"})
 	if err := cmd.Execute(); err != nil {
@@ -220,7 +220,7 @@ func TestPrefsSetCmd_HomeAirports(t *testing.T) {
 
 func TestPrefsSetCmd_DisplayCurrency(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"display_currency", "EUR"})
 	if err := cmd.Execute(); err != nil {
@@ -230,7 +230,7 @@ func TestPrefsSetCmd_DisplayCurrency(t *testing.T) {
 
 func TestPrefsSetCmd_InvalidDisplayCurrency(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"display_currency", "TOOLONG"})
 	err := cmd.Execute()
@@ -241,7 +241,7 @@ func TestPrefsSetCmd_InvalidDisplayCurrency(t *testing.T) {
 
 func TestPrefsSetCmd_MinHotelStars(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"min_hotel_stars", "3"})
 	if err := cmd.Execute(); err != nil {
@@ -251,7 +251,7 @@ func TestPrefsSetCmd_MinHotelStars(t *testing.T) {
 
 func TestPrefsSetCmd_MinHotelRating(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"min_hotel_rating", "8.5"})
 	if err := cmd.Execute(); err != nil {
@@ -331,7 +331,7 @@ func TestClientConfigPath_VSCodeV19(t *testing.T) {
 
 func TestProfileImportEmailCmd_RunsV20(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := profileCmd()
 	cmd.SetArgs([]string{"import-email"})
 	if err := cmd.Execute(); err != nil {
@@ -341,7 +341,7 @@ func TestProfileImportEmailCmd_RunsV20(t *testing.T) {
 
 func TestLoadLastSearch_MissingFileV20(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	_, err := loadLastSearch()
 	if err == nil {
@@ -351,7 +351,7 @@ func TestLoadLastSearch_MissingFileV20(t *testing.T) {
 
 func TestPrefsSetCmd_LocaleV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"locale", "en-FI"})
 	if err := cmd.Execute(); err != nil {
@@ -361,7 +361,7 @@ func TestPrefsSetCmd_LocaleV21(t *testing.T) {
 
 func TestPrefsSetCmd_HomeAirportsMultipleV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"home_airports", "HEL,AMS"})
 	if err := cmd.Execute(); err != nil {
@@ -371,7 +371,7 @@ func TestPrefsSetCmd_HomeAirportsMultipleV21(t *testing.T) {
 
 func TestPrefsSetCmd_LoyaltyAirlinesV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"loyalty_airlines", "AY,KL"})
 	if err := cmd.Execute(); err != nil {
@@ -381,7 +381,7 @@ func TestPrefsSetCmd_LoyaltyAirlinesV21(t *testing.T) {
 
 func TestPrefsSetCmd_LoyaltyHotelsV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"loyalty_hotels", "Marriott Bonvoy"})
 	if err := cmd.Execute(); err != nil {
@@ -391,7 +391,7 @@ func TestPrefsSetCmd_LoyaltyHotelsV21(t *testing.T) {
 
 func TestPrefsSetCmd_PreferredDistrictsV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"preferred_districts", "Prague=Prague 1,Prague 2"})
 	if err := cmd.Execute(); err != nil {
@@ -401,7 +401,7 @@ func TestPrefsSetCmd_PreferredDistrictsV21(t *testing.T) {
 
 func TestPrefsSetCmd_CarryOnOnlyV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"carry_on_only", "true"})
 	if err := cmd.Execute(); err != nil {
@@ -411,7 +411,7 @@ func TestPrefsSetCmd_CarryOnOnlyV21(t *testing.T) {
 
 func TestPrefsSetCmd_PreferDirectV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"prefer_direct", "false"})
 	if err := cmd.Execute(); err != nil {
@@ -421,7 +421,7 @@ func TestPrefsSetCmd_PreferDirectV21(t *testing.T) {
 
 func TestPrefsSetCmd_UnknownKeyV21(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"unknown_key_xyz", "value"})
 	err := cmd.Execute()
@@ -432,7 +432,7 @@ func TestPrefsSetCmd_UnknownKeyV21(t *testing.T) {
 
 func TestWhenCmd_MissingOriginNoPrefsV22(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := whenCmd()
 	cmd.SetArgs([]string{"--to", "BCN", "--from", "2026-07-01", "--until", "2026-07-31"})
 	err := cmd.Execute()
@@ -443,7 +443,7 @@ func TestWhenCmd_MissingOriginNoPrefsV22(t *testing.T) {
 
 func TestPrefsSetCmd_EnsuitOnlyV23(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"ensuite_only", "true"})
 	if err := cmd.Execute(); err != nil {
@@ -453,7 +453,7 @@ func TestPrefsSetCmd_EnsuitOnlyV23(t *testing.T) {
 
 func TestPrefsSetCmd_NoDormitoriesV23(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"no_dormitories", "true"})
 	if err := cmd.Execute(); err != nil {
@@ -463,7 +463,7 @@ func TestPrefsSetCmd_NoDormitoriesV23(t *testing.T) {
 
 func TestPrefsSetCmd_FastWifiV23(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"fast_wifi_needed", "true"})
 	if err := cmd.Execute(); err != nil {
@@ -473,7 +473,7 @@ func TestPrefsSetCmd_FastWifiV23(t *testing.T) {
 
 func TestPrefsSetCmd_HomeCitiesV23(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	cmd := prefsSetCmd()
 	cmd.SetArgs([]string{"home_cities", "Helsinki,Amsterdam"})
 	if err := cmd.Execute(); err != nil {
@@ -525,7 +525,7 @@ func TestShouldShowNudge_ReturnsTrueV24(t *testing.T) {
 
 func TestNudgePath_ReturnsPathV24(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	p, err := nudgePath()
 	if err != nil {
 		t.Fatalf("nudgePath: %v", err)
@@ -560,7 +560,7 @@ func TestLoadNudgeState_MissingFileV24(t *testing.T) {
 
 func TestRunSetup_NonInteractiveV24(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cfg := setupConfig{
 		nonInteractive: true,
@@ -577,7 +577,7 @@ func TestRunSetup_NonInteractiveV24(t *testing.T) {
 
 func TestRunSetup_NonInteractiveBusinessClassV24(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cfg := setupConfig{
 		nonInteractive: true,
@@ -605,7 +605,7 @@ func TestSecureTempPath_V24(t *testing.T) {
 
 func TestKeysPath_V24(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	p, err := keysPath()
 	if err != nil {
 		t.Fatalf("keysPath: %v", err)
@@ -675,7 +675,7 @@ func TestPrefsInitCmd_NonNilV24(t *testing.T) {
 
 func TestLoadExistingKeys_MissingFileV24(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	keys := loadExistingKeys()
 
 	if keys.SeatsAero != "" || keys.Kiwi != "" {
@@ -1260,7 +1260,7 @@ func TestProfileAddCmd_MissingProviderError(t *testing.T) {
 
 func TestRunPrefsShow_EmptyPrefs(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	cmd := prefsCmd()
 	cmd.SetArgs([]string{})
@@ -1272,7 +1272,7 @@ func TestRunPrefsShow_EmptyPrefs(t *testing.T) {
 func TestMaybeShowStarNudge_JSONFormatNoOp(t *testing.T) {
 
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	maybeShowStarNudge("flights", "json")
 }
@@ -1289,7 +1289,7 @@ func TestTrvlBinaryPath_ReturnsNonEmpty(t *testing.T) {
 
 func TestSaveAndLoadLastSearch_V9(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 
 	ls := &LastSearch{
 		Command:        "flights",
