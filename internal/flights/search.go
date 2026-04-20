@@ -183,7 +183,7 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 	}
 
 	gl := CurrencyToGL(opts.Currency)
-	status, body, err := client.SearchFlightsGL(ctx, encoded, gl)
+	status, body, err := client.SearchFlightsGLCurr(ctx, encoded, gl, opts.Currency)
 	if err != nil {
 		return &models.FlightSearchResult{
 			Error: fmt.Sprintf("request failed: %v", err),
@@ -221,7 +221,7 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 	// Currency conversion, if needed, happens in the CLI display layer.
 	for i := range flights {
 		flights[i].Provider = "google_flights"
-		flights[i].BookingURL = buildFlightBookingURL(origin, destination, date)
+		flights[i].BookingURL = buildFlightBookingURL(origin, destination, date, opts.ReturnDate, opts.Currency)
 	}
 
 	return &models.FlightSearchResult{
@@ -235,10 +235,13 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 // buildFlightBookingURL constructs a Google Flights deep link for a route and date.
 // Optionally includes return date (round-trip) and currency parameters.
 // Inspired by @Alorse's contribution in PR #33.
-func buildFlightBookingURL(origin, destination, date string, returnDate ...string) string {
+func buildFlightBookingURL(origin, destination, date, returnDate, currency string) string {
 	url := fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", destination, origin, date)
-	if len(returnDate) > 0 && returnDate[0] != "" {
-		url += "+through+" + returnDate[0]
+	if returnDate != "" {
+		url += "+through+" + returnDate
+	}
+	if currency != "" {
+		url += "&curr=" + currency
 	}
 	return url
 }
