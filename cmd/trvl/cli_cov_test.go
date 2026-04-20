@@ -973,9 +973,7 @@ func TestLastSearchPath_NonEmpty(t *testing.T) {
 
 func TestSaveLoadLastSearch_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	t.Setenv("HOME", dir)
-	defer os.Setenv("HOME", oldHome)
+	setTestHome(t, dir)
 
 	ls := &LastSearch{
 		Command:     "flights",
@@ -1361,7 +1359,7 @@ func TestRunWatchDaemon_NoActiveWatches(t *testing.T) {
 func withTempHome(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	setTestHome(t, dir)
 }
 
 func TestTrips_CreateListShowDeleteFlow(t *testing.T) {

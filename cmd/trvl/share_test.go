@@ -275,9 +275,7 @@ func TestExtractTripRoute_Empty(t *testing.T) {
 func TestSaveAndLoadLastSearch(t *testing.T) {
 	// Use a temp dir to avoid polluting ~/.trvl.
 	tmp := t.TempDir()
-	origHome := os.Getenv("HOME")
-	t.Setenv("HOME", tmp)
-	defer os.Setenv("HOME", origHome)
+	setTestHome(t, tmp)
 
 	// Create the .trvl dir.
 	_ = os.MkdirAll(filepath.Join(tmp, ".trvl"), 0o700)
@@ -321,8 +319,7 @@ func TestSaveAndLoadLastSearch(t *testing.T) {
 
 func TestLoadLastSearch_NotFound(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	t.Setenv("USERPROFILE", tmp) // Windows uses USERPROFILE, not HOME
+	setTestHome(t, tmp)
 
 	_, err := loadLastSearch()
 	if err == nil {

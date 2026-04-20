@@ -123,3 +123,26 @@ jobs:
           # MikkoParkkola/homebrew-tap. Until the secret is created the brews
           # step is skipped gracefully (goreleaser treats empty token as skip).
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+  npm-publish:
+    needs: release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@49933ea5288caeca8642195f2ed94f3dd6952cd8 # v4.4.0
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: Update npm package version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          cd npm
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+      - name: Publish to npm
+        run: npm publish --access public
+        working-directory: npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}

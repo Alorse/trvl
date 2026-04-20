@@ -310,6 +310,7 @@ func TestToolRegistration_AllTools(t *testing.T) {
 		"watch_price",
 		"list_watches",
 		"check_watches",
+		"export_ics",
 	}
 
 	if len(s.tools) != len(expectedTools) {

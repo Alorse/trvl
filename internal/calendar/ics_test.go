@@ -157,6 +157,92 @@ func TestEscapeText(t *testing.T) {
 	}
 }
 
+func TestExportICS_Basic(t *testing.T) {
+	trip := trips.Trip{
+		ID:   "trip_abc123",
+		Name: "Krakow Weekend",
+		Legs: []trips.TripLeg{
+			{
+				Type:      "flight",
+				From:      "HEL",
+				To:        "NRT",
+				Provider:  "KLM",
+				StartTime: "2026-06-16T07:30:00",
+				EndTime:   "2026-06-16T10:15:00",
+				Price:     650,
+				Currency:  "EUR",
+				Reference: "KL1234",
+				Confirmed: true,
+			},
+			{
+				Type:      "train",
+				From:      "Helsinki",
+				To:        "Tampere",
+				StartTime: "2026-06-17T09:00:00",
+				EndTime:   "2026-06-17T10:30:00",
+			},
+		},
+	}
+
+	ics, err := ExportICS(trip)
+	if err != nil {
+		t.Fatalf("ExportICS returned error: %v", err)
+	}
+
+	// RFC 5545 structure.
+	for _, want := range []string{
+		"BEGIN:VCALENDAR",
+		"VERSION:2.0",
+		"PRODID:",
+		"END:VCALENDAR",
+		"BEGIN:VEVENT",
+		"END:VEVENT",
+	} {
+		if !strings.Contains(ics, want) {
+			t.Errorf("missing %q in ICS output", want)
+		}
+	}
+
+	// Two events.
+	if got := strings.Count(ics, "BEGIN:VEVENT"); got != 2 {
+		t.Errorf("BEGIN:VEVENT count = %d, want 2", got)
+	}
+
+	// Flight content.
+	if !strings.Contains(ics, "HEL") || !strings.Contains(ics, "NRT") {
+		t.Error("missing flight route in ICS output")
+	}
+	if !strings.Contains(ics, "KL1234") {
+		t.Error("missing flight reference in ICS output")
+	}
+
+	// Train content.
+	if !strings.Contains(ics, "Helsinki") || !strings.Contains(ics, "Tampere") {
+		t.Error("missing train route in ICS output")
+	}
+
+	// CRLF line endings.
+	if !strings.Contains(ics, "\r\n") {
+		t.Error("expected CRLF line endings")
+	}
+}
+
+func TestExportICS_NoID(t *testing.T) {
+	trip := trips.Trip{Legs: []trips.TripLeg{{Type: "flight", From: "A", To: "B"}}}
+	_, err := ExportICS(trip)
+	if err == nil {
+		t.Error("expected error for trip with no ID")
+	}
+}
+
+func TestExportICS_NoLegs(t *testing.T) {
+	trip := trips.Trip{ID: "trip_empty"}
+	_, err := ExportICS(trip)
+	if err == nil {
+		t.Error("expected error for trip with no legs")
+	}
+}
+
 func TestMakeUID_Stable(t *testing.T) {
 	trip := &trips.Trip{ID: "trip_abc"}
 	leg := trips.TripLeg{Type: "flight", From: "HEL", To: "NRT", StartTime: "2026-06-16T10:00:00"}

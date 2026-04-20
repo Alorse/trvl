@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/calendar"
 	"github.com/MikkoParkkola/trvl/internal/trips"
 )
 
@@ -377,6 +378,68 @@ func handleMarkTripBooked(_ context.Context, args map[string]any, _ ElicitFunc, 
 
 	result := map[string]string{"trip_id": tripID, "reference": reference, "status": finalStatus}
 	summary := fmt.Sprintf("Booking %s/%s added to trip %s (status: %s)", provider, reference, tripID, finalStatus)
+	content, err := buildAnnotatedContentBlocks(summary, result)
+	if err != nil {
+		return nil, nil, err
+	}
+	return content, result, nil
+}
+
+func exportICSTool() ToolDef {
+	return ToolDef{
+		Name:        "export_ics",
+		Title:       "Export Trip as ICS",
+		Description: "Exports a saved trip as an iCalendar (.ics) file. Each leg becomes a VEVENT with start/end times, summary, location, and description. The output is RFC 5545 compliant and can be imported into Apple Calendar, Google Calendar, Outlook, etc.",
+		InputSchema: InputSchema{
+			Type: "object",
+			Properties: map[string]Property{
+				"trip_id": {Type: "string", Description: "Trip ID (e.g. trip_abc123)"},
+			},
+			Required: []string{"trip_id"},
+		},
+		OutputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"ics":        schemaString(),
+				"trip_name":  schemaString(),
+				"event_count": schemaInt(),
+			},
+		},
+		Annotations: &ToolAnnotations{
+			Title:          "Export Trip as ICS",
+			ReadOnlyHint:   true,
+			IdempotentHint: true,
+		},
+	}
+}
+
+func handleExportICS(_ context.Context, args map[string]any, _ ElicitFunc, _ SamplingFunc, _ ProgressFunc) ([]ContentBlock, interface{}, error) {
+	id := argString(args, "trip_id")
+	if id == "" {
+		return nil, nil, fmt.Errorf("trip_id is required")
+	}
+
+	store, err := defaultTripStore()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	trip, err := store.Get(id)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ics, err := calendar.ExportICS(*trip)
+	if err != nil {
+		return nil, nil, fmt.Errorf("export ICS: %w", err)
+	}
+
+	result := map[string]interface{}{
+		"ics":         ics,
+		"trip_name":   trip.Name,
+		"event_count": len(trip.Legs),
+	}
+	summary := fmt.Sprintf("Exported %d events for trip %q as ICS", len(trip.Legs), trip.Name)
 	content, err := buildAnnotatedContentBlocks(summary, result)
 	if err != nil {
 		return nil, nil, err
