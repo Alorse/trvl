@@ -86,28 +86,29 @@ func ParseFlightLocations(s string) []string {
 	if len(tokens) == 0 {
 		return tokens
 	}
-	seen := make(map[string]bool, len(tokens))
+	seen := make(map[string]struct{}, len(tokens))
 	out := make([]string, 0, len(tokens))
 	for _, token := range tokens {
 		if models.IsIATACode(token) {
-			if !seen[token] {
-				seen[token] = true
+			if _, ok := seen[token]; !ok {
+				seen[token] = struct{}{}
 				out = append(out, token)
 			}
 			continue
 		}
 		airports := models.ResolveCityToAirports(token)
 		if len(airports) == 0 {
-			// Unknown token — pass through as-is (may be a valid IATA not in our map).
-			if !seen[token] {
-				seen[token] = true
+			// Our static map is incomplete — pass unknown tokens through so
+			// the search layer can reject them with a clear error.
+			if _, ok := seen[token]; !ok {
+				seen[token] = struct{}{}
 				out = append(out, token)
 			}
 			continue
 		}
 		for _, code := range airports {
-			if !seen[code] {
-				seen[code] = true
+			if _, ok := seen[code]; !ok {
+				seen[code] = struct{}{}
 				out = append(out, code)
 			}
 		}

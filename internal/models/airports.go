@@ -335,13 +335,11 @@ var (
 func buildCityAirports() {
 	m := make(map[string][]string)
 
-	// Phase 1: multi-airport cities from airportSearchCities (authoritative).
 	for iata, city := range airportSearchCities {
 		key := strings.ToLower(city)
 		m[key] = append(m[key], iata)
 	}
 
-	// Phase 2: remaining single-airport cities from AirportNames.
 	for iata, display := range AirportNames {
 		if _, covered := airportSearchCities[iata]; covered {
 			continue
@@ -359,7 +357,6 @@ func buildCityAirports() {
 		if key == "" {
 			continue
 		}
-		// Only add if this exact key isn't already covered by airportSearchCities.
 		if _, exists := m[key]; !exists {
 			m[key] = append(m[key], iata)
 		}
