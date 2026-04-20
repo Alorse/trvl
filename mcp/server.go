@@ -21,6 +21,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -76,6 +77,9 @@ type Server struct {
 	// Watch store for price tracking resources.
 	watchStore *watch.Store
 
+	// Background price check scheduler.
+	scheduler *watch.Scheduler
+
 	// Resource subscriptions: map from URI to true.
 	subsMu sync.Mutex
 	subs   map[string]bool
@@ -109,6 +113,13 @@ func NewServer() *Server {
 	if ws, err := watch.DefaultStore(); err == nil {
 		_ = ws.Load()
 		s.watchStore = ws
+	}
+
+	// Prepare the background price-check scheduler (started in ServeStdio/RunHTTP,
+	// not here, so that tests calling NewServer() directly don't spawn goroutines).
+	if home, err := os.UserHomeDir(); err == nil {
+		watchDir := filepath.Join(home, ".trvl")
+		s.scheduler = watch.NewScheduler(watchDir, 30*time.Minute, watch.NoopChecker{})
 	}
 
 	// Initialize provider registry (best-effort; nil registry is handled gracefully).
@@ -680,9 +691,23 @@ func init() {
 	}
 }
 
+// Shutdown stops background services (e.g. the price-check scheduler).
+// It is called automatically by ServeStdio when the stdin stream ends.
+func (s *Server) Shutdown() {
+	if s.scheduler != nil {
+		s.scheduler.Stop()
+	}
+}
+
 // ServeStdio runs the MCP server over stdin/stdout.
 // Each line of input is a JSON-RPC request; each response is written as a single JSON line.
 func (s *Server) ServeStdio(in io.Reader, out io.Writer) error {
+	// Start the background scheduler now that we are in a real server session.
+	if s.scheduler != nil {
+		s.scheduler.Start()
+	}
+	defer s.Shutdown()
+
 	scanner := bufio.NewScanner(in)
 	// Allow up to 1MB per line for large tool call results.
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)

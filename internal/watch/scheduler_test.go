@@ -1,0 +1,327 @@
+package watch
+
+import (
+	"context"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+// --- NoopChecker ---
+
+func TestNoopChecker_ReturnsZeroPrice(t *testing.T) {
+	t.Parallel()
+	var c NoopChecker
+	price, currency, date, err := c.CheckPrice(context.Background(), Watch{Currency: "EUR"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if price != 0 {
+		t.Errorf("price = %f, want 0", price)
+	}
+	if currency != "EUR" {
+		t.Errorf("currency = %q, want EUR", currency)
+	}
+	if date != "" {
+		t.Errorf("date = %q, want empty", date)
+	}
+}
+
+// --- NewScheduler defaults ---
+
+func TestNewScheduler_DefaultInterval(t *testing.T) {
+	t.Parallel()
+	s := NewScheduler(t.TempDir(), 0, nil)
+	if s.interval != 30*time.Minute {
+		t.Errorf("interval = %v, want 30m", s.interval)
+	}
+}
+
+func TestNewScheduler_DefaultChecker(t *testing.T) {
+	t.Parallel()
+	s := NewScheduler(t.TempDir(), time.Second, nil)
+	if s.checker == nil {
+		t.Fatal("checker should default to NoopChecker, not nil")
+	}
+	_, ok := s.checker.(NoopChecker)
+	if !ok {
+		t.Errorf("default checker type = %T, want NoopChecker", s.checker)
+	}
+}
+
+func TestNewScheduler_CustomInterval(t *testing.T) {
+	t.Parallel()
+	s := NewScheduler(t.TempDir(), 5*time.Minute, nil)
+	if s.interval != 5*time.Minute {
+		t.Errorf("interval = %v, want 5m", s.interval)
+	}
+}
+
+// --- Start / Stop lifecycle ---
+
+func TestScheduler_StartStop_NoWatches(t *testing.T) {
+	t.Parallel()
+	// Large interval so the periodic tick never fires during the test.
+	s := NewScheduler(t.TempDir(), time.Hour, NoopChecker{})
+	s.Start()
+	// Give the initial runOnce a moment to complete (it will find no watches).
+	time.Sleep(20 * time.Millisecond)
+	// Stop must return without hanging.
+	done := make(chan struct{})
+	go func() {
+		s.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+		// ok
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop() timed out — goroutine leaked")
+	}
+}
+
+func TestScheduler_Stop_DoneAfterStop(t *testing.T) {
+	t.Parallel()
+	s := NewScheduler(t.TempDir(), time.Hour, NoopChecker{})
+	s.Start()
+	s.Stop()
+	// The done channel is closed; reading it again must not block.
+	select {
+	case <-s.done:
+		// ok
+	default:
+		t.Error("done channel should be closed after Stop")
+	}
+}
+
+// --- CheckPrice called for active watches ---
+
+// countingChecker counts how many times CheckPrice is called.
+type countingChecker struct {
+	calls atomic.Int64
+	price float64
+}
+
+func (c *countingChecker) CheckPrice(_ context.Context, _ Watch) (float64, string, string, error) {
+	c.calls.Add(1)
+	return c.price, "EUR", "", nil
+}
+
+func TestScheduler_CallsCheckerForActiveWatches(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	// Add an active flight watch (future date).
+	_, err := store.Add(Watch{
+		Type:        "flight",
+		Origin:      "HEL",
+		Destination: "BCN",
+		DepartDate:  "2099-07-01",
+		BelowPrice:  500,
+		Currency:    "EUR",
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	checker := &countingChecker{price: 300}
+	// Use a short interval — the immediate runOnce on Start is what we're testing.
+	s := NewScheduler(dir, time.Hour, checker)
+	s.Start()
+
+	// Wait for the initial check to complete.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if checker.calls.Load() >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	s.Stop()
+
+	if checker.calls.Load() < 1 {
+		t.Errorf("CheckPrice called %d times, want >= 1", checker.calls.Load())
+	}
+}
+
+// --- Expired / past-date watches are skipped ---
+
+func TestScheduler_SkipsPastDateWatches(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	// Add a watch with a date in the past.
+	_, err := store.Add(Watch{
+		Type:        "flight",
+		Origin:      "HEL",
+		Destination: "BCN",
+		DepartDate:  "2000-01-01", // well in the past
+		BelowPrice:  500,
+		Currency:    "EUR",
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	checker := &countingChecker{price: 300}
+	s := NewScheduler(dir, time.Hour, checker)
+	s.Start()
+
+	// Give the initial runOnce time to complete.
+	time.Sleep(50 * time.Millisecond)
+	s.Stop()
+
+	// Past-date watch must be skipped — CheckPrice should not be called.
+	if checker.calls.Load() != 0 {
+		t.Errorf("CheckPrice called %d times for past-date watch, want 0", checker.calls.Load())
+	}
+}
+
+func TestScheduler_SkipsPastDateRangeWatches(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	// Date range fully in the past.
+	_, err := store.Add(Watch{
+		Type:        "flight",
+		Origin:      "HEL",
+		Destination: "NRT",
+		DepartFrom:  "2000-01-01",
+		DepartTo:    "2000-01-15",
+		BelowPrice:  500,
+		Currency:    "EUR",
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	checker := &countingChecker{price: 300}
+	s := NewScheduler(dir, time.Hour, checker)
+	s.Start()
+	time.Sleep(50 * time.Millisecond)
+	s.Stop()
+
+	if checker.calls.Load() != 0 {
+		t.Errorf("CheckPrice called %d times for past date-range watch, want 0", checker.calls.Load())
+	}
+}
+
+// --- Route watches (no dates) are always active ---
+
+func TestScheduler_AlwaysChecksRouteWatches(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	// Route watch: no dates.
+	_, err := store.Add(Watch{
+		Type:        "flight",
+		Origin:      "HEL",
+		Destination: "BCN",
+		BelowPrice:  500,
+		Currency:    "EUR",
+	})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	checker := &countingChecker{price: 300}
+	s := NewScheduler(dir, time.Hour, checker)
+	s.Start()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if checker.calls.Load() >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	s.Stop()
+
+	if checker.calls.Load() < 1 {
+		t.Errorf("route watch: CheckPrice called %d times, want >= 1", checker.calls.Load())
+	}
+}
+
+// --- isActive unit tests ---
+
+func TestIsActive_RouteWatch(t *testing.T) {
+	t.Parallel()
+	w := Watch{Type: "flight", Origin: "HEL", Destination: "BCN"}
+	if !isActive(w, "2026-07-01") {
+		t.Error("route watch should always be active")
+	}
+}
+
+func TestIsActive_FutureDepartDate(t *testing.T) {
+	t.Parallel()
+	w := Watch{Type: "flight", Origin: "HEL", Destination: "BCN", DepartDate: "2099-01-01"}
+	if !isActive(w, "2026-07-01") {
+		t.Error("future depart date should be active")
+	}
+}
+
+func TestIsActive_PastDepartDate(t *testing.T) {
+	t.Parallel()
+	w := Watch{Type: "flight", Origin: "HEL", Destination: "BCN", DepartDate: "2000-01-01"}
+	if isActive(w, "2026-07-01") {
+		t.Error("past depart date should not be active")
+	}
+}
+
+func TestIsActive_TodayDepartDate(t *testing.T) {
+	t.Parallel()
+	today := time.Now().Format("2006-01-02")
+	w := Watch{Type: "flight", Origin: "HEL", Destination: "BCN", DepartDate: today}
+	if !isActive(w, today) {
+		t.Error("today's depart date should be active")
+	}
+}
+
+func TestIsActive_FutureDateRange(t *testing.T) {
+	t.Parallel()
+	w := Watch{Type: "flight", Origin: "HEL", Destination: "BCN", DepartFrom: "2099-01-01", DepartTo: "2099-01-15"}
+	if !isActive(w, "2026-07-01") {
+		t.Error("future date range should be active")
+	}
+}
+
+func TestIsActive_PastDateRange(t *testing.T) {
+	t.Parallel()
+	w := Watch{Type: "flight", Origin: "HEL", Destination: "BCN", DepartFrom: "2000-01-01", DepartTo: "2000-01-15"}
+	if isActive(w, "2026-07-01") {
+		t.Error("past date range should not be active")
+	}
+}
+
+func TestIsActive_DateRangeEndToday(t *testing.T) {
+	t.Parallel()
+	today := time.Now().Format("2006-01-02")
+	w := Watch{Type: "flight", Origin: "HEL", Destination: "BCN", DepartFrom: "2000-01-01", DepartTo: today}
+	if !isActive(w, today) {
+		t.Error("date range ending today should be active")
+	}
+}
+
+// --- activeWatches ---
+
+func TestActiveWatches_FiltersCorrectly(t *testing.T) {
+	t.Parallel()
+	today := time.Now().Format("2006-01-02")
+
+	watches := []Watch{
+		{Type: "flight", Origin: "HEL", Destination: "BCN", DepartDate: "2099-01-01"}, // future
+		{Type: "flight", Origin: "HEL", Destination: "BCN", DepartDate: "2000-01-01"}, // past — skip
+		{Type: "flight", Origin: "HEL", Destination: "BCN"},                            // route — always
+		{Type: "flight", Origin: "HEL", Destination: "BCN", DepartDate: today},         // today
+	}
+
+	active := activeWatches(watches)
+	if len(active) != 3 {
+		t.Errorf("got %d active watches, want 3", len(active))
+	}
+}
