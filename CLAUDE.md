@@ -1,6 +1,6 @@
 # trvl
 
-Travel MCP server + CLI. 54 MCP tools, 44 CLI commands. Go 1.26, no frameworks.
+Travel MCP server + CLI. 54 MCP tools, 42 CLI commands. Go 1.26, no frameworks.
 
 ## Hotel Providers (5 working)
 
@@ -25,7 +25,7 @@ internal/          Domain packages (one per data source)
   ground/          Buses, trains, ferries (20 providers)
   destinations/    City intelligence (weather, safety, holidays)
   deals/           RSS deal feeds
-  hacks/           Travel hack detectors (36 parallel)
+  hacks/           Travel hack detectors (37 parallel)
   lounges/         Airport lounge data
   baggage/         Airline baggage rules
   weather/         Open-Meteo forecasts

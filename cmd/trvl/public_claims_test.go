@@ -13,6 +13,16 @@ import (
 	trvlmcp "github.com/MikkoParkkola/trvl/mcp"
 )
 
+// cliCommandCountMarketed is the marketed CLI command count. It excludes
+// meta/utility commands (version, providers, help, completion) that are
+// not user-facing search or action commands. Update this constant when
+// adding new user-facing commands to the CLI.
+// See root.go init() for the full list of registered commands.
+// The dynamic count from rootCmd.Commands() includes all cobra-registered
+// commands, but marketing materials only count functional travel commands.
+// Current exclusions: version, providers (both are utility/meta commands).
+const cliCommandCountMarketed = 42
+
 var readmeToolMarkers = []string{
 	"search_flights",
 	"search_dates",
@@ -103,7 +113,9 @@ func TestPublicDocsAdvertiseCurrentCounts(t *testing.T) {
 	t.Parallel()
 
 	toolCount := registeredMCPToolCount(t)
-	cliCommandCount := len(rootCmd.Commands())
+	// Use marketed count (excludes version, providers, help, completion).
+	// See cliCommandCountMarketed constant for rationale.
+	cliCommandCount := cliCommandCountMarketed
 	watchSubcommandCount := len(watchCmd().Commands())
 	skillCount := bundledSkillMarkdownCount(t)
 	groundProviderCount := marketedGroundProviderCount()

@@ -77,7 +77,7 @@ From?|To?|When?|Flex?|Travelers?|Budget? Check calendar (Google/Apple/manual) fo
 | `optimize_trip_dates` | Cheapest dates across range (1 API call) | origin,destination,from_date,to_date,trip_length |
 | `assess_trip` | GO/WAIT/NO_GO viability check | origin,destination,depart_date,return_date,[passport] |
 | `optimize_booking` | Unified optimizer: all combos | origin,destination,departure_date,[return_date,flex_days,carry_on_only] |
-| `detect_travel_hacks` | Run 36 parallel hack detectors | origin,destination,date,[return_date,carry_on] |
+| `detect_travel_hacks` | Run 37 parallel hack detectors | origin,destination,date,[return_date,carry_on] |
 | `detect_accommodation_hacks` | Split stay across hotels to save | city,check_in,check_out |
 | `search_hotel_by_name` | Find specific property across all providers | name,check_in,check_out,[location] |
 | `onboard_profile` | Progressive traveller interview (5 phases) | phase,[answers] |
@@ -101,7 +101,7 @@ When the user asks about a trip, ALWAYS try optimize_booking first:
 3. For each option, explain which hacks were applied
 4. Show all-in costs (including bags adjusted for FF status)
 
-## HACKS (36 detectors — apply when relevant)
+## HACKS (37 detectors — apply when relevant)
 | Hack | When | Detection |
 |------|------|-----------|
 | Positioning flights | Long-haul expensive | explore→cheap hub→search(hub,dest) |

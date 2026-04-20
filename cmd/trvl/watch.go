@@ -51,6 +51,7 @@ func watchAddCmd() *cobra.Command {
 		belowPrice float64
 		currency   string
 		watchType  string
+		webhookURL string
 	)
 
 	cmd := &cobra.Command{
@@ -98,6 +99,7 @@ Examples:
 				DepartTo:    departTo,
 				BelowPrice:  belowPrice,
 				Currency:    currency,
+				WebhookURL:  webhookURL,
 			}
 
 			id, err := store.Add(w)
@@ -135,6 +137,7 @@ Examples:
 	cmd.Flags().Float64Var(&belowPrice, "below", 0, "Alert when price drops below this amount")
 	cmd.Flags().StringVar(&currency, "currency", "", "Currency for price alerts (e.g. EUR). Empty = API default")
 	cmd.Flags().StringVar(&watchType, "type", "flight", "Watch type: flight or hotel")
+	cmd.Flags().StringVar(&webhookURL, "webhook", "", "URL to POST JSON payload on price drop")
 	// --depart is optional: route watches monitor next 60 days without specific dates
 
 	return cmd

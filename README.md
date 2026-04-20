@@ -16,7 +16,7 @@
 
 > **54 travel tools for your AI assistant — flights, hotels, trains, buses, ferries, price alerts, travel hacks, weather forecasts, baggage rules, airport lounges, destination intel. Free. API-first.**
 >
-> Also works as a standalone CLI with 44 commands.
+> Also works as a standalone CLI with 42 commands.
 
 ### What it looks like
 
@@ -243,7 +243,7 @@ That's it. Your AI assistant now has 54 travel tools available. Just ask natural
 
 ## Travel Hack Detectors
 
-`detect_travel_hacks` and `trvl hacks` run 36 detectors in parallel. Each one is independent and has a 20-second timeout:
+`detect_travel_hacks` and `trvl hacks` run 37 detectors in parallel. Each one is independent and has a 20-second timeout:
 
 | Detector | What it finds |
 |----------|--------------|
@@ -347,7 +347,7 @@ See [Quick Setup step 3](#3-optional-teach-your-ai-about-trvl) above for AGENTS.
 
 ## CLI Usage
 
-trvl also works as a standalone CLI tool with 44 commands:
+trvl also works as a standalone CLI tool with 42 commands:
 
 All search commands accept `--currency <CODE>` (e.g. `--currency EUR`) to convert displayed prices. trvl detects the actual API currency and converts at the display layer — no hardcoded currencies.
 
@@ -515,7 +515,7 @@ trvl deals --type error_fare                           # Error fares only
 
 ### Travel Hacks
 
-Runs 36 detectors in parallel and ranks savings opportunities. Pass `--return` for round-trip hacks. Add `--carry-on` to restrict hidden-city results to carry-on only.
+Runs 37 detectors in parallel and ranks savings opportunities. Pass `--return` for round-trip hacks. Add `--carry-on` to restrict hidden-city results to carry-on only.
 
 ```bash
 trvl hacks HEL AMS 2026-04-13                         # One-way hacks
@@ -642,9 +642,9 @@ The AI uses these to give you actionable recommendations: "Book here: [link]". N
 | **Data** | Real-time from Google Flights + 5 hotel sources (Google Hotels, Trivago, Airbnb, Booking.com, Hostelworld) + 20 ground providers (FlixBus, RegioJet, Eurostar, DB, ÖBB, NS, VR, SNCF, Trainline, Transitous, Renfe, European Sleeper, Snälltåget, Tallink, Viking Line, Eckerö Line, Finnlines, Stena Line, DFDS, Ferryhopper) + 5 free destination APIs |
 | **Auth** | No personal API keys required. Two providers (NS, Digitransit/VR) use public keys embedded in the binary. Optional browser/cookie fallbacks are available for protected providers when explicitly enabled. |
 | **MCP** | Full v2025-11-25 — 54 tools (incl. 4 profile tools, 3 price watch tools, provider health), 7 prompts, resources, structured content, progress notifications, resource subscriptions, tool description orchestration |
-| **CLI** | 44 commands (+ 7 watch subcommands) with table/JSON output, color, shell completion |
+| **CLI** | 42 commands (+ 7 watch subcommands) with table/JSON output, color, shell completion |
 | **Booking links** | Every flight and hotel result includes a direct Google booking link |
-| **Travel hacks** | 36 detectors (throwaway, hidden-city, positioning, ferry, multi-modal, stopover, date-flex, error fare, back-to-back, rail competition, and more) |
+| **Travel hacks** | 37 detectors (throwaway, hidden-city, positioning, ferry, multi-modal, stopover, date-flex, error fare, back-to-back, rail competition, and more) |
 | **Personal profile** | Learns from your booking history (email parsing + LLM). Remembers FF status, luggage needs, favourite properties, departure preferences, travel hacks used, accommodation preferences, family composition. Pre-search interviews skip questions the profile already answers. |
 | **Output** | Pretty tables with color (default) or JSON (`--format json`) |
 | **Platforms** | Linux, macOS (amd64, arm64). Windows CI in progress. |
