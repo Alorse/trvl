@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -485,7 +486,7 @@ func fetchHotelPageFull(ctx context.Context, client *batchexec.Client, location 
 		travelURL += "&sort=" + googleSort
 	}
 	if offset > 0 {
-		travelURL += fmt.Sprintf("&start=%d", offset)
+		travelURL += "&start=" + strconv.Itoa(offset)
 	}
 
 	status, body, err := client.Get(ctx, travelURL)
@@ -530,8 +531,7 @@ func fetchHotelPageFull(ctx context.Context, client *batchexec.Client, location 
 // buildHotelBookingURL constructs a Google Hotels deep link for a location and dates.
 func buildHotelBookingURL(location, checkIn, checkOut string) string {
 	encoded := url.PathEscape(location)
-	return fmt.Sprintf("https://www.google.com/travel/hotels/%s?q=%s+hotels&dates=%s,%s",
-		encoded, url.QueryEscape(location), checkIn, checkOut)
+	return "https://www.google.com/travel/hotels/" + encoded + "?q=" + url.QueryEscape(location) + "+hotels&dates=" + checkIn + "," + checkOut
 }
 
 // buildTravelURL constructs the Google Travel Hotels search URL.
@@ -542,28 +542,28 @@ func buildTravelURL(location string, opts HotelSearchOptions) string {
 	query := url.Values{}
 	query.Set("q", location)
 	query.Set("dates", opts.CheckIn+","+opts.CheckOut)
-	query.Set("adults", fmt.Sprintf("%d", opts.Guests))
+	query.Set("adults", strconv.Itoa(opts.Guests))
 	query.Set("hl", "en")
 	query.Set("currency", opts.Currency)
 
 	// Server-side filters — let Google do the heavy lifting.
 	// Client-side filterHotels() remains as a safety net.
 	if opts.MinPrice > 0 {
-		query.Set("min_price", fmt.Sprintf("%.0f", opts.MinPrice))
+		query.Set("min_price", strconv.FormatFloat(opts.MinPrice, 'f', 0, 64))
 	}
 	if opts.MaxPrice > 0 {
-		query.Set("max_price", fmt.Sprintf("%.0f", opts.MaxPrice))
+		query.Set("max_price", strconv.FormatFloat(opts.MaxPrice, 'f', 0, 64))
 	}
 	if opts.Stars > 0 {
-		query.Set("class", fmt.Sprintf("%d", opts.Stars))
+		query.Set("class", strconv.Itoa(opts.Stars))
 	}
 	if opts.MinRating > 0 {
 		// Google's rating param is on 0-10 scale (same as our internal scale).
-		query.Set("rating", fmt.Sprintf("%.0f", opts.MinRating))
+		query.Set("rating", strconv.FormatFloat(opts.MinRating, 'f', 0, 64))
 	}
 	if opts.MaxDistanceKm > 0 {
 		// Google uses meters for the lrad (location radius) parameter.
-		query.Set("lrad", fmt.Sprintf("%.0f", opts.MaxDistanceKm*1000))
+		query.Set("lrad", strconv.FormatFloat(opts.MaxDistanceKm*1000, 'f', 0, 64))
 	}
 	if opts.FreeCancellation {
 		query.Set("fc", "1")
@@ -575,7 +575,7 @@ func buildTravelURL(location string, opts HotelSearchOptions) string {
 		query.Set("ecof", "1")
 	}
 
-	return fmt.Sprintf("https://www.google.com/travel/hotels/%s?%s", encoded, query.Encode())
+	return "https://www.google.com/travel/hotels/" + encoded + "?" + query.Encode()
 }
 
 // filterHotels applies all post-fetch filters to hotel results.

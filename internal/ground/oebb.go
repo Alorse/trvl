@@ -462,7 +462,7 @@ func SearchOebb(ctx context.Context, from, to, date, currency string) ([]models.
 		currency = "EUR"
 	}
 
-	dt, err := time.Parse("2006-01-02", date)
+	dt, err := models.ParseDate(date)
 	if err != nil {
 		return nil, fmt.Errorf("invalid date %q: %w", date, err)
 	}

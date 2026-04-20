@@ -543,7 +543,7 @@ func buildEurostarRoutes(gqlResp eurostarGQLResponse, fromStation, toStation Eur
 			} else {
 				// No timetable data — show date as "Jan 02" (daily cheapest fallback).
 				displayDate := fare.Date
-				if t, err := time.Parse("2006-01-02", fare.Date); err == nil {
+				if t, err := models.ParseDate(fare.Date); err == nil {
 					displayDate = t.Format("Jan 02")
 				}
 				routes = append(routes, models.GroundRoute{

@@ -448,7 +448,7 @@ func computeSummary(reviews []models.HotelReview) models.ReviewSummary {
 	breakdown := map[string]int{}
 	for _, r := range reviews {
 		total += r.Rating
-		star := fmt.Sprintf("%d", int(r.Rating))
+		star := strconv.Itoa(int(r.Rating))
 		breakdown[star]++
 	}
 

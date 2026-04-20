@@ -9,7 +9,8 @@ package nlsearch
 import (
 	"regexp"
 	"strings"
-	"time"
+
+	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
 // Params holds the structured parameters extracted from a free-form query.
@@ -93,7 +94,7 @@ func Heuristic(query, today string) Params {
 
 	// 4. Relative weekend dates — only if no ISO date was extracted.
 	if p.Date == "" && (strings.Contains(lower, "next weekend") || strings.Contains(lower, "this weekend")) {
-		t, _ := time.Parse("2006-01-02", today)
+		t, _ := models.ParseDate(today)
 		daysUntilSat := (6 - int(t.Weekday()) + 7) % 7
 		if daysUntilSat == 0 {
 			daysUntilSat = 7

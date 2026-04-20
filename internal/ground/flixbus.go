@@ -157,7 +157,7 @@ func SearchFlixBus(ctx context.Context, fromCity, toCity, date string, opts Sear
 	}
 
 	// Convert YYYY-MM-DD to d.m.Y for FlixBus API
-	t, err := time.Parse("2006-01-02", date)
+	t, err := models.ParseDate(date)
 	if err != nil {
 		return nil, fmt.Errorf("invalid date %q: %w", date, err)
 	}

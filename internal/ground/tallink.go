@@ -369,7 +369,7 @@ func fetchTallinkTimetables(ctx context.Context, fromCode, toCode, date string) 
 	// Step 2: call timetables API with the session cookie
 	// dateFrom/dateTo: 3-day window like the SPA does
 	dateTo := date // single day is fine; API returns what's in range
-	parsedDate, err := time.Parse("2006-01-02", date)
+	parsedDate, err := models.ParseDate(date)
 	if err == nil {
 		dateTo = parsedDate.Add(2 * 24 * time.Hour).Format("2006-01-02")
 	}
@@ -460,7 +460,7 @@ func SearchTallink(ctx context.Context, from, to, date, currency string) ([]mode
 		currency = "EUR"
 	}
 
-	if _, err := time.Parse("2006-01-02", date); err != nil {
+	if _, err := models.ParseDate(date); err != nil {
 		return nil, fmt.Errorf("tallink: invalid date %q: %w", date, err)
 	}
 

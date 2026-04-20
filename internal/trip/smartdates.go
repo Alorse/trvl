@@ -76,7 +76,7 @@ func SuggestDates(ctx context.Context, origin, dest string, opts SmartDateOption
 		return nil, fmt.Errorf("target_date is required")
 	}
 
-	target, err := time.Parse("2006-01-02", opts.TargetDate)
+	target, err := models.ParseDate(opts.TargetDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid target_date %q: expected YYYY-MM-DD", opts.TargetDate)
 	}
@@ -142,7 +142,7 @@ func assembleDateResult(origin, dest string, target time.Time, dateResult *model
 
 	var cheapestDates []CheapDate
 	for _, d := range validDates[:top] {
-		t, _ := time.Parse("2006-01-02", d.Date)
+		t, _ := models.ParseDate(d.Date)
 		cheapestDates = append(cheapestDates, CheapDate{
 			Date:       d.Date,
 			DayOfWeek:  t.Weekday().String(),
@@ -191,7 +191,7 @@ func buildInsights(dates []models.DatePriceResult, target time.Time, avgPrice fl
 	}
 
 	cheapest := dates[0]
-	cheapestTime, _ := time.Parse("2006-01-02", cheapest.Date)
+	cheapestTime, _ := models.ParseDate(cheapest.Date)
 
 	// Insight 1: Cheapest date.
 	insights = append(insights, DateInsight{
@@ -221,7 +221,7 @@ func buildInsights(dates []models.DatePriceResult, target time.Time, avgPrice fl
 	// Insight 3: Weekday vs weekend analysis.
 	var weekdayPrices, weekendPrices []float64
 	for _, d := range dates {
-		t, err := time.Parse("2006-01-02", d.Date)
+		t, err := models.ParseDate(d.Date)
 		if err != nil {
 			continue
 		}

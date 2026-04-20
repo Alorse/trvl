@@ -410,13 +410,7 @@ func TestExtractDate(t *testing.T) {
 		{"Date: 5 September 2026", "2026-09-05"},
 	}
 
-	patterns := []string{
-		`(?i)depart(?:ure|ing)?[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-		`(?i)date[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-		`(?i)(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{4})`,
-		`(\d{4}-\d{2}-\d{2})`,
-		`(\d{2}/\d{2}/\d{4})`,
-	}
+	patterns := flightDatePatterns
 
 	for _, tt := range tests {
 		t.Run(tt.body, func(t *testing.T) {

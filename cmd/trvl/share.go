@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/trips"
 	"github.com/spf13/cobra"
 )
@@ -258,8 +259,8 @@ func extractTripRoute(t *trips.Trip) (origin, dest, depart, ret string, nights i
 	}
 
 	if depart != "" && ret != "" {
-		if d, err := time.Parse("2006-01-02", depart); err == nil {
-			if r, err2 := time.Parse("2006-01-02", ret); err2 == nil {
+		if d, err := models.ParseDate(depart); err == nil {
+			if r, err2 := models.ParseDate(ret); err2 == nil {
 				nights = int(r.Sub(d).Hours()) / 24
 			}
 		}
@@ -270,7 +271,7 @@ func extractTripRoute(t *trips.Trip) (origin, dest, depart, ret string, nights i
 
 // formatDateCompact renders "2026-06-16" as "Jun 16".
 func formatDateCompact(date string) string {
-	t, err := time.Parse("2006-01-02", date)
+	t, err := models.ParseDate(date)
 	if err != nil {
 		return date
 	}

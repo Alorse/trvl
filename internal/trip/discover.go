@@ -98,11 +98,11 @@ func Discover(ctx context.Context, opts DiscoverOptions) (*DiscoverOutput, error
 		return nil, fmt.Errorf("origin is required (or set home_airports in preferences)")
 	}
 
-	fromDate, err := time.Parse("2006-01-02", opts.From)
+	fromDate, err := models.ParseDate(opts.From)
 	if err != nil {
 		return nil, fmt.Errorf("invalid from date: %w", err)
 	}
-	untilDate, err := time.Parse("2006-01-02", opts.Until)
+	untilDate, err := models.ParseDate(opts.Until)
 	if err != nil {
 		return nil, fmt.Errorf("invalid until date: %w", err)
 	}

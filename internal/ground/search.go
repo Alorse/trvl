@@ -167,7 +167,7 @@ func searchByNameCore(ctx context.Context, from, to, date string, opts SearchOpt
 		// Eurostar cheapestFaresSearch needs a date range (not a single day).
 		// Use the requested date as start, +7 days as end.
 		endDate := date // fallback
-		if t, err := time.Parse("2006-01-02", date); err == nil {
+		if t, err := models.ParseDate(date); err == nil {
 			endDate = t.AddDate(0, 0, 7).Format("2006-01-02")
 		}
 

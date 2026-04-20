@@ -222,7 +222,7 @@ func SearchFerryhopper(ctx context.Context, from, to, date, currency string) ([]
 		currency = "EUR"
 	}
 
-	if _, err := time.Parse("2006-01-02", date); err != nil {
+	if _, err := models.ParseDate(date); err != nil {
 		return nil, fmt.Errorf("ferryhopper: invalid date %q: %w", date, err)
 	}
 

@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
 // BuildProfile aggregates a slice of bookings into a TravelProfile.
@@ -136,8 +138,8 @@ func BuildProfile(bookings []Booking) *TravelProfile {
 
 		// Booking lead time: days between booking date and travel date.
 		if b.Date != "" && b.TravelDate != "" {
-			bookDate, err1 := time.Parse("2006-01-02", b.Date)
-			travelDate, err2 := time.Parse("2006-01-02", b.TravelDate)
+			bookDate, err1 := models.ParseDate(b.Date)
+			travelDate, err2 := models.ParseDate(b.TravelDate)
 			if err1 == nil && err2 == nil && travelDate.After(bookDate) {
 				lead := int(travelDate.Sub(bookDate).Hours() / 24)
 				totalLeadDays += lead
@@ -147,7 +149,7 @@ func BuildProfile(bookings []Booking) *TravelProfile {
 
 		// Travel date patterns.
 		if b.TravelDate != "" {
-			if t, err := time.Parse("2006-01-02", b.TravelDate); err == nil {
+			if t, err := models.ParseDate(b.TravelDate); err == nil {
 				dayCounts[t.Weekday().String()]++
 				p.SeasonalPattern[t.Month().String()]++
 			}
@@ -534,7 +536,7 @@ func estimateTripCount(bookings []Booking) int {
 	var dates []time.Time
 	for _, b := range bookings {
 		if b.TravelDate != "" {
-			if t, err := time.Parse("2006-01-02", b.TravelDate); err == nil {
+			if t, err := models.ParseDate(b.TravelDate); err == nil {
 				dates = append(dates, t)
 			}
 		}

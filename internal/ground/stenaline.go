@@ -213,7 +213,7 @@ func buildStenaLineBookingURL(fromCode, toCode string) string {
 // an ISO 8601 datetime string, applying a day offset for crossings that arrive the
 // next day.
 func stenalineFormatDateTime(date, timeStr string, dayOffset int) string {
-	t, err := time.Parse("2006-01-02", date)
+	t, err := models.ParseDate(date)
 	if err != nil {
 		return date + "T" + timeStr + ":00"
 	}
@@ -238,7 +238,7 @@ func SearchStenaLine(ctx context.Context, from, to, date, currency string) ([]mo
 		currency = "EUR"
 	}
 
-	if _, err := time.Parse("2006-01-02", date); err != nil {
+	if _, err := models.ParseDate(date); err != nil {
 		return nil, fmt.Errorf("stenaline: invalid date %q: %w", date, err)
 	}
 

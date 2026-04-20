@@ -34,7 +34,7 @@ func (o *DateSearchOptions) defaults() {
 		o.FromDate = time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 	}
 	if o.ToDate == "" {
-		from, err := time.Parse("2006-01-02", o.FromDate)
+		from, err := models.ParseDate(o.FromDate)
 		if err == nil {
 			o.ToDate = from.AddDate(0, 0, 30).Format("2006-01-02")
 		}
@@ -61,12 +61,12 @@ func SearchDates(ctx context.Context, origin, destination string, opts DateSearc
 		}, fmt.Errorf("origin and destination are required")
 	}
 
-	fromDate, err := time.Parse("2006-01-02", opts.FromDate)
+	fromDate, err := models.ParseDate(opts.FromDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid from_date %q: %w", opts.FromDate, err)
 	}
 
-	toDate, err := time.Parse("2006-01-02", opts.ToDate)
+	toDate, err := models.ParseDate(opts.ToDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid to_date %q: %w", opts.ToDate, err)
 	}

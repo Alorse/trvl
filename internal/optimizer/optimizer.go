@@ -169,11 +169,11 @@ func validateInput(in OptimizeInput) error {
 	if in.DepartDate == "" {
 		return fmt.Errorf("departure date is required")
 	}
-	if _, err := time.Parse("2006-01-02", in.DepartDate); err != nil {
+	if _, err := models.ParseDate(in.DepartDate); err != nil {
 		return fmt.Errorf("invalid departure date: %s", in.DepartDate)
 	}
 	if in.ReturnDate != "" {
-		if _, err := time.Parse("2006-01-02", in.ReturnDate); err != nil {
+		if _, err := models.ParseDate(in.ReturnDate); err != nil {
 			return fmt.Errorf("invalid return date: %s", in.ReturnDate)
 		}
 	}
@@ -371,7 +371,7 @@ func shiftDate(date string, days int) string {
 	if date == "" {
 		return ""
 	}
-	t, err := time.Parse("2006-01-02", date)
+	t, err := models.ParseDate(date)
 	if err != nil {
 		return ""
 	}
@@ -494,8 +494,8 @@ func resolveFlexDatesViaCalendar(ctx context.Context, candidates []*candidate, i
 	tripLength := 0
 	roundTrip := input.ReturnDate != ""
 	if roundTrip {
-		departT, err1 := time.Parse("2006-01-02", input.DepartDate)
-		returnT, err2 := time.Parse("2006-01-02", input.ReturnDate)
+		departT, err1 := models.ParseDate(input.DepartDate)
+		returnT, err2 := models.ParseDate(input.ReturnDate)
 		if err1 == nil && err2 == nil {
 			tripLength = int(returnT.Sub(departT).Hours() / 24)
 		}

@@ -146,7 +146,7 @@ func SearchRenfe(ctx context.Context, from, to, date, currency string) ([]models
 	}
 
 	// Validate date format.
-	if _, err := time.Parse("2006-01-02", date); err != nil {
+	if _, err := models.ParseDate(date); err != nil {
 		return nil, fmt.Errorf("invalid date %q: %w", date, err)
 	}
 

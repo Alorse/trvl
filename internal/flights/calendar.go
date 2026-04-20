@@ -32,7 +32,7 @@ func (o *CalendarOptions) defaults() {
 		o.FromDate = time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 	}
 	if o.ToDate == "" {
-		from, err := time.Parse("2006-01-02", o.FromDate)
+		from, err := models.ParseDate(o.FromDate)
 		if err == nil {
 			o.ToDate = from.AddDate(0, 0, 30).Format("2006-01-02")
 		}
@@ -309,7 +309,7 @@ func parseCalendarOffer(raw json.RawMessage) *models.DatePriceResult {
 	}
 
 	// Validate date format.
-	if _, err := time.Parse("2006-01-02", startDate); err != nil {
+	if _, err := models.ParseDate(startDate); err != nil {
 		return nil
 	}
 
@@ -319,7 +319,7 @@ func parseCalendarOffer(raw json.RawMessage) *models.DatePriceResult {
 		Currency: "", // Unknown — CalendarGraph returns local currency based on IP.
 	}
 	if returnDate != "" {
-		if _, err := time.Parse("2006-01-02", returnDate); err == nil {
+		if _, err := models.ParseDate(returnDate); err == nil {
 			dp.ReturnDate = returnDate
 		}
 	}
@@ -334,7 +334,7 @@ func scanForPrices(v any, results *[]models.DatePriceResult) {
 		// Check if this array looks like [date, returnDate, [[null, price], ...], ...]
 		if len(val) >= 3 {
 			if dateStr, ok := val[0].(string); ok {
-				if _, err := time.Parse("2006-01-02", dateStr); err == nil {
+				if _, err := models.ParseDate(dateStr); err == nil {
 					if priceArr, ok := val[2].([]any); ok && len(priceArr) > 0 {
 						if innerArr, ok := priceArr[0].([]any); ok && len(innerArr) > 1 {
 							if price, ok := innerArr[1].(float64); ok && price > 0 {
@@ -344,7 +344,7 @@ func scanForPrices(v any, results *[]models.DatePriceResult) {
 									Currency: "", // Filled later via detectSourceCurrency
 								}
 								if retDate, ok := val[1].(string); ok {
-									if _, err := time.Parse("2006-01-02", retDate); err == nil {
+									if _, err := models.ParseDate(retDate); err == nil {
 										dp.ReturnDate = retDate
 									}
 								}

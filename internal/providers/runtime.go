@@ -418,8 +418,8 @@ func (rt *Runtime) searchProvider(ctx context.Context, cfg *ProviderConfig, loca
 	// Compute num_nights from checkin/checkout for providers that need it
 	// (e.g. Hostelworld's num-nights query param).
 	numNights := "1"
-	if tIn, err := time.Parse("2006-01-02", checkin); err == nil {
-		if tOut, err := time.Parse("2006-01-02", checkout); err == nil {
+	if tIn, err := models.ParseDate(checkin); err == nil {
+		if tOut, err := models.ParseDate(checkout); err == nil {
 			if n := int(tOut.Sub(tIn).Hours() / 24); n > 0 {
 				numNights = strconv.Itoa(n)
 			}

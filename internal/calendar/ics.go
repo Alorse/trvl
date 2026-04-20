@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/trips"
 )
 
@@ -74,7 +75,7 @@ func writeEvent(b *strings.Builder, t *trips.Trip, idx int, leg trips.TripLeg, n
 		// All-day event.
 		writeLine(b, "DTSTART;VALUE=DATE:"+strings.ReplaceAll(leg.StartTime[:10], "-", ""))
 		// All-day end date is exclusive in RFC 5545 — use the day after.
-		if d, err := time.Parse("2006-01-02", leg.StartTime[:10]); err == nil {
+		if d, err := models.ParseDate(leg.StartTime[:10]); err == nil {
 			writeLine(b, "DTEND;VALUE=DATE:"+d.AddDate(0, 0, 1).Format("20060102"))
 		}
 	default:
@@ -220,7 +221,7 @@ func startDateOnly(s string) bool {
 	if len(s) < 10 {
 		return false
 	}
-	_, err := time.Parse("2006-01-02", s[:10])
+	_, err := models.ParseDate(s[:10])
 	return err == nil
 }
 

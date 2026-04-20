@@ -51,7 +51,7 @@ Examples:
 				fromDate = time.Now().AddDate(0, 0, 7).Format("2006-01-02")
 			}
 			if toDate == "" {
-				from, err := time.Parse("2006-01-02", fromDate)
+				from, err := models.ParseDate(fromDate)
 				if err != nil {
 					return fmt.Errorf("invalid --from date: %w", err)
 				}

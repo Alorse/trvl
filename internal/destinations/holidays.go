@@ -105,15 +105,15 @@ func filterHolidays(holidays []models.Holiday, startDate, endDate string) []mode
 		return holidays
 	}
 
-	start, err1 := time.Parse("2006-01-02", startDate)
-	end, err2 := time.Parse("2006-01-02", endDate)
+	start, err1 := models.ParseDate(startDate)
+	end, err2 := models.ParseDate(endDate)
 	if err1 != nil || err2 != nil {
 		return holidays
 	}
 
 	var filtered []models.Holiday
 	for _, h := range holidays {
-		t, err := time.Parse("2006-01-02", h.Date)
+		t, err := models.ParseDate(h.Date)
 		if err != nil {
 			continue
 		}

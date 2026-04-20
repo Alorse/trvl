@@ -343,6 +343,46 @@ func parseBagAllowance(offer any, fr *models.FlightResult) {
 	}
 }
 
+// appendPadded2 writes a zero-padded 2-digit int into buf at offset i.
+func appendPadded2(buf []byte, i, n int) {
+	buf[i] = byte('0' + n/10)
+	buf[i+1] = byte('0' + n%10)
+}
+
+// appendPadded4 writes a zero-padded 4-digit int into buf at offset i.
+func appendPadded4(buf []byte, i, n int) {
+	buf[i] = byte('0' + n/1000)
+	buf[i+1] = byte('0' + (n/100)%10)
+	buf[i+2] = byte('0' + (n/10)%10)
+	buf[i+3] = byte('0' + n%10)
+}
+
+// fmtDate formats year/month/day as "YYYY-MM-DD" with no allocations.
+func fmtDate(year, month, day int) string {
+	var buf [10]byte
+	buf[4] = '-'
+	buf[7] = '-'
+	appendPadded4(buf[:], 0, year)
+	appendPadded2(buf[:], 5, month)
+	appendPadded2(buf[:], 8, day)
+	return string(buf[:])
+}
+
+// fmtDateTime formats year/month/day/hour/minute as "YYYY-MM-DDTHH:MM" with no allocations.
+func fmtDateTime(year, month, day, hour, minute int) string {
+	var buf [16]byte
+	buf[4] = '-'
+	buf[7] = '-'
+	buf[10] = 'T'
+	buf[13] = ':'
+	appendPadded4(buf[:], 0, year)
+	appendPadded2(buf[:], 5, month)
+	appendPadded2(buf[:], 8, day)
+	appendPadded2(buf[:], 11, hour)
+	appendPadded2(buf[:], 14, minute)
+	return string(buf[:])
+}
+
 // formatDateTime combines a date array [year, month, day] and a time array
 // [hour, minute] into an ISO 8601 string "YYYY-MM-DDTHH:MM".
 //
@@ -365,7 +405,7 @@ func formatDateTime(dateRaw, timeRaw any) string {
 	timeArr, ok := timeRaw.([]any)
 	if !ok || len(timeArr) < 1 {
 		// Date only, no time information at all.
-		return fmt.Sprintf("%04d-%02d-%02d", year, month, day)
+		return fmtDate(year, month, day)
 	}
 
 	hour := jsonutil.ToInt(timeArr[0])
@@ -374,7 +414,7 @@ func formatDateTime(dateRaw, timeRaw any) string {
 		minute = jsonutil.ToInt(timeArr[1])
 	}
 
-	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d", year, month, day, hour, minute)
+	return fmtDateTime(year, month, day, hour, minute)
 }
 
 // formatTime converts a time array [year, month, day, hour, minute] to
@@ -396,7 +436,7 @@ func formatTime(raw any) string {
 		return ""
 	}
 
-	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d", year, month, day, hour, minute)
+	return fmtDateTime(year, month, day, hour, minute)
 }
 
 // computeLayovers fills LayoverMinutes for each leg after the first.

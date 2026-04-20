@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/models"
@@ -60,11 +59,11 @@ func OptimizeTripDates(ctx context.Context, input OptimizeTripDatesInput) (*Opti
 		input.Guests = 1
 	}
 
-	fromDate, err := time.Parse("2006-01-02", input.FromDate)
+	fromDate, err := models.ParseDate(input.FromDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid from_date %q: %w", input.FromDate, err)
 	}
-	toDate, err := time.Parse("2006-01-02", input.ToDate)
+	toDate, err := models.ParseDate(input.ToDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid to_date %q: %w", input.ToDate, err)
 	}
@@ -135,7 +134,7 @@ func buildDateOptions(dates []models.DatePriceResult, input OptimizeTripDatesInp
 		if dp.Price <= 0 {
 			continue
 		}
-		departDate, parseErr := time.Parse("2006-01-02", dp.Date)
+		departDate, parseErr := models.ParseDate(dp.Date)
 		if parseErr != nil {
 			continue
 		}

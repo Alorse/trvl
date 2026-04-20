@@ -27,7 +27,7 @@ func GetDestinationInfo(ctx context.Context, location string, travelDates models
 	// Determine travel year for holiday lookup.
 	year := time.Now().Year()
 	if travelDates.CheckIn != "" {
-		if t, err := time.Parse("2006-01-02", travelDates.CheckIn); err == nil {
+		if t, err := models.ParseDate(travelDates.CheckIn); err == nil {
 			year = t.Year()
 		}
 	}

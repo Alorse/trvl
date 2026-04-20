@@ -121,13 +121,7 @@ func ParseFlightConfirmation(subject, body string) *Booking {
 	b.Price, b.Currency = extractPrice(body)
 
 	// Extract travel date.
-	b.TravelDate = extractDate(body, []string{
-		`(?i)depart(?:ure|ing)?[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-		`(?i)date[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-		`(?i)(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{4})`,
-		`(\d{4}-\d{2}-\d{2})`,
-		`(\d{2}/\d{2}/\d{4})`,
-	})
+	b.TravelDate = extractDate(body, flightDatePatterns)
 
 	// Extract booking reference.
 	b.Reference = extractReference(body)
@@ -167,11 +161,8 @@ func ParseHotelConfirmation(subject, body string) *Booking {
 		b.Provider = "Airbnb"
 
 		// Airbnb: "You're going to [City]!"
-		if re := regexp.MustCompile(`(?i)you(?:'re|'re| are) going to ([^!]+)!`); re.MatchString(body) {
-			m := re.FindStringSubmatch(body)
-			if len(m) > 1 {
-				b.To = strings.TrimSpace(m[1])
-			}
+		if m := airbnbCityRe.FindStringSubmatch(body); len(m) > 1 {
+			b.To = strings.TrimSpace(m[1])
 		}
 	}
 
@@ -186,19 +177,9 @@ func ParseHotelConfirmation(subject, body string) *Booking {
 	}
 
 	// Extract dates.
-	b.TravelDate = extractDate(body, []string{
-		`(?i)check[\s-]?in[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-		`(?i)check[\s-]?in[:\s]+(\d{4}-\d{2}-\d{2})`,
-		`(?i)check[\s-]?in[:\s]+(\d{2}/\d{2}/\d{4})`,
-		`(?i)arrival[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-	})
+	b.TravelDate = extractDate(body, hotelCheckInPatterns)
 
-	checkOut := extractDate(body, []string{
-		`(?i)check[\s-]?out[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-		`(?i)check[\s-]?out[:\s]+(\d{4}-\d{2}-\d{2})`,
-		`(?i)check[\s-]?out[:\s]+(\d{2}/\d{2}/\d{4})`,
-		`(?i)departure[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-	})
+	checkOut := extractDate(body, hotelCheckOutPatterns)
 	b.Nights = calculateNights(b.TravelDate, checkOut)
 
 	// Extract price.
@@ -267,11 +248,7 @@ func ParseGroundConfirmation(subject, body string) *Booking {
 	b.Price, b.Currency = extractPrice(body)
 
 	// Extract travel date.
-	b.TravelDate = extractDate(body, []string{
-		`(?i)depart(?:ure|ing)?[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-		`(?i)date[:\s]+(\d{1,2}\s+\w+\s+\d{4})`,
-		`(\d{4}-\d{2}-\d{2})`,
-	})
+	b.TravelDate = extractDate(body, groundDatePatterns)
 
 	// Extract reference.
 	b.Reference = extractReference(body)
@@ -285,6 +262,58 @@ func ParseGroundConfirmation(subject, body string) *Booking {
 var (
 	isoDateRe  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 	ddmmyyyyRe = regexp.MustCompile(`^\d{2}/\d{2}/\d{4}$`)
+	dayMonYearRe = regexp.MustCompile(`(\d{1,2})\s+(\w+)\s+(\d{4})`)
+
+	// airbnbCityRe matches "You're going to [City]!" in booking confirmation emails.
+	airbnbCityRe = regexp.MustCompile(`(?i)you(?:'re|'re| are) going to ([^!]+)!`)
+
+	// extractRoutePatterns is used in extractRoute as fallback patterns.
+	extractRoutePatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(?:flight|route|from)[:\s]+([A-Z]{3})\s*(?:→|->|–|—|-|to)\s*([A-Z]{3})`),
+		regexp.MustCompile(`(?i)departing\s+([A-Z]{3}).*arriving\s+([A-Z]{3})`),
+	}
+
+	// extractCityFromRe / extractCityToRe are used in extractCityRoute.
+	extractCityFromRe = regexp.MustCompile(`(?i)(?:from|departing|origin)[:\s]+([A-Za-z\s]+?)(?:\s*[,\n]|\s+to\b)`)
+	extractCityToRe   = regexp.MustCompile(`(?i)(?:to|arriving|destination)[:\s]+([A-Za-z\s]+?)[\s,\n]`)
+
+	// extractStarsRe is used in extractStars.
+	extractStarsRe = regexp.MustCompile(`(?i)(\d)\s*(?:star|★|⭐)`)
+
+	// extractHotelNamePatterns is used in extractHotelName.
+	extractHotelNamePatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)reservation at\s+(.+?)(?:\s*[,.\n]|$)`),
+		regexp.MustCompile(`(?i)your stay at\s+(.+?)(?:\s*[,.\n]|$)`),
+		regexp.MustCompile(`(?i)hotel[:\s]+(.+?)(?:\s*[,.\n]|$)`),
+	}
+
+	// flightDatePatterns is used when parsing flight confirmation emails.
+	flightDatePatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)depart(?:ure|ing)?[:\s]+(\d{1,2}\s+\w+\s+\d{4})`),
+		regexp.MustCompile(`(?i)date[:\s]+(\d{1,2}\s+\w+\s+\d{4})`),
+		regexp.MustCompile(`(?i)(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{4})`),
+		regexp.MustCompile(`(\d{4}-\d{2}-\d{2})`),
+		regexp.MustCompile(`(\d{2}/\d{2}/\d{4})`),
+	}
+
+	// hotelCheckInPatterns / hotelCheckOutPatterns / groundDatePatterns for hotel/ground emails.
+	hotelCheckInPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)check[\s-]?in[:\s]+(\d{1,2}\s+\w+\s+\d{4})`),
+		regexp.MustCompile(`(?i)check[\s-]?in[:\s]+(\d{4}-\d{2}-\d{2})`),
+		regexp.MustCompile(`(?i)check[\s-]?in[:\s]+(\d{2}/\d{2}/\d{4})`),
+		regexp.MustCompile(`(?i)arrival[:\s]+(\d{1,2}\s+\w+\s+\d{4})`),
+	}
+	hotelCheckOutPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)check[\s-]?out[:\s]+(\d{1,2}\s+\w+\s+\d{4})`),
+		regexp.MustCompile(`(?i)check[\s-]?out[:\s]+(\d{4}-\d{2}-\d{2})`),
+		regexp.MustCompile(`(?i)check[\s-]?out[:\s]+(\d{2}/\d{2}/\d{4})`),
+		regexp.MustCompile(`(?i)departure[:\s]+(\d{1,2}\s+\w+\s+\d{4})`),
+	}
+	groundDatePatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)depart(?:ure|ing)?[:\s]+(\d{1,2}\s+\w+\s+\d{4})`),
+		regexp.MustCompile(`(?i)date[:\s]+(\d{1,2}\s+\w+\s+\d{4})`),
+		regexp.MustCompile(`(\d{4}-\d{2}-\d{2})`),
+	}
 )
 
 // titleCase capitalises the first letter of each word.
@@ -371,11 +400,7 @@ func extractRoute(body string) (from, to string) {
 	}
 
 	// Try "Flight: HEL → BCN" or "Route: HEL - BCN".
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)(?:flight|route|from)[:\s]+([A-Z]{3})\s*(?:→|->|–|—|-|to)\s*([A-Z]{3})`),
-		regexp.MustCompile(`(?i)departing\s+([A-Z]{3}).*arriving\s+([A-Z]{3})`),
-	}
-	for _, re := range patterns {
+	for _, re := range extractRoutePatterns {
 		m = re.FindStringSubmatch(body)
 		if len(m) >= 3 {
 			return m[1], m[2]
@@ -387,13 +412,10 @@ func extractRoute(body string) (from, to string) {
 
 // extractCityRoute extracts city names from "From: City" / "To: City" patterns.
 func extractCityRoute(body string) (from, to string) {
-	fromRe := regexp.MustCompile(`(?i)(?:from|departing|origin)[:\s]+([A-Za-z\s]+?)(?:\s*[,\n]|\s+to\b)`)
-	toRe := regexp.MustCompile(`(?i)(?:to|arriving|destination)[:\s]+([A-Za-z\s]+?)[\s,\n]`)
-
-	if m := fromRe.FindStringSubmatch(body); len(m) > 1 {
+	if m := extractCityFromRe.FindStringSubmatch(body); len(m) > 1 {
 		from = strings.TrimSpace(m[1])
 	}
-	if m := toRe.FindStringSubmatch(body); len(m) > 1 {
+	if m := extractCityToRe.FindStringSubmatch(body); len(m) > 1 {
 		to = strings.TrimSpace(m[1])
 	}
 	return from, to
@@ -516,9 +538,8 @@ var monthMap = map[string]string{
 }
 
 // extractDate tries patterns in order, returning the first match as YYYY-MM-DD.
-func extractDate(body string, patterns []string) string {
-	for _, pat := range patterns {
-		re := regexp.MustCompile(pat)
+func extractDate(body string, patterns []*regexp.Regexp) string {
+	for _, re := range patterns {
 		m := re.FindStringSubmatch(body)
 		if len(m) < 2 {
 			continue
@@ -537,8 +558,7 @@ func extractDate(body string, patterns []string) string {
 		}
 
 		// "15 Jun 2026" or "15 June 2026" format.
-		dateRe := regexp.MustCompile(`(\d{1,2})\s+(\w+)\s+(\d{4})`)
-		dm := dateRe.FindStringSubmatch(dateStr)
+		dm := dayMonYearRe.FindStringSubmatch(dateStr)
 		if len(dm) >= 4 {
 			day := dm[1]
 			if len(day) == 1 {
@@ -633,8 +653,7 @@ func looksLikeReference(s string) bool {
 
 // extractStars extracts a star rating (1-5) from body text.
 func extractStars(body string) int {
-	re := regexp.MustCompile(`(?i)(\d)\s*(?:star|★|⭐)`)
-	m := re.FindStringSubmatch(body)
+	m := extractStarsRe.FindStringSubmatch(body)
 	if len(m) >= 2 {
 		var stars int
 		fmt.Sscanf(m[1], "%d", &stars)
@@ -665,12 +684,7 @@ func extractHotelName(subject, body string) string {
 	}
 
 	// Try "Hotel Name" or "Your reservation at Hotel Name".
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?i)reservation at\s+(.+?)(?:\s*[,.\n]|$)`),
-		regexp.MustCompile(`(?i)your stay at\s+(.+?)(?:\s*[,.\n]|$)`),
-		regexp.MustCompile(`(?i)hotel[:\s]+(.+?)(?:\s*[,.\n]|$)`),
-	}
-	for _, re := range patterns {
+	for _, re := range extractHotelNamePatterns {
 		m := re.FindStringSubmatch(combined)
 		if len(m) >= 2 {
 			name := strings.TrimSpace(m[1])

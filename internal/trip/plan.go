@@ -128,11 +128,11 @@ func PlanTrip(ctx context.Context, input PlanInput) (*PlanResult, error) {
 		return nil, fmt.Errorf("guests must be at least 1")
 	}
 
-	departDate, err := time.Parse("2006-01-02", input.DepartDate)
+	departDate, err := models.ParseDate(input.DepartDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid depart date %q: %w", input.DepartDate, err)
 	}
-	returnDate, err := time.Parse("2006-01-02", input.ReturnDate)
+	returnDate, err := models.ParseDate(input.ReturnDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid return date %q: %w", input.ReturnDate, err)
 	}

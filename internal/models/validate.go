@@ -16,6 +16,13 @@ func ValidateIATA(code string) error {
 	return nil
 }
 
+// ParseDate parses a YYYY-MM-DD string into a time.Time.
+// It is a thin wrapper around time.Parse so callers don't need to repeat the
+// format literal.
+func ParseDate(s string) (time.Time, error) {
+	return time.Parse("2006-01-02", s)
+}
+
 // ValidateDate checks that date is a valid YYYY-MM-DD string and is not in the past.
 func ValidateDate(date string) error {
 	t, err := time.Parse("2006-01-02", date)

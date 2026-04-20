@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/providers"
 )
 
@@ -588,7 +589,7 @@ func handleTestProvider(ctx context.Context, args map[string]any, _ ElicitFunc, 
 	}
 	if checkout == "" {
 		// checkin was provided but checkout was not.
-		ci, err := time.Parse("2006-01-02", checkin)
+		ci, err := models.ParseDate(checkin)
 		if err == nil {
 			checkout = ci.AddDate(0, 0, 1).Format("2006-01-02")
 		} else {

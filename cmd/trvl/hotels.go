@@ -374,8 +374,8 @@ func maybeShowAccomHackTip(ctx context.Context, city, checkIn, checkOut, currenc
 	}
 
 	// Quick night count without importing time directly.
-	in, err1 := time.Parse("2006-01-02", checkIn)
-	out, err2 := time.Parse("2006-01-02", checkOut)
+	in, err1 := models.ParseDate(checkIn)
+	out, err2 := models.ParseDate(checkOut)
 	if err1 != nil || err2 != nil {
 		return
 	}

@@ -491,7 +491,7 @@ func nextLegSummary(t trips.Trip) string {
 		}
 		ts, err := time.Parse("2006-01-02T15:04", leg.StartTime)
 		if err != nil {
-			ts, err = time.Parse("2006-01-02", leg.StartTime)
+			ts, err = models.ParseDate(leg.StartTime)
 			if err != nil {
 				continue
 			}
@@ -586,8 +586,8 @@ func printTripWeather(ctx context.Context, t *trips.Trip) {
 		}
 
 		// Limit to a reasonable window (7 days max per destination).
-		if from, err := time.Parse("2006-01-02", fromDate); err == nil {
-			if to, err2 := time.Parse("2006-01-02", toDate); err2 == nil {
+		if from, err := models.ParseDate(fromDate); err == nil {
+			if to, err2 := models.ParseDate(toDate); err2 == nil {
 				if to.Sub(from) > 7*24*time.Hour {
 					toDate = from.AddDate(0, 0, 7).Format("2006-01-02")
 				}

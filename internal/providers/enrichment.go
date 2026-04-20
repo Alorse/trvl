@@ -13,6 +13,15 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
+var (
+	// enrichment regexps compiled once at package init.
+	jsonLDScriptRe    = regexp.MustCompile(`<script[^>]*type="application/ld\+json"[^>]*>([\s\S]*?)</script>`)
+	niobeScriptRe     = regexp.MustCompile(`<script[^>]*data-deferred-state-0[^>]*>([\s\S]*?)</script>`)
+	htmlBRRe          = regexp.MustCompile(`(?i)<br\s*/?>`)
+	htmlTagRe         = regexp.MustCompile(`<[^>]+>`)
+	htmlWhitespaceRe  = regexp.MustCompile(`\s{2,}`)
+)
+
 // enrichRatings fetches hotel detail pages for results with rating=0 and a
 // booking URL, extracting the aggregateRating from JSON-LD. This compensates
 // for Booking.com's SSR response sometimes omitting review scores from the
@@ -79,8 +88,7 @@ func fetchJSONLDRating(ctx context.Context, client *http.Client, hotelURL string
 	}
 
 	// Extract JSON-LD blocks from the HTML.
-	re := regexp.MustCompile(`<script[^>]*type="application/ld\+json"[^>]*>([\s\S]*?)</script>`)
-	matches := re.FindAllSubmatch(body, -1)
+	matches := jsonLDScriptRe.FindAllSubmatch(body, -1)
 
 	for _, m := range matches {
 		if len(m) < 2 {
@@ -201,8 +209,7 @@ func fetchAirbnbDescription(ctx context.Context, client *http.Client, listingURL
 	}
 
 	// Extract the Niobe SSR cache JSON from data-deferred-state-0.
-	re := regexp.MustCompile(`<script[^>]*data-deferred-state-0[^>]*>([\s\S]*?)</script>`)
-	m := re.FindSubmatch(body)
+	m := niobeScriptRe.FindSubmatch(body)
 	if len(m) < 2 {
 		return "", fmt.Errorf("data-deferred-state-0 script not found")
 	}
@@ -246,12 +253,9 @@ func fetchAirbnbDescription(ctx context.Context, client *http.Client, listingURL
 
 // stripHTMLTags removes basic HTML tags, replacing <br> with a space.
 func stripHTMLTags(s string) string {
-	brRe := regexp.MustCompile(`(?i)<br\s*/?>`)
-	s = brRe.ReplaceAllString(s, " ")
-	tagRe := regexp.MustCompile(`<[^>]+>`)
-	s = tagRe.ReplaceAllString(s, "")
-	wsRe := regexp.MustCompile(`\s{2,}`)
-	s = wsRe.ReplaceAllString(s, " ")
+	s = htmlBRRe.ReplaceAllString(s, " ")
+	s = htmlTagRe.ReplaceAllString(s, "")
+	s = htmlWhitespaceRe.ReplaceAllString(s, " ")
 	return strings.TrimSpace(s)
 }
 

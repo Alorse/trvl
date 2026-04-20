@@ -94,7 +94,7 @@ func eckerolineDayMatch(date string, days string) bool {
 	if days == "daily" {
 		return true
 	}
-	t, err := time.Parse("2006-01-02", date)
+	t, err := models.ParseDate(date)
 	if err != nil {
 		return true // assume yes if parse fails
 	}
@@ -247,7 +247,7 @@ func SearchEckeroLine(ctx context.Context, from, to, date, currency string) ([]m
 	if currency == "" {
 		currency = "EUR"
 	}
-	if _, err := time.Parse("2006-01-02", date); err != nil {
+	if _, err := models.ParseDate(date); err != nil {
 		return nil, fmt.Errorf("eckeroline: invalid date %q: %w", date, err)
 	}
 
@@ -313,7 +313,7 @@ func SearchEckeroLine(ctx context.Context, from, to, date, currency string) ([]m
 			continue
 		}
 
-		t, _ := time.Parse("2006-01-02", date)
+		t, _ := models.ParseDate(date)
 		arrDate := t.AddDate(0, 0, e.ArrOffset)
 		depTime := date + "T" + e.DepTime + ":00"
 		arrTime := arrDate.Format("2006-01-02") + "T" + e.ArrTime + ":00"

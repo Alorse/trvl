@@ -3,6 +3,8 @@ package route
 import (
 	"strings"
 	"time"
+
+	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
 // MinConnectionTime returns the minimum transfer time between two transport modes.
@@ -72,7 +74,7 @@ func parseConstraintTime(date, value string) (time.Time, bool) {
 		return t, true
 	}
 
-	day, err := time.Parse("2006-01-02", date)
+	day, err := models.ParseDate(date)
 	if err != nil {
 		return time.Time{}, false
 	}

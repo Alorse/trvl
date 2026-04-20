@@ -268,7 +268,7 @@ func buildDFDSBookingURL(routeInfo dfdsRouteInfo) string {
 // dfdsFormatDateTime combines a date string ("2026-05-01") and time ("HH:MM") into
 // an ISO 8601 datetime string, optionally adding days for next-day arrivals.
 func dfdsFormatDateTime(date, timeStr string, dayOffset int) string {
-	t, err := time.Parse("2006-01-02", date)
+	t, err := models.ParseDate(date)
 	if err != nil {
 		return date + "T" + timeStr + ":00"
 	}
@@ -369,7 +369,7 @@ func SearchDFDS(ctx context.Context, from, to, date, currency string) ([]models.
 		currency = "EUR"
 	}
 
-	if _, err := time.Parse("2006-01-02", date); err != nil {
+	if _, err := models.ParseDate(date); err != nil {
 		return nil, fmt.Errorf("dfds: invalid date %q: %w", date, err)
 	}
 

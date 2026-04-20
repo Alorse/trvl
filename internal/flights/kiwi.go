@@ -406,7 +406,7 @@ func parseKiwiTimestamp(raw string) (time.Time, bool) {
 }
 
 func kiwiDate(date string) (string, error) {
-	t, err := time.Parse("2006-01-02", date)
+	t, err := models.ParseDate(date)
 	if err != nil {
 		return "", err
 	}

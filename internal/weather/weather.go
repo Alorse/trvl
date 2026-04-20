@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
 // Forecast holds a single day's weather forecast for a city.
@@ -292,7 +294,7 @@ func WeatherEmoji(description string) string {
 
 // FormatDateShort formats a YYYY-MM-DD date as "Apr 12".
 func FormatDateShort(date string) string {
-	t, err := time.Parse("2006-01-02", date)
+	t, err := models.ParseDate(date)
 	if err != nil {
 		return date
 	}
@@ -301,7 +303,7 @@ func FormatDateShort(date string) string {
 
 // DayOfWeek returns the 3-letter day name for a YYYY-MM-DD date.
 func DayOfWeek(date string) string {
-	t, err := time.Parse("2006-01-02", date)
+	t, err := models.ParseDate(date)
 	if err != nil {
 		return ""
 	}

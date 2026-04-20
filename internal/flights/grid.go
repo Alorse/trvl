@@ -32,19 +32,19 @@ func (o *GridOptions) defaults() {
 		o.DepartFrom = now.AddDate(0, 0, 1).Format("2006-01-02")
 	}
 	if o.DepartTo == "" {
-		from, err := time.Parse("2006-01-02", o.DepartFrom)
+		from, err := models.ParseDate(o.DepartFrom)
 		if err == nil {
 			o.DepartTo = from.AddDate(0, 0, 6).Format("2006-01-02")
 		}
 	}
 	if o.ReturnFrom == "" {
-		depTo, err := time.Parse("2006-01-02", o.DepartTo)
+		depTo, err := models.ParseDate(o.DepartTo)
 		if err == nil {
 			o.ReturnFrom = depTo.AddDate(0, 0, 1).Format("2006-01-02")
 		}
 	}
 	if o.ReturnTo == "" {
-		retFrom, err := time.Parse("2006-01-02", o.ReturnFrom)
+		retFrom, err := models.ParseDate(o.ReturnFrom)
 		if err == nil {
 			o.ReturnTo = retFrom.AddDate(0, 0, 6).Format("2006-01-02")
 		}
@@ -280,10 +280,10 @@ func parseGridOffer(raw json.RawMessage) *models.GridCell {
 		return nil
 	}
 
-	if _, err := time.Parse("2006-01-02", depDate); err != nil {
+	if _, err := models.ParseDate(depDate); err != nil {
 		return nil
 	}
-	if _, err := time.Parse("2006-01-02", retDate); err != nil {
+	if _, err := models.ParseDate(retDate); err != nil {
 		return nil
 	}
 

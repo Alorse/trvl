@@ -393,7 +393,7 @@ func SearchDeutscheBahn(ctx context.Context, from, to, date, currency string) ([
 	}
 
 	// Parse the date and set departure to morning (06:00 local time).
-	when, err := time.Parse("2006-01-02", date)
+	when, err := models.ParseDate(date)
 	if err != nil {
 		return nil, fmt.Errorf("invalid date %q: %w", date, err)
 	}

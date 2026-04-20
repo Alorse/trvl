@@ -7,7 +7,6 @@ import (
 	"math"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/flights"
@@ -72,11 +71,11 @@ func CalculateTripCost(ctx context.Context, input TripCostInput) (*TripCostResul
 		return nil, fmt.Errorf("guests must be at least 1")
 	}
 
-	departDate, err := time.Parse("2006-01-02", input.DepartDate)
+	departDate, err := models.ParseDate(input.DepartDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid depart_date %q: %w", input.DepartDate, err)
 	}
-	returnDate, err := time.Parse("2006-01-02", input.ReturnDate)
+	returnDate, err := models.ParseDate(input.ReturnDate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid return_date %q: %w", input.ReturnDate, err)
 	}

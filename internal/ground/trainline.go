@@ -195,7 +195,7 @@ type trainlinePrice struct {
 // check. We first visit the homepage with curl to seed the cookie jar (so the
 // datadome cookie is associated with the same TLS session), then POST to the API.
 func trainlineViaCurl(ctx context.Context, fromID, toID, date, currency string) ([]models.GroundRoute, error) {
-	dateTime, err := time.Parse("2006-01-02", date)
+	dateTime, err := models.ParseDate(date)
 	if err != nil {
 		return nil, fmt.Errorf("trainlineViaCurl invalid date %q: %w", date, err)
 	}
@@ -314,7 +314,7 @@ func SearchTrainline(ctx context.Context, from, to, date, currency string, allow
 		return nil, fmt.Errorf("no Trainline station for %q", to)
 	}
 
-	dateTime, err := time.Parse("2006-01-02", date)
+	dateTime, err := models.ParseDate(date)
 	if err != nil {
 		return nil, fmt.Errorf("invalid date %q: %w", date, err)
 	}

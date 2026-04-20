@@ -105,7 +105,7 @@ func searchAirportTransfers(ctx context.Context, input AirportTransferInput, dep
 	if _, ok := models.AirportNames[input.AirportCode]; !ok {
 		return nil, fmt.Errorf("unknown airport_code %q: airport metadata not available yet", input.AirportCode)
 	}
-	if _, err := time.Parse("2006-01-02", input.Date); err != nil {
+	if _, err := models.ParseDate(input.Date); err != nil {
 		return nil, fmt.Errorf("invalid date %q: %w", input.Date, err)
 	}
 	earliestDeparture, err := parseAirportTransferClock(input.ArrivalTime)
