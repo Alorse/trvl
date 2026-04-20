@@ -76,10 +76,10 @@ func TestParseFlightLocations_CityNames(t *testing.T) {
 }
 
 func TestParseFlightLocations_UnknownPassthrough(t *testing.T) {
-	// Unknown tokens (not IATA, not city) pass through unchanged.
-	got := ParseFlightLocations("BOM")
-	if !reflect.DeepEqual(got, []string{"BOM"}) {
-		t.Errorf("ParseFlightLocations(BOM) = %v, want [BOM]", got)
+	// Unknown city names (not IATA, not resolvable) pass through unchanged (uppercased).
+	got := ParseFlightLocations("Narnia")
+	if !reflect.DeepEqual(got, []string{"NARNIA"}) {
+		t.Errorf("ParseFlightLocations(Narnia) = %v, want [NARNIA]", got)
 	}
 }
 
