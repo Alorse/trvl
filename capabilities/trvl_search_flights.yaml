@@ -31,6 +31,12 @@ schema:
       sort_by:
         type: string
         description: "Sort order: cheapest, duration, departure, or arrival (default: cheapest)"
+      first_result:
+        type: boolean
+        description: >-
+          Return only the first result with a valid price after sorting.
+          Use with sort_by to get e.g. the cheapest or shortest priced flight.
+          Default: false.
     required: [origin, destination, departure_date]
   output:
     type: object

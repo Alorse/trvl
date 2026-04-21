@@ -152,6 +152,7 @@ func searchFlightsTool() ToolDef {
 				"checked_bags":        {Type: "integer", Description: "Checked bags pricing hint (0 = default, 1+ = recalculate prices including N checked bags). Changes price display, does not remove flights. Use require_checked_bag for actual filtering."},
 				"require_checked_bag": {Type: "boolean", Description: "Only show flights with ≥1 free checked bag included (default: false). Client-side post-filter on response data."},
 				"currency":            {Type: "string", Description: "Target currency for prices (ISO 4217, e.g. USD, EUR, JPY). Controls server-side pricing via Google's curr parameter. Empty = IP-based default."},
+				"first_result":        {Type: "boolean", Description: "Return only the first result with a valid price after sorting. Combine with sort_by to get e.g. the shortest priced flight (duration) or cheapest. Default: false."},
 			},
 			Required: []string{"origin", "destination", "departure_date"},
 		},
@@ -224,6 +225,7 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 		CarryOnBags:       argInt(args, "carry_on_bags", 0),
 		CheckedBags:       argInt(args, "checked_bags", 0),
 		RequireCheckedBag: argBool(args, "require_checked_bag", false),
+		FirstResult:       argBool(args, "first_result", false),
 		Currency:          argString(args, "currency"),
 	}
 
@@ -277,6 +279,11 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 		result.Flights = flights.FilterFlightsByBudget(result.Flights, prefs.BudgetFlightMax)
 		result.Flights = flights.FilterFlightsByTimePreference(result.Flights, prefs.FlightTimeEarliest, prefs.FlightTimeLatest)
 		result.Flights = flights.AdjustBagAllowance(result.Flights, prefs.FrequentFlyerPrograms)
+		result.Count = len(result.Flights)
+	}
+
+	if opts.FirstResult && result != nil && result.Success {
+		result.Flights = flights.FirstPricedResult(result.Flights)
 		result.Count = len(result.Flights)
 	}
 

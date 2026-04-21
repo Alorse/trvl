@@ -32,6 +32,7 @@ func flightsCmd() *cobra.Command {
 		format         string
 		targetCurrency string
 		compareCabins  bool
+		firstResult    bool
 	)
 
 	cmd := &cobra.Command{
@@ -78,13 +79,14 @@ Examples:
 			}
 
 			opts := flights.SearchOptions{
-				ReturnDate: returnDate,
-				CabinClass: cabinClass,
-				MaxStops:   stops,
-				SortBy:     sort,
-				Airlines:   airlines,
-				Adults:     adults,
-				Currency:   targetCurrency,
+				ReturnDate:  returnDate,
+				CabinClass:  cabinClass,
+				MaxStops:    stops,
+				SortBy:      sort,
+				Airlines:    airlines,
+				Adults:      adults,
+				Currency:    targetCurrency,
+				FirstResult: firstResult,
 			}
 
 			// --compare-cabins: search all cabin classes in parallel.
@@ -124,6 +126,11 @@ Examples:
 				})
 			}
 
+			if opts.FirstResult && result != nil && result.Success {
+				result.Flights = flights.FirstPricedResult(result.Flights)
+				result.Count = len(result.Flights)
+			}
+
 			if format == "json" {
 				return models.FormatJSON(os.Stdout, result)
 			}
@@ -152,6 +159,7 @@ Examples:
 	cmd.Flags().StringVar(&format, "format", "table", "Output format: table, json")
 	cmd.Flags().StringVar(&targetCurrency, "currency", "", "Convert prices to this currency (e.g. EUR, USD). Empty = show API default")
 	cmd.Flags().BoolVar(&compareCabins, "compare-cabins", false, "Compare prices across all cabin classes (economy, premium, business, first)")
+	cmd.Flags().BoolVar(&firstResult, "first", false, "Return only the first result with a valid price (respects --sort order)")
 
 	cmd.ValidArgsFunction = airportCompletion
 
