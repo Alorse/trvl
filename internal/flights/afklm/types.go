@@ -2,14 +2,14 @@ package afklm
 
 // AvailableOffersRequest is the request body for POST /opendata/offers/v3/available-offers.
 type AvailableOffersRequest struct {
-	CommercialCabins      []string               `json:"commercialCabins,omitempty"`
-	BookingFlow           string                 `json:"bookingFlow"`
-	Passengers            []Passenger            `json:"passengers"`
-	RequestedConnections  []RequestedConnection  `json:"requestedConnections"`
-	Currency              string                 `json:"currency,omitempty"`
-	FareOption            string                 `json:"fareOption,omitempty"`
-	WithUpsellCabins      bool                   `json:"withUpsellCabins,omitempty"`
-	LowestFareCombination bool                   `json:"lowestFareCombination,omitempty"`
+	CommercialCabins      []string              `json:"commercialCabins,omitempty"`
+	BookingFlow           string                `json:"bookingFlow"`
+	Passengers            []Passenger           `json:"passengers"`
+	RequestedConnections  []RequestedConnection `json:"requestedConnections"`
+	Currency              string                `json:"currency,omitempty"`
+	FareOption            string                `json:"fareOption,omitempty"`
+	WithUpsellCabins      bool                  `json:"withUpsellCabins,omitempty"`
+	LowestFareCombination bool                  `json:"lowestFareCombination,omitempty"`
 }
 
 // Passenger represents a traveller in the request.
@@ -32,8 +32,15 @@ type Place struct {
 }
 
 // AvailableOffersResponse is the top-level response from available-offers.
+// The AF-KLM API uses Rich JSON Format (RJF) normalization: pricing metadata
+// lives under recommendations[].flightProducts[].connections[], while actual
+// flight details (airports, carriers, datetimes) live in the top-level
+// Connections array indexed by bound (0=outbound, 1=return).
 type AvailableOffersResponse struct {
 	Recommendations []Recommendation `json:"recommendations"`
+	// Connections is [bound_index][connection_options] — top-level flight detail.
+	// bound_index 0 is outbound; 1 is the return bound when present.
+	Connections [][]BoundConnection `json:"connections"`
 }
 
 // Recommendation is a priced bookable bundle.
@@ -43,48 +50,71 @@ type Recommendation struct {
 
 // FlightProduct is a priced itinerary option within a recommendation.
 type FlightProduct struct {
-	Connections []Connection `json:"connections"`
-	Price       Price        `json:"price"`
+	ID          string              `json:"id"`
+	Connections []PricingConnection `json:"connections"`
+	Price       Price               `json:"price"`
 }
 
-// Connection represents one bound (e.g. outbound or return).
-type Connection struct {
-	CommercialCabinLabel   string     `json:"commercialCabinLabel"`
+// PricingConnection sits under flightProducts and carries the price, cabin,
+// fare family and a connectionId linking to the top-level BoundConnection.
+// The segments[] inside pricing contains only fare-class metadata (cabinClassCode,
+// sellingClassCode, fareBasisCode) — no flight details.
+type PricingConnection struct {
+	ConnectionID           int        `json:"connectionId"`
 	NumberOfSeatsAvailable int        `json:"numberOfSeatsAvailable"`
 	FareFamily             FareFamily `json:"fareFamily"`
-	Segments               []Segment  `json:"segments"`
+	CommercialCabin        string     `json:"commercialCabin"`
+	CommercialCabinLabel   string     `json:"commercialCabinLabel"`
 	Price                  Price      `json:"price"`
 }
 
 // FareFamily identifies the fare product family.
 type FareFamily struct {
-	Code string `json:"code"`
+	Code      string `json:"code"`
+	Hierarchy int    `json:"hierarchy,omitempty"`
 }
 
-// Segment is a single flight segment within a connection.
+// BoundConnection is a top-level routing option (an ordered chain of segments).
+type BoundConnection struct {
+	ID            int       `json:"id"`
+	DateVariation int       `json:"dateVariation"`
+	Duration      int       `json:"duration"` // minutes
+	Segments      []Segment `json:"segments"`
+}
+
+// Segment is a single flight segment within a BoundConnection.
 type Segment struct {
-	Origin      SegmentPlace `json:"origin"`
-	Destination SegmentPlace `json:"destination"`
-	// MarketingCarrier contains the airline code and flight number.
-	MarketingCarrier SegmentCarrier `json:"marketingCarrier"`
-	// OperatingCarrier is the operator (may differ from marketing carrier).
-	OperatingCarrier SegmentCarrier `json:"operatingCarrier"`
+	Origin            SegmentPlace    `json:"origin"`
+	Destination       SegmentPlace    `json:"destination"`
+	MarketingFlight   MarketingFlight `json:"marketingFlight"`
+	DepartureDateTime string          `json:"departureDateTime"` // "2006-01-02T15:04:05"
+	ArrivalDateTime   string          `json:"arrivalDateTime"`
+	Duration          int             `json:"duration"` // minutes
 }
 
 // SegmentPlace is a departure or arrival point in a segment.
 type SegmentPlace struct {
-	Code          string `json:"code"`
-	Name          string `json:"name,omitempty"`
-	DepartureDate string `json:"departureDate,omitempty"` // ISO date
-	DepartureTime string `json:"departureTime,omitempty"` // HH:MM
-	ArrivalDate   string `json:"arrivalDate,omitempty"`
-	ArrivalTime   string `json:"arrivalTime,omitempty"`
+	Code string      `json:"code"`
+	Name string      `json:"name"`
+	City SegmentCity `json:"city"`
 }
 
-// SegmentCarrier holds carrier code and flight number.
-type SegmentCarrier struct {
-	AirlineCode  string `json:"airlineCode"`
-	FlightNumber string `json:"flightNumber"`
+// SegmentCity is the city containing the airport.
+type SegmentCity struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+// MarketingFlight holds the flight number and marketing carrier.
+type MarketingFlight struct {
+	Number  string          `json:"number"`
+	Carrier MarketingCarrier `json:"carrier"`
+}
+
+// MarketingCarrier holds carrier code and name.
+type MarketingCarrier struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
 }
 
 // Price contains fare amounts in the requested currency.
@@ -96,12 +126,12 @@ type Price struct {
 
 // LowestFaresRequest is the request body for POST /opendata/offers/v3/lowest-fares-by-destination.
 type LowestFaresRequest struct {
-	BookingFlow        string `json:"bookingFlow"`
-	DestinationCities  string `json:"destinationCities"` // comma-separated, embedded quotes per API quirk
-	Type               string `json:"type"`              // "DAY"
-	FromDate           string `json:"fromDate"`          // RFC3339
-	UntilDate          string `json:"untilDate"`         // RFC3339
-	Origin             Place  `json:"origin"`
+	BookingFlow       string `json:"bookingFlow"`
+	DestinationCities string `json:"destinationCities"` // comma-separated, embedded quotes per API quirk
+	Type              string `json:"type"`              // "DAY"
+	FromDate          string `json:"fromDate"`          // RFC3339
+	UntilDate         string `json:"untilDate"`         // RFC3339
+	Origin            Place  `json:"origin"`
 }
 
 // LowestFaresResponse is the response from lowest-fares-by-destination.

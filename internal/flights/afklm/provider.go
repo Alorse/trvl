@@ -3,6 +3,7 @@ package afklm
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
@@ -136,33 +137,71 @@ func (p *AFKLMProvider) SearchFlights(ctx context.Context, origin, dest, date st
 }
 
 // mapRecommendations converts AF-KLM recommendations to FlightResult slices.
+//
+// AF-KLM uses RJF normalization: pricing metadata lives under
+// recommendations[].flightProducts[].connections[] (keyed by connectionId),
+// while actual flight details (airports, carriers, datetimes, duration) live
+// in the top-level connections[bound_idx] array keyed by id. We build a lookup
+// table first to join them in O(1) per entry.
 func mapRecommendations(resp *AvailableOffersResponse, origin, dest string) []models.FlightResult {
+	// Index top-level connections by (bound_idx, id) for O(1) lookup.
+	lookup := make([]map[int]BoundConnection, len(resp.Connections))
+	for i, bound := range resp.Connections {
+		m := make(map[int]BoundConnection, len(bound))
+		for _, c := range bound {
+			m[c.ID] = c
+		}
+		lookup[i] = m
+	}
+
 	var results []models.FlightResult
 	for _, rec := range resp.Recommendations {
 		for _, fp := range rec.FlightProducts {
 			if len(fp.Connections) == 0 {
 				continue
 			}
-			// Use the first connection for price / leg data.
-			conn := fp.Connections[0]
-			legs := mapSegments(conn.Segments)
-			price := conn.Price.DisplayPrice
-			currency := conn.Price.Currency
+
+			var legs []models.FlightLeg
+			totalDuration := 0
+			outboundStops := 0
+
+			for boundIdx, pc := range fp.Connections {
+				if boundIdx >= len(lookup) {
+					break
+				}
+				bc, ok := lookup[boundIdx][pc.ConnectionID]
+				if !ok {
+					continue
+				}
+				totalDuration += bc.Duration
+				if boundIdx == 0 && len(bc.Segments) > 1 {
+					outboundStops = len(bc.Segments) - 1
+				}
+				for i, s := range bc.Segments {
+					leg := mapSegment(s)
+					// Layover = gap between prev arrival and this departure within the same bound.
+					if i > 0 {
+						if prev, cur, ok := parseLayover(bc.Segments[i-1].ArrivalDateTime, s.DepartureDateTime); ok {
+							leg.LayoverMinutes = int(cur.Sub(prev).Minutes())
+						}
+					}
+					legs = append(legs, leg)
+				}
+			}
+
+			// Pricing: prefer the outbound pricing connection's display price.
+			price := fp.Connections[0].Price.DisplayPrice
+			currency := fp.Connections[0].Price.Currency
 			if price == 0 {
 				price = fp.Price.DisplayPrice
 				currency = fp.Price.Currency
 			}
-			stops := 0
-			if len(conn.Segments) > 1 {
-				stops = len(conn.Segments) - 1
-			}
-			totalDuration := calcDuration(legs)
 
 			results = append(results, models.FlightResult{
 				Price:    price,
 				Currency: currency,
 				Duration: totalDuration,
-				Stops:    stops,
+				Stops:    outboundStops,
 				Provider: "afklm",
 				Legs:     legs,
 			})
@@ -171,27 +210,32 @@ func mapRecommendations(resp *AvailableOffersResponse, origin, dest string) []mo
 	return results
 }
 
-// mapSegments converts AF-KLM segments to FlightLeg slices.
-func mapSegments(segs []Segment) []models.FlightLeg {
-	legs := make([]models.FlightLeg, 0, len(segs))
-	for _, s := range segs {
-		leg := models.FlightLeg{
-			DepartureAirport: models.AirportInfo{Code: s.Origin.Code, Name: s.Origin.Name},
-			ArrivalAirport:   models.AirportInfo{Code: s.Destination.Code, Name: s.Destination.Name},
-			DepartureTime:    s.Origin.DepartureDate + " " + s.Origin.DepartureTime,
-			ArrivalTime:      s.Destination.ArrivalDate + " " + s.Destination.ArrivalTime,
-			AirlineCode:      s.MarketingCarrier.AirlineCode,
-			Airline:          s.MarketingCarrier.AirlineCode,
-			FlightNumber:     s.MarketingCarrier.AirlineCode + s.MarketingCarrier.FlightNumber,
-		}
-		legs = append(legs, leg)
+// mapSegment converts a top-level BoundConnection Segment to a FlightLeg.
+func mapSegment(s Segment) models.FlightLeg {
+	return models.FlightLeg{
+		DepartureAirport: models.AirportInfo{Code: s.Origin.Code, Name: s.Origin.Name},
+		ArrivalAirport:   models.AirportInfo{Code: s.Destination.Code, Name: s.Destination.Name},
+		DepartureTime:    s.DepartureDateTime,
+		ArrivalTime:      s.ArrivalDateTime,
+		Duration:         s.Duration,
+		AirlineCode:      s.MarketingFlight.Carrier.Code,
+		Airline:          s.MarketingFlight.Carrier.Name,
+		FlightNumber:     s.MarketingFlight.Carrier.Code + s.MarketingFlight.Number,
 	}
-	return legs
 }
 
-// calcDuration sums leg durations. Since AF-KLM does not always provide
-// explicit duration fields, we return 0 when times are unparseable.
-func calcDuration(legs []models.FlightLeg) int {
-	// Duration computation is best-effort; times may be absent in test fixtures.
-	return 0
+// parseLayover parses two AF-KLM datetimes and returns their times for diff.
+// Format is "2006-01-02T15:04:05". Returns ok=false when either is empty or
+// when parsing fails.
+func parseLayover(prevArrival, nextDeparture string) (prev, cur time.Time, ok bool) {
+	const layout = "2006-01-02T15:04:05"
+	if prevArrival == "" || nextDeparture == "" {
+		return time.Time{}, time.Time{}, false
+	}
+	p, err1 := time.Parse(layout, prevArrival)
+	n, err2 := time.Parse(layout, nextDeparture)
+	if err1 != nil || err2 != nil {
+		return time.Time{}, time.Time{}, false
+	}
+	return p, n, true
 }

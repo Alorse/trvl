@@ -3,68 +3,307 @@
     {
       "flightProducts": [
         {
-          "connections": [
+          "passengers": [
             {
-              "commercialCabinLabel": "ECONOMY",
-              "numberOfSeatsAvailable": 9,
-              "fareFamily": { "code": "LIGHT" },
-              "price": { "displayPrice": 89.0, "totalPrice": 89.0, "currency": "EUR" },
-              "segments": [
-                {
-                  "origin": {
-                    "code": "AMS",
-                    "name": "Amsterdam Schiphol",
-                    "departureDate": "2026-05-15",
-                    "departureTime": "07:00"
-                  },
-                  "destination": {
-                    "code": "PRG",
-                    "name": "Prague Vaclav Havel",
-                    "arrivalDate": "2026-05-15",
-                    "arrivalTime": "08:30"
-                  },
-                  "marketingCarrier": { "airlineCode": "KL", "flightNumber": "1345" },
-                  "operatingCarrier": { "airlineCode": "KL", "flightNumber": "1345" }
-                }
-              ]
+              "id": 1,
+              "type": "ADT"
             }
           ],
-          "price": { "displayPrice": 89.0, "totalPrice": 89.0, "currency": "EUR" }
+          "price": {
+            "displayPrice": 453.98,
+            "totalPrice": 453.98,
+            "pricePerPassengerTypes": [
+              {
+                "passengerType": "ADT",
+                "fare": 370.0,
+                "taxes": 83.98,
+                "products": 0,
+                "displayPrice": 453.98,
+                "primaryPax": true
+              }
+            ],
+            "currency": "EUR",
+            "displayType": "TAX"
+          },
+          "id": "21f45ffd-7888-4d69-afcd-3673b99eadd9",
+          "connections": [
+            {
+              "connectionId": 0,
+              "numberOfSeatsAvailable": 1,
+              "segments": [
+                {
+                  "cabinClassCode": "M",
+                  "sellingClassCode": "P",
+                  "fareBasisCode": "PYS0BN9A"
+                }
+              ],
+              "fareFamily": {
+                "code": "BASIC",
+                "hierarchy": 7800
+              },
+              "commercialCabin": "ECONOMY",
+              "commercialCabinLabel": "Economy",
+              "price": {
+                "displayPrice": 453.98,
+                "adjustedDisplayPrice": 453.98,
+                "totalPrice": 453.98,
+                "pricePerPassengerTypes": [
+                  {
+                    "passengerType": "ADT",
+                    "fare": 370.0,
+                    "taxes": 83.98,
+                    "products": 0,
+                    "displayPrice": 453.98,
+                    "primaryPax": true
+                  }
+                ],
+                "currency": "EUR",
+                "displayType": "TAX"
+              },
+              "_links": {
+                "flightDetails": {
+                  "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-details/21f45ffd-7888-4d69-afcd-3673b99eadd9/0"
+                }
+              }
+            }
+          ],
+          "_links": {
+            "ticketConditions": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/21f45ffd-7888-4d69-afcd-3673b99eadd9/ticket-conditions"
+            },
+            "shoppingCart": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/21f45ffd-7888-4d69-afcd-3673b99eadd9/shopping-cart"
+            },
+            "priceDetails": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/21f45ffd-7888-4d69-afcd-3673b99eadd9/price-details"
+            },
+            "specificRemarks": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/21f45ffd-7888-4d69-afcd-3673b99eadd9/specific-remarks"
+            },
+            "upsellOffers": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/q0aZqoAVRyhdnerMFCtDaNsCVBsDtWOMrEeDq91YzNodbAnS2K5raBDWXi1EHeaQjwGiuQlRgn04BCKHdZ4F5FUc_Y9Y1GE6iCEYzX2IMFKfysgwzcQ0LS1F19zCwkLXJMXMUjcxLTlF19jM3DjJ0jI1MSXFUqkWAA==6dacdb92f98/upsell-offers{?displayPriceContent,sourceRequest,safProductNeeded}",
+              "templated": true
+            },
+            "relatedProducts": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/21f45ffd-7888-4d69-afcd-3673b99eadd9/related-products"
+            },
+            "repricedOffer": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/21f45ffd-7888-4d69-afcd-3673b99eadd9/repriced-offer{?displayPriceContent}",
+              "templated": true
+            },
+            "offer": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/offer/21f45ffd-7888-4d69-afcd-3673b99eadd9{?displayPriceContent}",
+              "templated": true
+            }
+          }
         }
       ]
     },
     {
       "flightProducts": [
         {
-          "connections": [
+          "passengers": [
             {
-              "commercialCabinLabel": "ECONOMY",
-              "numberOfSeatsAvailable": 4,
-              "fareFamily": { "code": "FLEX" },
-              "price": { "displayPrice": 129.0, "totalPrice": 129.0, "currency": "EUR" },
-              "segments": [
-                {
-                  "origin": {
-                    "code": "AMS",
-                    "name": "Amsterdam Schiphol",
-                    "departureDate": "2026-05-15",
-                    "departureTime": "12:30"
-                  },
-                  "destination": {
-                    "code": "PRG",
-                    "name": "Prague Vaclav Havel",
-                    "arrivalDate": "2026-05-15",
-                    "arrivalTime": "14:00"
-                  },
-                  "marketingCarrier": { "airlineCode": "KL", "flightNumber": "1347" },
-                  "operatingCarrier": { "airlineCode": "KL", "flightNumber": "1347" }
-                }
-              ]
+              "id": 1,
+              "type": "ADT"
             }
           ],
-          "price": { "displayPrice": 129.0, "totalPrice": 129.0, "currency": "EUR" }
+          "price": {
+            "displayPrice": 497.98,
+            "totalPrice": 497.98,
+            "pricePerPassengerTypes": [
+              {
+                "passengerType": "ADT",
+                "fare": 414.0,
+                "taxes": 83.98,
+                "products": 0,
+                "displayPrice": 497.98,
+                "primaryPax": true
+              }
+            ],
+            "currency": "EUR",
+            "displayType": "TAX"
+          },
+          "id": "23e525fc-3378-4928-b655-f60e1dd5301b",
+          "connections": [
+            {
+              "connectionId": 1,
+              "numberOfSeatsAvailable": 2,
+              "segments": [
+                {
+                  "cabinClassCode": "M",
+                  "sellingClassCode": "M",
+                  "fareBasisCode": "MYS0BN9A"
+                }
+              ],
+              "fareFamily": {
+                "code": "BASIC",
+                "hierarchy": 7800
+              },
+              "commercialCabin": "ECONOMY",
+              "commercialCabinLabel": "Economy",
+              "price": {
+                "displayPrice": 497.98,
+                "adjustedDisplayPrice": 497.98,
+                "totalPrice": 497.98,
+                "pricePerPassengerTypes": [
+                  {
+                    "passengerType": "ADT",
+                    "fare": 414.0,
+                    "taxes": 83.98,
+                    "products": 0,
+                    "displayPrice": 497.98,
+                    "primaryPax": true
+                  }
+                ],
+                "currency": "EUR",
+                "displayType": "TAX"
+              },
+              "_links": {
+                "flightDetails": {
+                  "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-details/23e525fc-3378-4928-b655-f60e1dd5301b/0"
+                }
+              }
+            }
+          ],
+          "_links": {
+            "ticketConditions": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/23e525fc-3378-4928-b655-f60e1dd5301b/ticket-conditions"
+            },
+            "shoppingCart": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/23e525fc-3378-4928-b655-f60e1dd5301b/shopping-cart"
+            },
+            "priceDetails": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/23e525fc-3378-4928-b655-f60e1dd5301b/price-details"
+            },
+            "specificRemarks": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/23e525fc-3378-4928-b655-f60e1dd5301b/specific-remarks"
+            },
+            "upsellOffers": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/q0aZqoAVRyhdnerMFCtDaNsCVBsDtWOMrEeDq91YzNodbAnS2K5raBDWXi1EHeaQjwGiuQlRgn04BCKHdZ4F5FUc_Y9Y1GE6iCEYzX2IMFKfysg41dTINC1Z19jY3ELXxNLIQjfJzNRUN83MINUwJcXU2MAwSakWAA==6395bdd629b/upsell-offers{?displayPriceContent,sourceRequest,safProductNeeded}",
+              "templated": true
+            },
+            "relatedProducts": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/23e525fc-3378-4928-b655-f60e1dd5301b/related-products"
+            },
+            "repricedOffer": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/flight-products/23e525fc-3378-4928-b655-f60e1dd5301b/repriced-offer{?displayPriceContent}",
+              "templated": true
+            },
+            "offer": {
+              "href": "https://api.airfranceklm.com/opendata/offers/b/v3/offer/23e525fc-3378-4928-b655-f60e1dd5301b{?displayPriceContent}",
+              "templated": true
+            }
+          }
         }
       ]
     }
+  ],
+  "connections": [
+    [
+      {
+        "id": 0,
+        "dateVariation": 0,
+        "duration": 85,
+        "segments": [
+          {
+            "origin": {
+              "name": "Amsterdam Schiphol Airport",
+              "city": {
+                "name": "Amsterdam",
+                "code": "AMS"
+              },
+              "code": "AMS"
+            },
+            "destination": {
+              "name": "V\u00e1clav Havel Airport",
+              "city": {
+                "name": "Prague",
+                "code": "PRG"
+              },
+              "code": "PRG"
+            },
+            "marketingFlight": {
+              "number": "1351",
+              "carrier": {
+                "code": "KL",
+                "name": "KLM"
+              },
+              "operatingFlight": {
+                "number": "1351",
+                "equipmentType": {
+                  "code": "E90",
+                  "name": "Embraer 190",
+                  "acvCode": "E90"
+                },
+                "carrier": {
+                  "code": "WA",
+                  "name": "KLM Cityhopper",
+                  "carrierOwnerCode": "WA",
+                  "aircraftOwner": "KLM CITYHOPPER"
+                }
+              }
+            },
+            "departureDateTime": "2026-04-24T06:55:00",
+            "arrivalDateTime": "2026-04-24T08:20:00",
+            "highestPriority": true,
+            "dateVariation": 0,
+            "seatMapEligible": false,
+            "duration": 85
+          }
+        ]
+      },
+      {
+        "id": 1,
+        "dateVariation": 0,
+        "duration": 85,
+        "segments": [
+          {
+            "origin": {
+              "name": "Amsterdam Schiphol Airport",
+              "city": {
+                "name": "Amsterdam",
+                "code": "AMS"
+              },
+              "code": "AMS"
+            },
+            "destination": {
+              "name": "V\u00e1clav Havel Airport",
+              "city": {
+                "name": "Prague",
+                "code": "PRG"
+              },
+              "code": "PRG"
+            },
+            "marketingFlight": {
+              "number": "1353",
+              "carrier": {
+                "code": "KL",
+                "name": "KLM"
+              },
+              "operatingFlight": {
+                "number": "1353",
+                "equipmentType": {
+                  "code": "73J",
+                  "name": "Boeing 737-900",
+                  "acvCode": "79N"
+                },
+                "carrier": {
+                  "code": "KL",
+                  "name": "KLM",
+                  "carrierOwnerCode": "KL"
+                }
+              }
+            },
+            "departureDateTime": "2026-04-24T09:05:00",
+            "arrivalDateTime": "2026-04-24T10:30:00",
+            "highestPriority": true,
+            "dateVariation": 0,
+            "seatMapEligible": true,
+            "duration": 85
+          }
+        ]
+      }
+    ]
   ]
 }
