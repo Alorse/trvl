@@ -14,6 +14,7 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/deals"
 	"github.com/MikkoParkkola/trvl/internal/destinations"
 	"github.com/MikkoParkkola/trvl/internal/flights"
+	"github.com/MikkoParkkola/trvl/internal/flights/afklm"
 	"github.com/MikkoParkkola/trvl/internal/hacks"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/points"
@@ -32,6 +33,7 @@ func flightsCmd() *cobra.Command {
 		format         string
 		targetCurrency string
 		compareCabins  bool
+		provider       string
 	)
 
 	cmd := &cobra.Command{
@@ -89,12 +91,42 @@ Examples:
 				Currency:   targetCurrency,
 			}
 
+			var result *models.FlightSearchResult
+
+			// --provider afklm: route to AF-KLM Offers API provider.
+			if strings.EqualFold(provider, "afklm") {
+				p, provErr := afklm.NewProvider()
+				if provErr == afklm.ErrNoCredential {
+					fmt.Println("AF-KLM provider not enabled. Sign up for a free personal API key at https://developer.airfranceklm.com then store it via: security add-generic-password -a $USER -s afklm-api-key -w <your_key>")
+					return nil
+				}
+				if provErr != nil {
+					return fmt.Errorf("afklm provider: %w", provErr)
+				}
+				mopts := models.FlightSearchOptions{
+					ReturnDate: opts.ReturnDate,
+					CabinClass: opts.CabinClass,
+					MaxStops:   opts.MaxStops,
+					SortBy:     opts.SortBy,
+					Airlines:   opts.Airlines,
+					Adults:     opts.Adults,
+					Currency:   opts.Currency,
+				}
+				result, err = p.SearchFlights(cmd.Context(), origins[0], destinations[0], date, mopts)
+				if err != nil {
+					return err
+				}
+				if format == "json" {
+					return models.FormatJSON(os.Stdout, result)
+				}
+				return printFlightsTable(cmd.Context(), origins[0], destinations[0], targetCurrency, result)
+			}
+
 			// --compare-cabins: search all cabin classes in parallel.
 			if compareCabins {
 				return runCabinComparison(cmd.Context(), origins, destinations, date, opts, format)
 			}
 
-			var result *models.FlightSearchResult
 			if len(origins) > 1 || len(destinations) > 1 {
 				result, err = flights.SearchMultiAirport(cmd.Context(), origins, destinations, date, opts)
 			} else {
@@ -154,6 +186,7 @@ Examples:
 	cmd.Flags().StringVar(&format, "format", "table", "Output format: table, json")
 	cmd.Flags().StringVar(&targetCurrency, "currency", "", "Convert prices to this currency (e.g. EUR, USD). Empty = show API default")
 	cmd.Flags().BoolVar(&compareCabins, "compare-cabins", false, "Compare prices across all cabin classes (economy, premium, business, first)")
+	cmd.Flags().StringVar(&provider, "provider", "", "Flight data provider (e.g. afklm). Default: Google Flights")
 
 	cmd.ValidArgsFunction = airportCompletion
 
