@@ -81,6 +81,23 @@ func (r *Registry) List() []*ProviderConfig {
 	return out
 }
 
+// ListPublic returns all loaded provider configurations that are not marked
+// personal. Use this whenever exporting or sharing provider configs with other
+// users — personal providers carry individually-obtained API keys and must
+// never be included in shared output.
+func (r *Registry) ListPublic() []*ProviderConfig {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	out := make([]*ProviderConfig, 0, len(r.configs))
+	for _, cfg := range r.configs {
+		if !cfg.Personal {
+			out = append(out, cfg)
+		}
+	}
+	return out
+}
+
 // Get returns the provider configuration with the given ID, or nil.
 func (r *Registry) Get(id string) *ProviderConfig {
 	r.mu.RLock()

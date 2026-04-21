@@ -39,6 +39,13 @@ type ProviderConfig struct {
 	ErrorCount      int               `json:"error_count,omitempty"`
 	Version         int               `json:"version"`
 
+	// Personal marks a provider as owned by a specific user and carrying
+	// personally-obtained credentials (e.g. AF-KLM, Ticketmaster personal keys).
+	// Registry.ListPublic() skips personal providers so they are never included
+	// in exported or shared configurations. Registry.List() still returns them
+	// for the owner's own use.
+	Personal bool `json:"personal,omitempty"`
+
 	// CityLookup maps normalized city names to provider-specific identifiers
 	// (e.g. Hostelworld city IDs). Used when the endpoint template contains
 	// ${city_id} and requires a lookup step rather than direct text
