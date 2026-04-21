@@ -1,0 +1,70 @@
+{
+  "recommendations": [
+    {
+      "flightProducts": [
+        {
+          "connections": [
+            {
+              "commercialCabinLabel": "ECONOMY",
+              "numberOfSeatsAvailable": 9,
+              "fareFamily": { "code": "LIGHT" },
+              "price": { "displayPrice": 89.0, "totalPrice": 89.0, "currency": "EUR" },
+              "segments": [
+                {
+                  "origin": {
+                    "code": "AMS",
+                    "name": "Amsterdam Schiphol",
+                    "departureDate": "2026-05-15",
+                    "departureTime": "07:00"
+                  },
+                  "destination": {
+                    "code": "PRG",
+                    "name": "Prague Vaclav Havel",
+                    "arrivalDate": "2026-05-15",
+                    "arrivalTime": "08:30"
+                  },
+                  "marketingCarrier": { "airlineCode": "KL", "flightNumber": "1345" },
+                  "operatingCarrier": { "airlineCode": "KL", "flightNumber": "1345" }
+                }
+              ]
+            }
+          ],
+          "price": { "displayPrice": 89.0, "totalPrice": 89.0, "currency": "EUR" }
+        }
+      ]
+    },
+    {
+      "flightProducts": [
+        {
+          "connections": [
+            {
+              "commercialCabinLabel": "ECONOMY",
+              "numberOfSeatsAvailable": 4,
+              "fareFamily": { "code": "FLEX" },
+              "price": { "displayPrice": 129.0, "totalPrice": 129.0, "currency": "EUR" },
+              "segments": [
+                {
+                  "origin": {
+                    "code": "AMS",
+                    "name": "Amsterdam Schiphol",
+                    "departureDate": "2026-05-15",
+                    "departureTime": "12:30"
+                  },
+                  "destination": {
+                    "code": "PRG",
+                    "name": "Prague Vaclav Havel",
+                    "arrivalDate": "2026-05-15",
+                    "arrivalTime": "14:00"
+                  },
+                  "marketingCarrier": { "airlineCode": "KL", "flightNumber": "1347" },
+                  "operatingCarrier": { "airlineCode": "KL", "flightNumber": "1347" }
+                }
+              ]
+            }
+          ],
+          "price": { "displayPrice": 129.0, "totalPrice": 129.0, "currency": "EUR" }
+        }
+      ]
+    }
+  ]
+}
