@@ -8,20 +8,32 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
-// RailwayStations is the set of IATA codes that map to RAILWAY_STATION type
-// in AF-KLM Rail+Fly offers. Codes not in this map are treated as AIRPORT.
+// RailwayStations is the set of IATA codes that AF-KLM accepts with
+// type=RAILWAY_STATION for Rail+Fly bundled offers (Thalys/Eurostar legs
+// included in a single ticket from/to AMS or CDG). Live-probed against the
+// Offers API 2026-04-21; other nominal rail codes (QYG, XER, XDB, RTM) return
+// "origin forbidden" or invalid-value errors.
 var RailwayStations = map[string]bool{
-	"ZYR": true, // Brussels-Midi
-	"QYG": true, // Antwerp Central
-	"XER": true, // Strasbourg
-	"XDB": true, // Lille
-	"RTM": true, // Rotterdam
+	"ZYR": true, // Brussels-Midi (Thalys from AMS ~2h, flight from BRU)
 }
 
-// placeType returns the AF-KLM place type for a given IATA code.
+// TrainCityCodes is the set of IATA city codes that AF-KLM treats as rail-eligible
+// origins when submitted with type=CITY. The API auto-synthesizes a train sub-leg
+// to the nearest hub. Live-probed 2026-04-21.
+var TrainCityCodes = map[string]bool{
+	"ANR": true, // Antwerp city (AF-KLM auto-routes via train to AMS hub)
+	"BRU": true, // Brussels city (train + flight from BRU airport)
+}
+
+// placeType returns the AF-KLM place type for a given IATA code. Rail+Fly
+// stations take RAILWAY_STATION; train-eligible cities take CITY; everything
+// else is an airport.
 func placeType(code string) string {
 	if RailwayStations[code] {
 		return "RAILWAY_STATION"
+	}
+	if TrainCityCodes[code] {
+		return "CITY"
 	}
 	return "AIRPORT"
 }
