@@ -14,7 +14,7 @@
 
 ![trvl demo](https://raw.githubusercontent.com/MikkoParkkola/trvl/main/demo.gif?v=1.0.5)
 
-> **54 travel tools for your AI assistant — flights, hotels, trains, buses, ferries, price alerts, travel hacks, weather forecasts, baggage rules, airport lounges, destination intel. Free. API-first.**
+> **55 travel tools for your AI assistant — flights, hotels, trains, buses, ferries, price alerts, travel hacks, weather forecasts, baggage rules, airport lounges, destination intel. Free. API-first.**
 >
 > Also works as a standalone CLI with 42 commands.
 
@@ -124,7 +124,7 @@ The profile makes every subsequent search smarter — it skips questions it alre
 
 ### 5. Ask your AI to search
 
-That's it. Your AI assistant now has 54 travel tools available. Just ask naturally:
+That's it. Your AI assistant now has 55 travel tools available. Just ask naturally:
 
 - *"Search flights from JFK to Tokyo on July 1st, business class"*
 - *"Find hotels in Paris for July 1-5, at least 4 stars"*
