@@ -134,8 +134,8 @@ func searchFlightsTool() ToolDef {
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"origin":              {Type: "string", Description: "Departure airport IATA code (e.g., HEL, JFK, NRT)"},
-				"destination":         {Type: "string", Description: "Arrival airport IATA code (e.g., NRT, LAX, CDG)"},
+				"origin":              {Type: "string", Description: "Departure airport IATA code or city name (e.g., HEL, JFK, Paris, Tokyo). City names resolve to primary airport."},
+				"destination":         {Type: "string", Description: "Arrival airport IATA code or city name (e.g., NRT, LAX, London, Barcelona). City names resolve to primary airport."},
 				"departure_date":      {Type: "string", Description: "Departure date in YYYY-MM-DD format"},
 				"return_date":         {Type: "string", Description: "Return date in YYYY-MM-DD format for round-trip (omit for one-way)"},
 				"cabin_class":         {Type: "string", Description: "Cabin class: economy, premium_economy, business, or first (default: economy)"},
@@ -174,8 +174,8 @@ func searchDatesTool() ToolDef {
 		InputSchema: InputSchema{
 			Type: "object",
 			Properties: map[string]Property{
-				"origin":        {Type: "string", Description: "Departure airport IATA code (e.g., HEL, JFK, NRT)"},
-				"destination":   {Type: "string", Description: "Arrival airport IATA code (e.g., NRT, LAX, CDG)"},
+				"origin":        {Type: "string", Description: "Departure airport IATA code or city name (e.g., HEL, JFK, Paris, Tokyo). City names resolve to primary airport."},
+				"destination":   {Type: "string", Description: "Arrival airport IATA code or city name (e.g., NRT, LAX, London, Barcelona). City names resolve to primary airport."},
 				"start_date":    {Type: "string", Description: "Start of date range in YYYY-MM-DD format"},
 				"end_date":      {Type: "string", Description: "End of date range in YYYY-MM-DD format"},
 				"trip_duration": {Type: "integer", Description: "Trip duration in days for round-trip (omit for one-way)"},

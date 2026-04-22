@@ -73,3 +73,45 @@ func ParseAirports(s string) []string {
 	}
 	return result
 }
+
+// ParseFlightLocations extends ParseAirports with city-name resolution.
+// Each comma-separated token is treated as:
+//   - An IATA code (exactly 3 uppercase ASCII letters) → kept as-is
+//   - A known city name → expanded to all airports serving that city
+//   - Anything else → kept as-is (unknown code passthrough)
+//
+// Returned slice contains no duplicates and preserves encounter order.
+func ParseFlightLocations(s string) []string {
+	tokens := ParseAirports(s)
+	if len(tokens) == 0 {
+		return tokens
+	}
+	seen := make(map[string]struct{}, len(tokens))
+	out := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		if models.IsIATACode(token) {
+			if _, ok := seen[token]; !ok {
+				seen[token] = struct{}{}
+				out = append(out, token)
+			}
+			continue
+		}
+		airports := models.ResolveCityToAirports(token)
+		if len(airports) == 0 {
+			// Our static map is incomplete — pass unknown tokens through so
+			// the search layer can reject them with a clear error.
+			if _, ok := seen[token]; !ok {
+				seen[token] = struct{}{}
+				out = append(out, token)
+			}
+			continue
+		}
+		for _, code := range airports {
+			if _, ok := seen[code]; !ok {
+				seen[code] = struct{}{}
+				out = append(out, code)
+			}
+		}
+	}
+	return out
+}
