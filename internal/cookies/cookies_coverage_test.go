@@ -227,7 +227,7 @@ func TestOpenBrowserForAuth_DomainOnlyNoSlash(t *testing.T) {
 	if err := OpenBrowserForAuth(url); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(capturedArgs) == 0 || capturedArgs[0] != url {
+	if len(capturedArgs) == 0 || capturedArgs[len(capturedArgs)-1] != url {
 		t.Errorf("expected URL %q in args, got %v", url, capturedArgs)
 	}
 }

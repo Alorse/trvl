@@ -78,6 +78,7 @@ func TestHandleWatchPrice_FlightSuccess(t *testing.T) {
 	// Create a temp dir and override the home so DefaultStore uses it.
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	content, structured, err := handleWatchPrice(context.Background(), map[string]any{
 		"type":         "flight",
@@ -113,6 +114,7 @@ func TestHandleWatchPrice_FlightSuccess(t *testing.T) {
 func TestHandleWatchPrice_FlightViaDepart_date(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	_, _, err := handleWatchPrice(context.Background(), map[string]any{
 		"type":         "flight",
@@ -153,6 +155,7 @@ func TestHandleWatchPrice_HotelMissingCheckOut(t *testing.T) {
 func TestHandleWatchPrice_HotelSuccess(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	content, structured, err := handleWatchPrice(context.Background(), map[string]any{
 		"type":         "hotel",
@@ -178,6 +181,7 @@ func TestHandleWatchPrice_HotelSuccess(t *testing.T) {
 func TestHandleWatchPrice_HotelViaDestinationFallback(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	// No "location" field, use "destination" fallback.
 	content, _, err := handleWatchPrice(context.Background(), map[string]any{
@@ -198,6 +202,7 @@ func TestHandleWatchPrice_HotelViaDestinationFallback(t *testing.T) {
 func TestHandleWatchPrice_HotelViaDateFallback(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	// check_in falls back to "date".
 	_, _, err := handleWatchPrice(context.Background(), map[string]any{
@@ -215,6 +220,7 @@ func TestHandleWatchPrice_HotelViaDateFallback(t *testing.T) {
 func TestHandleWatchPrice_DefaultCurrency(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	content, _, err := handleWatchPrice(context.Background(), map[string]any{
 		"type":         "flight",
@@ -242,6 +248,7 @@ func TestHandleListWatches_Empty(t *testing.T) {
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	content, structured, err := handleListWatches(context.Background(), nil, nil, nil, nil)
 	if err != nil {
@@ -261,6 +268,7 @@ func TestHandleListWatches_Empty(t *testing.T) {
 func TestHandleListWatches_WithEntries(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	// Pre-populate watches by calling handleWatchPrice.
 	_, _, err := handleWatchPrice(context.Background(), map[string]any{
@@ -299,6 +307,7 @@ func TestHandleCheckWatches_Empty(t *testing.T) {
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	content, structured, err := handleCheckWatches(context.Background(), nil, nil, nil, nil)
 	if err != nil {
@@ -318,6 +327,7 @@ func TestHandleCheckWatches_Empty(t *testing.T) {
 func TestHandleCheckWatches_WithWatches(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	// Add a flight watch.
 	_, _, err := handleWatchPrice(context.Background(), map[string]any{
@@ -492,6 +502,7 @@ func TestHandleProviderHealth_EmptyLog(t *testing.T) {
 	// Use a temp dir that has no health.jsonl.
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	content, _, err := handleProviderHealth(context.Background(), nil, nil, nil, nil, nil, nil)
 	if err != nil {
@@ -511,6 +522,7 @@ func TestHandleProviderHealth_WithData(t *testing.T) {
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	// Write health log entries directly to temp dir.
 	healthPath := filepath.Join(tmp, ".trvl", "health.jsonl")
@@ -590,6 +602,7 @@ func TestHandleProviderHealth_WithErrorsAndTimeouts(t *testing.T) {
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	healthPath := filepath.Join(tmp, ".trvl", "health.jsonl")
 	if err := os.MkdirAll(filepath.Dir(healthPath), 0o700); err != nil {
@@ -627,6 +640,7 @@ func TestHandleProviderHealth_WithErrorsAndTimeouts(t *testing.T) {
 func TestReadTripsUpcoming_Empty(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	s := NewServer()
 	result, err := s.readTripsUpcoming()
@@ -702,6 +716,7 @@ func TestReadWatchResource_InvalidLegacyURI(t *testing.T) {
 func TestReadWatchResource_IDLookup(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	s := NewServer()
 	store := watch.NewStore(tmp)

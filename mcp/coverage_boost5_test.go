@@ -366,6 +366,7 @@ func TestReadTripsUpcoming_WithTrip(t *testing.T) {
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	// Create a trips directory and add a trip with legs.
 	tripsDir := filepath.Join(tmp, ".trvl")
@@ -423,6 +424,7 @@ func TestReadTripByURI_WithTrip(t *testing.T) {
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	tripsDir := filepath.Join(tmp, ".trvl")
 	os.MkdirAll(tripsDir, 0o755)
@@ -454,6 +456,7 @@ func TestReadTripByURI_WithTrip(t *testing.T) {
 func TestReadTripByURI_NotFound(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
 
 	tripsDir := filepath.Join(tmp, ".trvl")
 	os.MkdirAll(tripsDir, 0o755)
