@@ -76,6 +76,34 @@ type Preferences struct {
 
 	// Family members for booking on behalf of
 	FamilyMembers []FamilyMember `json:"family_members,omitempty"`
+
+	// Multi-airport expansion: airports close enough to home to consider as
+	// origin alternatives. Keyed by home airport IATA code.
+	// e.g. {"AMS":["EIN"],"HEL":["TKU","TMP","TLL","ARN"]}
+	NearbyAirports map[string][]string `json:"nearby_airports,omitempty"`
+
+	// EarlyConnectionFloor is the earliest acceptable departure time (HH:MM)
+	// after an overnight layover (≥8h). Default "10:00" per Mikko's travel
+	// mental model ("unhurried wake + breakfast" rule). Per-user configurable.
+	EarlyConnectionFloor string `json:"early_connection_floor,omitempty"`
+
+	// AamuyoFloor is the deprecated alias for EarlyConnectionFloor, kept for
+	// backwards compatibility with profiles written before the rename.
+	//
+	// Deprecated: Use EarlyConnectionFloor instead.
+	AamuyoFloor string `json:"aamuyo_floor,omitempty"`
+
+	// AirportAffinity tracks how often each origin airport has won a search.
+	// Key is the IATA code; value is the win count (capped at 100).
+	// Built up automatically by RecordWinningOrigin when the user omits the
+	// origin argument and lets trvl pick defaults. Empty by default; existing
+	// preferences files without this field deserialise to a nil map (back-compat
+	// guaranteed by omitempty).
+	//
+	// Decay is not implemented in v1. When affinity diverges from current
+	// travel patterns (e.g. after a city move), the user can clear this field
+	// from preferences.json or set individual values to 0.
+	AirportAffinity map[string]int `json:"airport_affinity,omitempty"`
 }
 
 // FamilyMember represents a person the user may book travel for.
@@ -155,6 +183,25 @@ func LoadFrom(path string) (*Preferences, error) {
 	// If the value looks like the old 0-5 scale, double it.
 	if p.MinHotelRating > 0 && p.MinHotelRating <= 5 {
 		p.MinHotelRating *= 2
+	}
+
+	// Default-populate NearbyAirports when not set. These defaults match
+	// Mikko's two-base lifestyle (AMS primary, HEL secondary) from the
+	// travel mental model document.
+	if len(p.NearbyAirports) == 0 {
+		p.NearbyAirports = defaultNearbyAirports()
+	}
+
+	// Migrate legacy AamuyoFloor → EarlyConnectionFloor, default when neither set.
+	if p.EarlyConnectionFloor == "" && p.AamuyoFloor != "" {
+		p.EarlyConnectionFloor = p.AamuyoFloor
+	}
+	if p.EarlyConnectionFloor == "" {
+		p.EarlyConnectionFloor = "10:00"
+	}
+	// Keep AamuyoFloor in sync for legacy readers.
+	if p.AamuyoFloor == "" {
+		p.AamuyoFloor = p.EarlyConnectionFloor
 	}
 
 	return p, nil
@@ -478,6 +525,127 @@ func filterByDistrict(hotels []models.HotelResult, districts []string) ([]models
 		}
 	}
 	return out, len(out) > 0
+}
+
+// affinityMaxScore is the ceiling on airport affinity scores. Prevents one
+// runaway route from drowning all others if the user does the same search
+// many times in a short period.
+const affinityMaxScore = 100
+
+// railFlyOrigins is the set of rail+fly airports reachable from AMS. When one
+// of these wins a search, RecordWinningOrigin also adds it to NearbyAirports
+// so future searches that start from AMS automatically include it.
+var railFlyOrigins = map[string]bool{"ZYR": true, "ANR": true, "BRU": true}
+
+// RecordWinningOrigin increments the affinity score for the given IATA code
+// in the user's preferences and persists the change. The call is idempotent
+// and safe to fire-and-forget (non-fatal callers can log the error).
+//
+// Side-effect: when iata is a rail+fly airport (ZYR/ANR/BRU) and AMS is a
+// home airport, it is also added to NearbyAirports["AMS"] so that future
+// home-fan expansions include it without needing affinity to reach threshold 3.
+//
+// Scores are capped at affinityMaxScore (100).
+func RecordWinningOrigin(iata string) error {
+	iata = strings.ToUpper(strings.TrimSpace(iata))
+	if iata == "" {
+		return nil
+	}
+
+	p, err := Load()
+	if err != nil {
+		return fmt.Errorf("load preferences for affinity update: %w", err)
+	}
+
+	// Initialise map on first write — safe even on a Default() prefs with nil map.
+	if p.AirportAffinity == nil {
+		p.AirportAffinity = make(map[string]int)
+	}
+
+	score := p.AirportAffinity[iata] + 1
+	if score > affinityMaxScore {
+		score = affinityMaxScore
+	}
+	p.AirportAffinity[iata] = score
+
+	// If this is a rail+fly origin and AMS is a home airport, also register
+	// it as a nearby airport so it participates in fan-out unconditionally.
+	if railFlyOrigins[iata] {
+		for _, home := range p.HomeAirports {
+			if strings.ToUpper(strings.TrimSpace(home)) == "AMS" {
+				if p.NearbyAirports == nil {
+					p.NearbyAirports = make(map[string][]string)
+				}
+				already := false
+				for _, nb := range p.NearbyAirports["AMS"] {
+					if strings.ToUpper(strings.TrimSpace(nb)) == iata {
+						already = true
+						break
+					}
+				}
+				if !already {
+					p.NearbyAirports["AMS"] = append(p.NearbyAirports["AMS"], iata)
+				}
+				break
+			}
+		}
+	}
+
+	return Save(p)
+}
+
+// defaultNearbyAirports returns the built-in nearby-airport seed based on
+// Mikko's two-base lifestyle (Amsterdam + Helsinki). Keys are home-airport
+// IATA codes; values are airports close enough to justify searching.
+//
+// Source: travel_search_mental_model.md — MULTI-AIRPORT ORIGIN SPREAD section.
+func defaultNearbyAirports() map[string][]string {
+	return map[string][]string{
+		"AMS": {"EIN"},
+		"HEL": {"TKU", "TMP", "TLL", "ARN"},
+	}
+}
+
+// NearbyAirportsFor returns the nearby airports for a given home airport.
+// It also includes the home airport itself. The result is deduplicated.
+// Returns a slice containing at minimum the home airport itself.
+func (p *Preferences) NearbyAirportsFor(homeAirport string) []string {
+	seen := make(map[string]bool)
+	var out []string
+	add := func(code string) {
+		code = strings.ToUpper(strings.TrimSpace(code))
+		if code != "" && !seen[code] {
+			seen[code] = true
+			out = append(out, code)
+		}
+	}
+	add(homeAirport)
+	for _, nb := range p.NearbyAirports[strings.ToUpper(strings.TrimSpace(homeAirport))] {
+		add(nb)
+	}
+	return out
+}
+
+// ExpandHomeOrigins returns the full set of origin airports to search when
+// --home-fan is enabled: all home airports plus their nearby airports.
+// Duplicates are deduplicated.
+func (p *Preferences) ExpandHomeOrigins() []string {
+	seen := make(map[string]bool)
+	var out []string
+	add := func(code string) {
+		code = strings.ToUpper(strings.TrimSpace(code))
+		if code != "" && !seen[code] {
+			seen[code] = true
+			out = append(out, code)
+		}
+	}
+	for _, home := range p.HomeAirports {
+		add(home)
+		for _, nb := range p.NearbyAirports[strings.ToUpper(strings.TrimSpace(home))] {
+			add(nb)
+		}
+	}
+	return out
 }
 
 // prioritiseByDistrict reorders hotels so those whose address contains one of
