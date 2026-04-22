@@ -763,6 +763,9 @@ func TestWatchRemoveCmd_NotFound_V29(t *testing.T) {
 }
 
 func TestWatchCheckCmd_EmptyStore_V29(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

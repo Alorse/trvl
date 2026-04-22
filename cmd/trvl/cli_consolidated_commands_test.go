@@ -1460,6 +1460,9 @@ func TestShareCmd_NoArgsNoLastV21(t *testing.T) {
 }
 
 func TestWeekendCmd_ValidIATANoNetworkV21(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	tmp := t.TempDir()
 	setTestHome(t, tmp)
 	cmd := weekendCmd()
@@ -2524,11 +2527,16 @@ func TestReviewsCmd_FlagsV3(t *testing.T) {
 }
 
 func TestDiscoverCmd_MissingOriginError(t *testing.T) {
+	// Isolate home so real preferences (which may have home_airports set) do not
+	// cause discoverCmd to skip the missing-origin check and hit live APIs.
+	setTestHome(t, t.TempDir())
 
 	cmd := discoverCmd()
 	cmd.SetArgs([]string{"--from", "2026-07-01", "--until", "2026-07-31", "--budget", "500"})
 
-	_ = cmd.Execute()
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected error when --origin is absent and no home_airports in prefs")
+	}
 }
 
 func TestClassifyProviderStatus_Healthy(t *testing.T) {
@@ -2910,7 +2918,9 @@ func TestSuggestCmd_InvalidDestIATAV7(t *testing.T) {
 }
 
 func TestFlightsCmd_HomeOriginResolves(t *testing.T) {
-
+	if testing.Short() {
+		t.Skip("skipping live HTTP test in short mode")
+	}
 	cmd := flightsCmd()
 	cmd.SetArgs([]string{"home", "BCN", "2026-07-01"})
 	_ = cmd.Execute()
