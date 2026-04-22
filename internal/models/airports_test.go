@@ -1,6 +1,10 @@
 package models
 
-import "testing"
+import (
+	"reflect"
+	"sort"
+	"testing"
+)
 
 func TestLookupAirportName_Known(t *testing.T) {
 	tests := []struct {
@@ -83,6 +87,85 @@ func TestResolveAirportCity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := ResolveAirportCity(tt.input); got != tt.want {
 				t.Fatalf("ResolveAirportCity(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsIATACode(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"HEL", true},
+		{"JFK", true},
+		{"CDG", true},
+		{"hel", false},       // lowercase
+		{"PARIS", false},     // too long
+		{"PA", false},        // too short
+		{"Paris", false},     // mixed case
+		{"123", false},       // digits
+		{"", false},          // empty
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			if got := IsIATACode(tt.input); got != tt.want {
+				t.Errorf("IsIATACode(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveCityToAirports(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "multi-airport city",
+			input: "Paris",
+			want:  []string{"CDG", "ORY"},
+		},
+		{
+			name:  "case insensitive",
+			input: "paris",
+			want:  []string{"CDG", "ORY"},
+		},
+		{
+			name:  "multi-airport city Tokyo",
+			input: "Tokyo",
+			want:  []string{"HND", "NRT"},
+		},
+		{
+			name:  "single-airport city Helsinki",
+			input: "Helsinki",
+			want:  []string{"HEL"},
+		},
+		{
+			name:  "single-airport city Barcelona",
+			input: "Barcelona",
+			want:  []string{"BCN"},
+		},
+		{
+			name:  "unknown city returns nil",
+			input: "Narnia",
+			want:  nil,
+		},
+		{
+			name:  "empty string returns nil",
+			input: "",
+			want:  nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ResolveCityToAirports(tt.input)
+			// Sort both for deterministic comparison
+			sort.Strings(got)
+			sort.Strings(tt.want)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ResolveCityToAirports(%q) = %v, want %v", tt.input, got, tt.want)
 			}
 		})
 	}

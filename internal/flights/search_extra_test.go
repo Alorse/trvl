@@ -586,11 +586,11 @@ func TestBuildFlightBookingURL_Basic(t *testing.T) {
 	if !strings.Contains(url, "google.com/travel/flights") {
 		t.Errorf("URL missing google.com/travel/flights: %s", url)
 	}
-	if !strings.Contains(url, "NRT") {
-		t.Errorf("URL missing destination NRT: %s", url)
+	if !strings.Contains(url, "Tokyo") {
+		t.Errorf("URL missing destination city Tokyo (NRT): %s", url)
 	}
-	if !strings.Contains(url, "HEL") {
-		t.Errorf("URL missing origin HEL: %s", url)
+	if !strings.Contains(url, "Helsinki") {
+		t.Errorf("URL missing origin city Helsinki (HEL): %s", url)
 	}
 	if !strings.Contains(url, "2026-06-15") {
 		t.Errorf("URL missing date: %s", url)
@@ -599,7 +599,7 @@ func TestBuildFlightBookingURL_Basic(t *testing.T) {
 
 func TestBuildFlightBookingURL_Format(t *testing.T) {
 	url := buildFlightBookingURL("JFK", "LAX", "2027-01-01", "", "")
-	expected := "https://www.google.com/travel/flights?q=Flights+to+LAX+from+JFK+on+2027-01-01"
+	expected := "https://www.google.com/travel/flights?q=Flights+to+Los+Angeles+from+New+York+on+2027-01-01"
 	if url != expected {
 		t.Errorf("URL = %q, want %q", url, expected)
 	}
@@ -608,18 +608,19 @@ func TestBuildFlightBookingURL_Format(t *testing.T) {
 func TestBuildFlightBookingURL_DifferentRoutes(t *testing.T) {
 	tests := []struct {
 		origin, dest, date string
+		originCity, destCity string
 	}{
-		{"CDG", "SIN", "2026-12-25"},
-		{"LHR", "DXB", "2026-03-01"},
-		{"SFO", "BCN", "2027-07-15"},
+		{"CDG", "SIN", "2026-12-25", "Paris", "Singapore"},
+		{"LHR", "DXB", "2026-03-01", "London", "Dubai"},
+		{"SFO", "BCN", "2027-07-15", "San+Francisco", "Barcelona"},
 	}
 	for _, tt := range tests {
 		url := buildFlightBookingURL(tt.origin, tt.dest, tt.date, "", "")
-		if !strings.Contains(url, tt.dest) {
-			t.Errorf("URL for %s->%s missing destination: %s", tt.origin, tt.dest, url)
+		if !strings.Contains(url, tt.destCity) {
+			t.Errorf("URL for %s->%s missing destination city %s: %s", tt.origin, tt.dest, tt.destCity, url)
 		}
-		if !strings.Contains(url, tt.origin) {
-			t.Errorf("URL for %s->%s missing origin: %s", tt.origin, tt.dest, url)
+		if !strings.Contains(url, tt.originCity) {
+			t.Errorf("URL for %s->%s missing origin city %s: %s", tt.origin, tt.dest, tt.originCity, url)
 		}
 		if !strings.Contains(url, tt.date) {
 			t.Errorf("URL for %s->%s missing date: %s", tt.origin, tt.dest, url)

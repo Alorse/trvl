@@ -4,6 +4,10 @@ description: >-
   Search flights via Google Flights (reverse-engineered API, no key required).
   Returns real-time pricing, durations, stops, and detailed leg information
   including airlines, flight numbers, and departure/arrival times.
+  Supports one-way and round-trip, economy through first class, nonstop or
+  multi-stop, and price/time/bag filtering. For the full filter set
+  (depart_after, depart_before, carry_on_bags, max_price, etc.) use the MCP
+  server instead of the CLI provider.
   Inspired by fli (github.com/punitarani/fli), reimplemented in Go.
 
 schema:
@@ -12,10 +16,10 @@ schema:
     properties:
       origin:
         type: string
-        description: Departure airport IATA code (e.g., HEL, JFK, NRT)
+        description: "Departure airport IATA code or city name (e.g., HEL, JFK, Paris, Tokyo). City names resolve to primary airport."
       destination:
         type: string
-        description: Arrival airport IATA code (e.g., NRT, LAX, CDG)
+        description: "Arrival airport IATA code or city name (e.g., NRT, LAX, London, Barcelona). City names resolve to primary airport."
       departure_date:
         type: string
         description: Departure date in YYYY-MM-DD format
@@ -31,6 +35,39 @@ schema:
       sort_by:
         type: string
         description: "Sort order: cheapest, duration, departure, or arrival (default: cheapest)"
+      alliances:
+        type: string
+        description: "Filter by airline alliance (comma-separated): STAR_ALLIANCE, ONEWORLD, SKYTEAM (default: no filter)"
+      depart_after:
+        type: string
+        description: "Earliest departure time HH:MM, e.g. 06:00 (default: no filter). MCP server only."
+      depart_before:
+        type: string
+        description: "Latest departure time HH:MM, e.g. 22:00 (default: no filter). MCP server only."
+      max_price:
+        type: integer
+        description: "Maximum price in whole currency units (0 = no limit). Server-side filter. MCP server only."
+      max_duration:
+        type: integer
+        description: "Maximum total flight duration in minutes (0 = no limit). Server-side filter. MCP server only."
+      exclude_basic:
+        type: boolean
+        description: "Exclude basic economy fares (default: false). MCP server only."
+      less_emissions:
+        type: boolean
+        description: "Only show flights with lower CO2 emissions (default: false). MCP server only."
+      carry_on_bags:
+        type: integer
+        description: "Require N carry-on bags included in price (0 = no filter, 1 = require carry-on). MCP server only."
+      checked_bags:
+        type: integer
+        description: "Checked bags pricing hint (0 = default, 1+ = recalculate prices including N checked bags). MCP server only."
+      require_checked_bag:
+        type: boolean
+        description: "Only show flights with ≥1 free checked bag included (default: false). MCP server only."
+      currency:
+        type: string
+        description: "Target currency for prices (ISO 4217, e.g. USD, EUR, JPY). Controls server-side pricing via Google's curr parameter. Empty = IP-based default."
     required: [origin, destination, departure_date]
   output:
     type: object
@@ -103,6 +140,16 @@ providers:
         - "{departure_date}"
         - "--format"
         - "json"
+        - "--return"
+        - "{return_date}"
+        - "--cabin"
+        - "{cabin_class}"
+        - "--stops"
+        - "{max_stops}"
+        - "--sort"
+        - "{sort_by}"
+        - "--currency"
+        - "{currency}"
 
 cache:
   strategy: exact
@@ -113,7 +160,7 @@ auth:
 
 metadata:
   category: travel
-  tags: [travel, flights, google-flights, free, no-api-key, airline, booking, airfare, one-way, round-trip, nonstop, economy, business, first-class]
+  tags: [travel, flights, google-flights, free, no-api-key, airline, booking, airfare, one-way, round-trip, nonstop, economy, business, first-class, cabin-class, carry-on, baggage, currency, departure-time, filters]
   cost_category: free
   execution_time: medium
   read_only: true
@@ -122,3 +169,6 @@ metadata:
     Inspired by fli (github.com/punitarani/fli) by Punit Arani.
     Uses Google's internal batchexecute API with Chrome TLS fingerprint impersonation.
     No API key required. Free and unlimited (subject to Google rate limits).
+    Advanced filters (depart_after, depart_before, carry_on_bags, max_price,
+    max_duration, exclude_basic, less_emissions, require_checked_bag, alliances)
+    are only available via the MCP server (trvl mcp), not the CLI provider.

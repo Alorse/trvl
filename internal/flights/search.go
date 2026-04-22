@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"net/url"
+
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"golang.org/x/sync/singleflight"
@@ -249,17 +251,21 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 }
 
 // buildFlightBookingURL constructs a Google Flights deep link for a route and date.
-// Optionally includes return date (round-trip) and currency parameters.
+// IATA codes are resolved to city names so the resulting URL is human-readable
+// and works with Google's natural-language q= parameter.
 // Inspired by @Alorse's contribution in PR #33.
 func buildFlightBookingURL(origin, destination, date, returnDate, currency string) string {
-	url := fmt.Sprintf("https://www.google.com/travel/flights?q=Flights+to+%s+from+%s+on+%s", destination, origin, date)
+	originCity := models.ResolveAirportCity(origin)
+	destCity := models.ResolveAirportCity(destination)
+	q := fmt.Sprintf("Flights to %s from %s on %s", destCity, originCity, date)
 	if returnDate != "" {
-		url += "+through+" + returnDate
+		q += " through " + returnDate
 	}
+	u := "https://www.google.com/travel/flights?q=" + url.QueryEscape(q)
 	if currency != "" {
-		url += "&curr=" + currency
+		u += "&curr=" + currency
 	}
-	return url
+	return u
 }
 
 // buildFilters constructs the nested array structure for the flight search payload.

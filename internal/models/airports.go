@@ -1,6 +1,10 @@
 package models
 
-import "strings"
+import (
+	"sort"
+	"strings"
+	"sync"
+)
 
 // AirportNames maps IATA airport codes to city/airport names for the top 200
 // airports worldwide. Used as a fallback when the API response does not include
@@ -206,6 +210,7 @@ var AirportNames = map[string]string{
 	"EZE": "Buenos Aires",
 	"SCL": "Santiago",
 	"BOG": "Bogota",
+	"MDE": "Medellin",
 	"LIM": "Lima",
 	"UIO": "Quito",
 	"CCS": "Caracas",
@@ -307,4 +312,78 @@ func ResolveHotelCity(s string) string {
 		}
 	}
 	return s
+}
+
+// IsIATACode returns true if s is exactly 3 uppercase ASCII letters.
+// Does not validate that the code exists in any airport database.
+func IsIATACode(s string) bool {
+	if len(s) != 3 {
+		return false
+	}
+	for i := 0; i < 3; i++ {
+		if s[i] < 'A' || s[i] > 'Z' {
+			return false
+		}
+	}
+	return true
+}
+
+var (
+	cityAirportsOnce sync.Once
+	cityAirports     map[string][]string // lowercase city name → sorted []IATA
+)
+
+func buildCityAirports() {
+	m := make(map[string][]string)
+
+	for iata, city := range airportSearchCities {
+		key := strings.ToLower(city)
+		m[key] = append(m[key], iata)
+	}
+
+	for iata, display := range AirportNames {
+		if _, covered := airportSearchCities[iata]; covered {
+			continue
+		}
+		// Strip trailing IATA-code suffix e.g. "New York JFK" → "New York",
+		// "Paris CDG" → "Paris". If no suffix, keep display name as-is.
+		city := display
+		if idx := strings.LastIndex(display, " "); idx >= 0 {
+			suffix := display[idx+1:]
+			if IsIATACode(suffix) {
+				city = display[:idx]
+			}
+		}
+		key := strings.ToLower(strings.TrimSpace(city))
+		if key == "" {
+			continue
+		}
+		if _, exists := m[key]; !exists {
+			m[key] = append(m[key], iata)
+		}
+	}
+
+	// Sort each list for deterministic output.
+	for k := range m {
+		sort.Strings(m[k])
+	}
+	cityAirports = m
+}
+
+// ResolveCityToAirports returns the IATA codes for airports serving the named
+// city. Matching is case-insensitive and exact. Returns nil if the city is
+// unknown. Results are sorted alphabetically for determinism.
+func ResolveCityToAirports(name string) []string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+	cityAirportsOnce.Do(buildCityAirports)
+	codes := cityAirports[strings.ToLower(name)]
+	if len(codes) == 0 {
+		return nil
+	}
+	out := make([]string, len(codes))
+	copy(out, codes)
+	return out
 }

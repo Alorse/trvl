@@ -105,3 +105,21 @@ func TestValidateDate_NilArgs(t *testing.T) {
 		t.Fatal("expected error for nil args")
 	}
 }
+
+func TestValidateOriginDest_CityNames(t *testing.T) {
+	t.Parallel()
+	// City names resolve to IATA codes.
+	origin, dest, err := validateOriginDest(map[string]any{
+		"origin":      "Paris",
+		"destination": "Tokyo",
+	})
+	if err != nil {
+		t.Fatalf("validateOriginDest(Paris, Tokyo) = error: %v", err)
+	}
+	if origin != "CDG" {
+		t.Errorf("origin = %q, want CDG (first airport for Paris alphabetically)", origin)
+	}
+	if dest != "HND" {
+		t.Errorf("dest = %q, want HND (first airport for Tokyo alphabetically)", dest)
+	}
+}
