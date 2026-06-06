@@ -373,17 +373,19 @@ func runMultiCitySearch(cmd *cobra.Command, legs []flights.Leg, opts flights.Sea
 	return nil
 }
 
-// multiCityRouteLabel renders a readable itinerary like "CDG → HND → ICN → CDG"
-// from the first airport of each leg endpoint.
+// multiCityRouteLabel renders each leg honestly as "FRA→NBO, ZNZ→FRA" from the
+// first airport of each endpoint. Per-leg (not a single chain) so open-jaw
+// itineraries — where a leg's origin differs from the previous leg's
+// destination — are shown correctly instead of silently collapsed.
 func multiCityRouteLabel(legs []flights.Leg) string {
 	if len(legs) == 0 {
 		return ""
 	}
-	parts := []string{legs[0].Origins[0]}
+	parts := make([]string, 0, len(legs))
 	for _, leg := range legs {
-		parts = append(parts, leg.Destinations[0])
+		parts = append(parts, leg.Origins[0]+"→"+leg.Destinations[0])
 	}
-	return strings.Join(parts, " → ")
+	return strings.Join(parts, ", ")
 }
 
 // printFlightsTable renders flight results as an ASCII table.
