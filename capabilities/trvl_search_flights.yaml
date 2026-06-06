@@ -74,6 +74,17 @@ schema:
           Return only the first result with a valid price after sorting.
           Use with sort_by to get e.g. the cheapest or shortest priced flight.
           Default: false.
+      legs:
+        type: array
+        items:
+          type: string
+        description: >-
+          Multi-city itinerary as an array of "ORIGIN:DEST:DATE" strings (each
+          endpoint an IATA code or city name; minimum 2 legs), e.g.
+          ["Paris:Tokyo:2026-09-01","Tokyo:Seoul:2026-09-10","Seoul:Paris:2026-09-20"].
+          When set, replaces origin/destination/departure_date/return_date. Like a
+          round-trip, results show first-leg options priced at the combined
+          itinerary total.
     required: [origin, destination, departure_date]
   output:
     type: object
