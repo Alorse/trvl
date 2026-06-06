@@ -44,6 +44,7 @@ func flightsCmd() *cobra.Command {
 		noEarlyConn     bool
 		loungeRequired  bool
 		firstResult     bool
+		legs            []string
 	)
 
 	cmd := &cobra.Command{
@@ -60,9 +61,27 @@ Examples:
   trvl flights Paris Tokyo 2026-06-15
   trvl flights "New York" London 2026-06-15
   trvl flights HEL NRT 2026-06-15 --return 2026-06-22
-  trvl flights HEL NRT 2026-06-15 --cabin business --stops nonstop`,
-		Args: cobra.ExactArgs(3),
+  trvl flights HEL NRT 2026-06-15 --cabin business --stops nonstop
+
+Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
+  trvl flights --leg Paris:Tokyo:2026-09-01 --leg Tokyo:Seoul:2026-09-10 --leg Seoul:Paris:2026-09-20
+  trvl flights --leg CDG:HND:2026-09-01 --leg HND:ICN:2026-09-10 --cabin business`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			// Multi-city uses --leg instead of positional ORIGIN DEST DATE.
+			if cmd.Flags().Changed("leg") {
+				return cobra.NoArgs(cmd, args)
+			}
+			return cobra.ExactArgs(3)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Multi-city itinerary: --leg ORIGIN:DEST:DATE (repeatable).
+			if len(legs) > 0 {
+				if returnDate != "" {
+					return fmt.Errorf("--leg (multi-city) cannot be combined with --return")
+				}
+				return runMultiCitySearch(cmd, legs, cabin, maxStops, sortBy, airlines, adults, targetCurrency, firstResult, format)
+			}
+
 			originArg := args[0]
 
 			// If the user passes "home" as origin, resolve from preferences.
@@ -275,10 +294,102 @@ Examples:
 	cmd.Flags().BoolVar(&award, "award", false, "Scan Flying Blue miles prices. DATE is a month (2026-06) or a day (2026-06-15). Requires KLM session cookies via AFKL_KLM_COOKIES or --award-cookies.")
 	cmd.Flags().StringVar(&awardCookies, "award-cookies", "", "Raw KLM session Cookie header for award search (alternative to AFKL_KLM_COOKIES env var)")
 	cmd.Flags().BoolVar(&firstResult, "first", false, "Return only the first result with a valid price (respects --sort order)")
+	cmd.Flags().StringArrayVar(&legs, "leg", nil, "Multi-city leg as ORIGIN:DEST:DATE (repeatable, min 2; IATA code or city name). Replaces positional args. Cannot combine with --return.")
 
 	cmd.ValidArgsFunction = airportCompletion
 
 	return cmd
+}
+
+// runMultiCitySearch handles `trvl flights --leg ...` multi-city itineraries.
+// It parses the leg specs, runs a tripType=3 Google Flights search, and prints
+// results through the same table/JSON path as one-way and round-trip searches.
+func runMultiCitySearch(cmd *cobra.Command, legSpecs []string, cabin, maxStops, sortBy string, airlines []string, adults int, targetCurrency string, firstResult bool, format string) error {
+	cabinClass, err := models.ParseCabinClass(cabin)
+	if err != nil {
+		return fmt.Errorf("invalid cabin class: %w", err)
+	}
+	stops, err := models.ParseMaxStops(maxStops)
+	if err != nil {
+		return fmt.Errorf("invalid max stops: %w", err)
+	}
+	sort, err := models.ParseSortBy(sortBy)
+	if err != nil {
+		return fmt.Errorf("invalid sort order: %w", err)
+	}
+
+	parsedLegs := make([]flights.Leg, 0, len(legSpecs))
+	for _, spec := range legSpecs {
+		leg, perr := flights.ParseLeg(spec)
+		if perr != nil {
+			return perr
+		}
+		parsedLegs = append(parsedLegs, leg)
+	}
+
+	opts := flights.SearchOptions{
+		CabinClass:  cabinClass,
+		MaxStops:    stops,
+		SortBy:      sort,
+		Airlines:    airlines,
+		Adults:      adults,
+		Currency:    targetCurrency,
+		FirstResult: firstResult,
+	}
+
+	result, err := flights.SearchMultiCity(cmd.Context(), parsedLegs, opts)
+	if err != nil {
+		return err
+	}
+
+	originLabel := strings.Join(parsedLegs[0].Origins, ",")
+	destLabel := strings.Join(parsedLegs[len(parsedLegs)-1].Destinations, ",")
+
+	// Cache best result for `trvl share --last`.
+	if result != nil && result.Success && len(result.Flights) > 0 {
+		f := result.Flights[0]
+		saveLastSearch(&LastSearch{
+			Command:        "flights",
+			Origin:         originLabel,
+			Destination:    multiCityRouteLabel(parsedLegs),
+			DepartDate:     parsedLegs[0].Date,
+			FlightPrice:    f.Price,
+			FlightCurrency: f.Currency,
+			FlightStops:    f.Stops,
+		})
+	}
+
+	if opts.FirstResult && result != nil && result.Success {
+		result.Flights = flights.FirstPricedResult(result.Flights)
+		result.Count = len(result.Flights)
+	}
+
+	if format == "json" {
+		return models.FormatJSON(os.Stdout, result)
+	}
+
+	fmt.Printf("Multi-city: %s\n\n", multiCityRouteLabel(parsedLegs))
+	if err := printFlightsTable(cmd.Context(), originLabel, destLabel, targetCurrency, result); err != nil {
+		return err
+	}
+
+	if openFlag && result.Success && len(result.Flights) > 0 && result.Flights[0].BookingURL != "" {
+		_ = openBrowser(result.Flights[0].BookingURL)
+	}
+	return nil
+}
+
+// multiCityRouteLabel renders a readable itinerary like "CDG → HND → ICN → CDG"
+// from the first airport of each leg endpoint.
+func multiCityRouteLabel(legs []flights.Leg) string {
+	if len(legs) == 0 {
+		return ""
+	}
+	parts := []string{legs[0].Origins[0]}
+	for _, leg := range legs {
+		parts = append(parts, leg.Destinations[0])
+	}
+	return strings.Join(parts, " → ")
 }
 
 // printFlightsTable renders flight results as an ASCII table.
