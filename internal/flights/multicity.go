@@ -44,6 +44,21 @@ func ParseLeg(s string) (Leg, error) {
 	return Leg{Origins: origins, Destinations: destinations, Date: date}, nil
 }
 
+// ParseLegs parses a list of "ORIGIN:DEST:DATE" specs into Legs. Shared by the
+// CLI (--leg) and the MCP search_flights (legs param). The 2-leg minimum is
+// enforced by SearchMultiCity, the single request entry point.
+func ParseLegs(specs []string) ([]Leg, error) {
+	legs := make([]Leg, 0, len(specs))
+	for _, spec := range specs {
+		leg, err := ParseLeg(spec)
+		if err != nil {
+			return nil, err
+		}
+		legs = append(legs, leg)
+	}
+	return legs, nil
+}
+
 // SearchMultiCity searches a multi-city itinerary (Google Flights tripType=3).
 // Like a round-trip, Google returns options for the first leg priced at the
 // combined itinerary total. Requires at least 2 legs. Google-only in v1.

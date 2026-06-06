@@ -79,7 +79,32 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 				if returnDate != "" {
 					return fmt.Errorf("--leg (multi-city) cannot be combined with --return")
 				}
-				return runMultiCitySearch(cmd, legs, cabin, maxStops, sortBy, airlines, adults, targetCurrency, firstResult, format)
+				parsedLegs, perr := flights.ParseLegs(legs)
+				if perr != nil {
+					return perr
+				}
+				cabinClass, cerr := models.ParseCabinClass(cabin)
+				if cerr != nil {
+					return fmt.Errorf("invalid cabin class: %w", cerr)
+				}
+				stops, serr := models.ParseMaxStops(maxStops)
+				if serr != nil {
+					return fmt.Errorf("invalid max stops: %w", serr)
+				}
+				sortVal, oerr := models.ParseSortBy(sortBy)
+				if oerr != nil {
+					return fmt.Errorf("invalid sort order: %w", oerr)
+				}
+				opts := flights.SearchOptions{
+					CabinClass:  cabinClass,
+					MaxStops:    stops,
+					SortBy:      sortVal,
+					Airlines:    airlines,
+					Adults:      adults,
+					Currency:    targetCurrency,
+					FirstResult: firstResult,
+				}
+				return runMultiCitySearch(cmd, parsedLegs, opts, format)
 			}
 
 			originArg := args[0]
@@ -302,48 +327,17 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 }
 
 // runMultiCitySearch handles `trvl flights --leg ...` multi-city itineraries.
-// It parses the leg specs, runs a tripType=3 Google Flights search, and prints
-// results through the same table/JSON path as one-way and round-trip searches.
-func runMultiCitySearch(cmd *cobra.Command, legSpecs []string, cabin, maxStops, sortBy string, airlines []string, adults int, targetCurrency string, firstResult bool, format string) error {
-	cabinClass, err := models.ParseCabinClass(cabin)
-	if err != nil {
-		return fmt.Errorf("invalid cabin class: %w", err)
-	}
-	stops, err := models.ParseMaxStops(maxStops)
-	if err != nil {
-		return fmt.Errorf("invalid max stops: %w", err)
-	}
-	sort, err := models.ParseSortBy(sortBy)
-	if err != nil {
-		return fmt.Errorf("invalid sort order: %w", err)
-	}
-
-	parsedLegs := make([]flights.Leg, 0, len(legSpecs))
-	for _, spec := range legSpecs {
-		leg, perr := flights.ParseLeg(spec)
-		if perr != nil {
-			return perr
-		}
-		parsedLegs = append(parsedLegs, leg)
-	}
-
-	opts := flights.SearchOptions{
-		CabinClass:  cabinClass,
-		MaxStops:    stops,
-		SortBy:      sort,
-		Airlines:    airlines,
-		Adults:      adults,
-		Currency:    targetCurrency,
-		FirstResult: firstResult,
-	}
-
-	result, err := flights.SearchMultiCity(cmd.Context(), parsedLegs, opts)
+// It runs a tripType=3 Google Flights search and prints results through the same
+// table/JSON path as one-way and round-trip searches.
+func runMultiCitySearch(cmd *cobra.Command, legs []flights.Leg, opts flights.SearchOptions, format string) error {
+	result, err := flights.SearchMultiCity(cmd.Context(), legs, opts)
 	if err != nil {
 		return err
 	}
 
-	originLabel := strings.Join(parsedLegs[0].Origins, ",")
-	destLabel := strings.Join(parsedLegs[len(parsedLegs)-1].Destinations, ",")
+	routeLabel := multiCityRouteLabel(legs)
+	originLabel := strings.Join(legs[0].Origins, ",")
+	destLabel := strings.Join(legs[len(legs)-1].Destinations, ",")
 
 	// Cache best result for `trvl share --last`.
 	if result != nil && result.Success && len(result.Flights) > 0 {
@@ -351,8 +345,8 @@ func runMultiCitySearch(cmd *cobra.Command, legSpecs []string, cabin, maxStops, 
 		saveLastSearch(&LastSearch{
 			Command:        "flights",
 			Origin:         originLabel,
-			Destination:    multiCityRouteLabel(parsedLegs),
-			DepartDate:     parsedLegs[0].Date,
+			Destination:    routeLabel,
+			DepartDate:     legs[0].Date,
 			FlightPrice:    f.Price,
 			FlightCurrency: f.Currency,
 			FlightStops:    f.Stops,
@@ -368,8 +362,8 @@ func runMultiCitySearch(cmd *cobra.Command, legSpecs []string, cabin, maxStops, 
 		return models.FormatJSON(os.Stdout, result)
 	}
 
-	fmt.Printf("Multi-city: %s\n\n", multiCityRouteLabel(parsedLegs))
-	if err := printFlightsTable(cmd.Context(), originLabel, destLabel, targetCurrency, result); err != nil {
+	fmt.Printf("Multi-city: %s\n\n", routeLabel)
+	if err := printFlightsTable(cmd.Context(), originLabel, destLabel, opts.Currency, result); err != nil {
 		return err
 	}
 

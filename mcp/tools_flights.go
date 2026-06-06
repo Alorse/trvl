@@ -202,23 +202,6 @@ func searchDatesTool() ToolDef {
 
 // --- Tool handlers ---
 
-// parseMultiCityLegs parses the "legs" tool argument (array of "ORIGIN:DEST:DATE"
-// strings) into flights.Leg values, requiring at least 2 legs.
-func parseMultiCityLegs(specs []string) ([]flights.Leg, error) {
-	if len(specs) < 2 {
-		return nil, fmt.Errorf("legs requires at least 2 entries (ORIGIN:DEST:DATE)")
-	}
-	legs := make([]flights.Leg, 0, len(specs))
-	for _, spec := range specs {
-		leg, err := flights.ParseLeg(spec)
-		if err != nil {
-			return nil, err
-		}
-		legs = append(legs, leg)
-	}
-	return legs, nil
-}
-
 func handleSearchFlights(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
 	// Multi-city: when legs are provided, they replace origin/destination/
 	// departure_date/return_date. origin/dest/date below are set to
@@ -232,7 +215,7 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 	var err error
 
 	if multiCity {
-		multiLegs, err = parseMultiCityLegs(legSpecs)
+		multiLegs, err = flights.ParseLegs(legSpecs)
 		if err != nil {
 			return nil, nil, err
 		}
