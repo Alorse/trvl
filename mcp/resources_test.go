@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestResourcesList(t *testing.T) {
@@ -164,12 +165,13 @@ func TestResourceLinkInFlightResults(t *testing.T) {
 		t.Skip("skipping live HTTP test in short mode")
 	}
 	s := NewServer()
+	departDate := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
 	params := ToolCallParams{
 		Name: "search_flights",
 		Arguments: map[string]any{
 			"origin":         "HEL",
 			"destination":    "NRT",
-			"departure_date": "2026-05-15",
+			"departure_date": departDate,
 		},
 	}
 	resp := sendRequest(t, s, "tools/call", 1, params)
@@ -195,8 +197,9 @@ func TestResourceLinkInFlightResults(t *testing.T) {
 	for _, cb := range result.Content {
 		if cb.Type == "resource_link" {
 			foundLink = true
-			if !strings.Contains(cb.URI, "trvl://watch/HEL-NRT-2026-05-15") {
-				t.Errorf("resource_link URI = %q, want trvl://watch/HEL-NRT-2026-05-15", cb.URI)
+			wantURI := "trvl://watch/HEL-NRT-" + departDate
+			if !strings.Contains(cb.URI, wantURI) {
+				t.Errorf("resource_link URI = %q, want %s", cb.URI, wantURI)
 			}
 			if cb.Name == "" {
 				t.Error("resource_link should have a name")
