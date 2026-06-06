@@ -285,6 +285,7 @@ Optional parameters:
 - `max_duration`: integer — maximum total duration in minutes — server-side
 - `exclude_basic`: true/false — exclude basic economy fares — server-side
 - `airlines`: comma-separated IATA codes to restrict results (e.g. "AY,LH")
+- `legs`: array of "ORIGIN:DEST:DATE" strings (IATA code or city name, min 2 legs) for a true multi-city itinerary, e.g. `["Paris:Tokyo:2026-09-01","Tokyo:Seoul:2026-09-10","Seoul:Paris:2026-09-20"]`. When set, replaces `origin`/`destination`/`departure_date`/`return_date`. Like a round-trip, results show first-leg options priced at the combined itinerary total
 
 ### search_dates — Find the cheapest day to fly
 ```json

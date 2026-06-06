@@ -194,52 +194,14 @@ func searchFlightsCore(ctx context.Context, client *batchexec.Client, origin, de
 func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
 	filters := buildFilters(origin, destination, date, opts)
 
-	encoded, err := batchexec.EncodeFlightFilters(filters)
+	flights, err := runGoogleFlightSearch(ctx, client, filters, opts)
 	if err != nil {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("encode filters: %v", err),
-		}, fmt.Errorf("encode filters: %w", err)
+		return &models.FlightSearchResult{Error: err.Error()}, err
 	}
-
-	gl := CurrencyToGL(opts.Currency)
-	status, body, err := client.SearchFlightsGLCurr(ctx, encoded, gl, opts.Currency)
-	if err != nil {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("request failed: %v", err),
-		}, fmt.Errorf("request failed: %w", err)
-	}
-
-	if status == 403 {
-		return &models.FlightSearchResult{
-			Error: "blocked by Google (403)",
-		}, batchexec.ErrBlocked
-	}
-	if status != 200 {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("unexpected status %d", status),
-		}, fmt.Errorf("unexpected status %d", status)
-	}
-
-	inner, err := batchexec.DecodeFlightResponse(body)
-	if err != nil {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("decode response: %v", err),
-		}, fmt.Errorf("decode response: %w", err)
-	}
-
-	rawFlights, err := batchexec.ExtractFlightData(inner)
-	if err != nil {
-		return &models.FlightSearchResult{
-			Error: fmt.Sprintf("extract flights: %v", err),
-		}, fmt.Errorf("extract flights: %w", err)
-	}
-
-	flights := parseFlights(rawFlights)
 
 	// Add booking URLs. Prices are in the API's native currency (IP-based).
 	// Currency conversion, if needed, happens in the CLI display layer.
 	for i := range flights {
-		flights[i].Provider = "google_flights"
 		flights[i].BookingURL = buildFlightBookingURL(origin, destination, date, opts.ReturnDate, opts.Currency)
 	}
 
@@ -249,6 +211,46 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 		TripType: tripTypeForSearch(opts),
 		Flights:  flights,
 	}, nil
+}
+
+// runGoogleFlightSearch runs the full batchexecute pipeline for a pre-built filter
+// payload: encode → POST → decode → extract → parse. It sets Provider on each
+// flight but leaves BookingURL to the caller (route-specific). Shared by one-way/
+// round-trip (searchGoogleFlightsWithClient) and multi-city (SearchMultiCity).
+func runGoogleFlightSearch(ctx context.Context, client *batchexec.Client, filters any, opts SearchOptions) ([]models.FlightResult, error) {
+	encoded, err := batchexec.EncodeFlightFilters(filters)
+	if err != nil {
+		return nil, fmt.Errorf("encode filters: %w", err)
+	}
+
+	gl := CurrencyToGL(opts.Currency)
+	status, body, err := client.SearchFlightsGLCurr(ctx, encoded, gl, opts.Currency)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+
+	if status == 403 {
+		return nil, batchexec.ErrBlocked
+	}
+	if status != 200 {
+		return nil, fmt.Errorf("unexpected status %d", status)
+	}
+
+	inner, err := batchexec.DecodeFlightResponse(body)
+	if err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	rawFlights, err := batchexec.ExtractFlightData(inner)
+	if err != nil {
+		return nil, fmt.Errorf("extract flights: %w", err)
+	}
+
+	flights := parseFlights(rawFlights)
+	for i := range flights {
+		flights[i].Provider = "google_flights"
+	}
+	return flights, nil
 }
 
 // buildFlightBookingURL constructs a Google Flights deep link for a route and date.
@@ -278,18 +280,23 @@ func buildFilters(origin, destination, date string, opts SearchOptions) any {
 
 	segments := []any{outbound}
 
+	// Trip type: 2 = one-way, 1 = round-trip
+	tripType := 2
+
 	// Add return segment for round-trip
 	if opts.ReturnDate != "" {
 		ret := buildSegment(destination, origin, opts.ReturnDate, opts)
 		segments = append(segments, ret)
-	}
-
-	// Trip type: 2 = one-way, 1 = round-trip
-	tripType := 2
-	if opts.ReturnDate != "" {
 		tripType = 1
 	}
 
+	return buildFiltersFromSegments(segments, tripType, opts)
+}
+
+// buildFiltersFromSegments assembles the outer filter array from a pre-built list
+// of flight segments. tripType is 2=one-way, 1=round-trip, 3=multi-city. Shared by
+// buildFilters (one-way/round-trip) and SearchMultiCity (multi-city).
+func buildFiltersFromSegments(segments []any, tripType int, opts SearchOptions) any {
 	// Sort by: Google uses 1=best, 2=price, 3=duration, 4=departure, 5=arrival
 	sortBy := 1 // default: best
 	switch opts.SortBy {
@@ -351,8 +358,18 @@ func buildFilters(origin, destination, date string, opts SearchOptions) any {
 	return filters
 }
 
-// buildSegment constructs a single flight segment (one direction).
+// buildSegment constructs a single flight segment (one direction) for a single
+// origin and destination airport.
 func buildSegment(from, to, date string, opts SearchOptions) any {
+	return buildSegmentMulti([]string{from}, []string{to}, date, opts)
+}
+
+// buildSegmentMulti constructs a single flight segment that may cover multiple
+// departure and/or arrival airports. Listing every airport of a city in one
+// segment mirrors Google's city-entity behaviour (one request covers all
+// airports) — verified via live probe. With single-element slices it produces
+// byte-identical output to the original single-airport buildSegment.
+func buildSegmentMulti(froms, tos []string, date string, opts SearchOptions) any {
 	// Build airlines filter
 	var airlines any
 	if len(opts.Airlines) > 0 {
@@ -366,11 +383,20 @@ func buildSegment(from, to, date string, opts SearchOptions) any {
 	// MaxStops: 0=any, 1=nonstop, 2=1stop, 3=2+stops
 	stops := int(opts.MaxStops)
 
+	depLocs := make([]any, len(froms))
+	for i, f := range froms {
+		depLocs[i] = []any{f, 0}
+	}
+	arrLocs := make([]any, len(tos))
+	for i, t := range tos {
+		arrLocs[i] = []any{t, 0}
+	}
+
 	return []any{
 		// [0] departure airports
-		[]any{[]any{[]any{from, 0}}},
+		[]any{depLocs},
 		// [1] arrival airports
-		[]any{[]any{[]any{to, 0}}},
+		[]any{arrLocs},
 		// [2] departure time window [startHour, endHour] or nil
 		departTimeWindow(opts.DepartAfter, opts.DepartBefore),
 		// [3] stops

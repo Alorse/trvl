@@ -25,7 +25,7 @@ done
 
 ## MCP Tools (54 total)
 
-- search_flights(origin, destination, departure_date, [return_date, cabin_class, max_stops, sort_by, alliances, depart_after, depart_before, less_emissions, carry_on_bags, checked_bags, require_checked_bag, max_price, max_duration, exclude_basic, airlines])
+- search_flights(origin, destination, departure_date, [return_date, cabin_class, max_stops, sort_by, alliances, depart_after, depart_before, less_emissions, carry_on_bags, checked_bags, require_checked_bag, max_price, max_duration, exclude_basic, airlines, legs]) — `legs` is an array of "ORIGIN:DEST:DATE" strings (min 2) for a multi-city itinerary; replaces origin/destination/departure_date when set
   - checked_bags: HIDDEN GOOGLE FEATURE — server-side filter not exposed in Google's own UI
 - search_dates(origin, destination, start_date, end_date, [trip_duration, is_round_trip])
 - search_hotels(location, check_in, check_out, [guests, stars, sort, currency, free_cancellation, property_type, brand, min_rating, max_distance, amenities, min_price, max_price, enrich_amenities, eco_certified])
@@ -97,6 +97,7 @@ done
 
 trvl flights JFK LHR 2026-07-01
 trvl flights HEL BCN 2026-07-01 --return 2026-07-08 --cabin business
+trvl flights --leg Paris:Tokyo:2026-09-01 --leg Tokyo:Seoul:2026-09-10 --leg Seoul:Paris:2026-09-20  # multi-city
 trvl dates HEL NRT --from 2026-06-01 --to 2026-06-30
 trvl hotels "Tokyo" --checkin 2026-06-15 --checkout 2026-06-18 --stars 4
 trvl prices "<hotel_id>" --checkin 2026-06-15 --checkout 2026-06-18

@@ -201,6 +201,7 @@ That's it. Your AI assistant now has 57 travel tools available. Just ask natural
 | Exclude basic economy | `exclude_basic` | Drops BE fares — server-side |
 | Sort | `sort_by` | `cheapest`, `duration`, `departure`, `arrival` |
 | Airlines | `airlines` | Comma-separated IATA codes (e.g. `AY,LH`) |
+| Multi-city | `legs` | Array of `ORIGIN:DEST:DATE` strings (IATA code or city name, min 2 legs) for a true multi-city itinerary. When set, replaces `origin`/`destination`/`departure_date`. CLI: repeat `--leg`. Like a round-trip, results show first-leg options priced at the combined itinerary total |
 
 ### Hotel Filters (`search_hotels`)
 
@@ -370,7 +371,13 @@ trvl flights JFK LHR 2026-07-01 --cabin business --stops nonstop
 trvl flights AMS,EIN,ANR HEL,TKU,TLL 2026-06-15     # Multi-airport search
 trvl flights HEL BCN 2026-07-01 --return 2026-07-08
 trvl flights HEL NRT 2026-06-15 --format json       # JSON output
+
+# Multi-city: repeat --leg ORIGIN:DEST:DATE (IATA or city name, min 2 legs)
+trvl flights --leg Paris:Tokyo:2026-09-01 --leg Tokyo:Seoul:2026-09-10 --leg Seoul:Paris:2026-09-20
+trvl flights --leg CDG:HND:2026-09-01 --leg HND:ICN:2026-09-10 --cabin business --currency USD
 ```
+
+> **Multi-city vs `multi-city` command:** `trvl flights --leg …` searches a fixed multi-leg itinerary on Google Flights (you set the order and dates). The separate [`trvl multi-city`](#multi-city-optimizer) command instead *optimizes* the visit order to find the cheapest routing.
 
 ### Cheapest Dates
 

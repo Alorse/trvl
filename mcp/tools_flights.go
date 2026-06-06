@@ -159,6 +159,7 @@ func searchFlightsTool() ToolDef {
 				"no_early_connection": {Type: "boolean", Description: "Drop flights whose post-overnight leg departs before preferences.early_connection_floor (default 10:00)."},
 				"lounge_required":     {Type: "boolean", Description: "Drop flights where a layover airport lacks lounge coverage from user's cards."},
 				"first_result":        {Type: "boolean", Description: "Return only the first result with a valid price after sorting. Combine with sort_by to get e.g. the shortest priced flight (duration) or cheapest. Default: false."},
+				"legs":                {Type: "array", Description: "Multi-city itinerary as an array of \"ORIGIN:DEST:DATE\" strings (each endpoint an IATA code or city name; min 2 legs), e.g. [\"Paris:Tokyo:2026-09-01\",\"Tokyo:Seoul:2026-09-10\",\"Seoul:Paris:2026-09-20\"]. When set, replaces origin/destination/departure_date/return_date. Like a round-trip, results show first-leg options priced at the combined itinerary total."},
 			},
 			Required: []string{"origin", "destination", "departure_date"},
 		},
@@ -202,20 +203,41 @@ func searchDatesTool() ToolDef {
 // --- Tool handlers ---
 
 func handleSearchFlights(ctx context.Context, args map[string]any, elicit ElicitFunc, sampling SamplingFunc, progress ProgressFunc) ([]ContentBlock, interface{}, error) {
-	origin, dest, err := validateOriginDest(args)
-	if err != nil {
-		return nil, nil, err
-	}
+	// Multi-city: when legs are provided, they replace origin/destination/
+	// departure_date/return_date. origin/dest/date below are set to
+	// representative values (first-leg origin, last-leg destination, first-leg
+	// date) so downstream enrichment, suggestions, and summaries still work.
+	legSpecs := argStringSlice(args, "legs")
+	multiCity := len(legSpecs) > 0
 
-	date, err := validateDate(args, "departure_date")
-	if err != nil {
-		return nil, nil, err
-	}
+	var origin, dest, date string
+	var multiLegs []flights.Leg
+	var err error
 
-	// Validate return date if provided.
-	if ret := argString(args, "return_date"); ret != "" {
-		if err := models.ValidateDate(ret); err != nil {
-			return nil, nil, fmt.Errorf("invalid return_date: %w", err)
+	if multiCity {
+		multiLegs, err = flights.ParseLegs(legSpecs)
+		if err != nil {
+			return nil, nil, err
+		}
+		origin = multiLegs[0].Origins[0]
+		dest = multiLegs[len(multiLegs)-1].Destinations[0]
+		date = multiLegs[0].Date
+	} else {
+		origin, dest, err = validateOriginDest(args)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		date, err = validateDate(args, "departure_date")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Validate return date if provided.
+		if ret := argString(args, "return_date"); ret != "" {
+			if err := models.ValidateDate(ret); err != nil {
+				return nil, nil, fmt.Errorf("invalid return_date: %w", err)
+			}
 		}
 	}
 
@@ -260,20 +282,29 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 	}
 
 	// Apply profile hints as defaults — only when the caller has not set the
-	// corresponding parameter explicitly.
-	prof, _ := profile.Load()
-	hints := profile.FlightHints(prof, origin, dest)
-	if _, explicit := args["cabin_class"]; !explicit && hints.CabinClass > 0 && opts.CabinClass == 0 {
-		opts.CabinClass = models.CabinClass(hints.CabinClass)
-	}
-	if _, explicit := args["alliances"]; !explicit && hints.PreferredAlliance != "" && len(opts.Alliances) == 0 {
-		opts.Alliances = []string{hints.PreferredAlliance}
-	}
-	if _, explicit := args["max_price"]; !explicit && hints.MaxPrice > 0 && opts.MaxPrice == 0 {
-		opts.MaxPrice = hints.MaxPrice
+	// corresponding parameter explicitly. Skipped for multi-city (no single
+	// origin/dest route to derive hints from).
+	if !multiCity {
+		prof, _ := profile.Load()
+		hints := profile.FlightHints(prof, origin, dest)
+		if _, explicit := args["cabin_class"]; !explicit && hints.CabinClass > 0 && opts.CabinClass == 0 {
+			opts.CabinClass = models.CabinClass(hints.CabinClass)
+		}
+		if _, explicit := args["alliances"]; !explicit && hints.PreferredAlliance != "" && len(opts.Alliances) == 0 {
+			opts.Alliances = []string{hints.PreferredAlliance}
+		}
+		if _, explicit := args["max_price"]; !explicit && hints.MaxPrice > 0 && opts.MaxPrice == 0 {
+			opts.MaxPrice = hints.MaxPrice
+		}
 	}
 
-	result, err := flights.SearchFlights(ctx, origin, dest, date, opts)
+	var result *models.FlightSearchResult
+	if multiCity {
+		opts.ReturnDate = "" // multi-city ignores return_date
+		result, err = flights.SearchMultiCity(ctx, multiLegs, opts)
+	} else {
+		result, err = flights.SearchFlights(ctx, origin, dest, date, opts)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
