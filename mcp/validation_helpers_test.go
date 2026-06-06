@@ -3,6 +3,7 @@ package mcp
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestValidateOriginDest_Valid(t *testing.T) {
@@ -67,13 +68,14 @@ func TestValidateOriginDest_InvalidDest(t *testing.T) {
 
 func TestValidateDate_Valid(t *testing.T) {
 	t.Parallel()
-	args := map[string]any{"departure_date": "2026-05-01"}
+	future := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
+	args := map[string]any{"departure_date": future}
 	d, err := validateDate(args, "departure_date")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if d != "2026-05-01" {
-		t.Errorf("expected 2026-05-01, got %s", d)
+	if d != future {
+		t.Errorf("expected %s, got %s", future, d)
 	}
 }
 
