@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Multi-city flight search** — `trvl flights --leg ORIGIN:DEST:DATE` (repeatable, min 2 legs; each endpoint an IATA code or city name) runs a true Google Flights multi-city itinerary (`tripType=3`). MCP parity via a new `legs` array parameter on `search_flights`. A city expands to all its airports in a single request; like a round-trip, results show first-leg options priced at the combined itinerary total. Inherits `--cabin`/`--stops`/`--sort`/`--currency`/`--first`/`--adults`; mutually exclusive with positional args and `--return`.
+
 ### Fixed
 - **MCP flight search**: plumb `Currency` through `FlightSearchOptions` and include `returnDate` + `currency` in booking deep links, so prices and booking URLs stay consistent for MCP clients (#34, thanks @Alorse — first external contributor!)
+- **Time-dependent tests**: `TestValidateDate_Valid` and `TestResourceLinkInFlightResults` used hardcoded dates that expired; switched to dynamic `now+30d` so they no longer rot.
 - **Race conditions in `mcp` handlers under `-race`**: singleflight-coalesced callers each receive their own `*HotelSearchResult` / `*FlightSearchResult` header with independent slice headers, so post-filter mutations no longer race with sibling JSON marshaling (#39 hotels, #40 flights)
 
 ### Notes
