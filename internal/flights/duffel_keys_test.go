@@ -26,13 +26,26 @@ func TestDuffelKeys_EnvParsing(t *testing.T) {
 
 func TestDuffelKeyOrder_RoundRobin(t *testing.T) {
 	keys := []string{"a", "b", "c"}
-	// Each call starts from the next key; all keys present each time.
-	first := duffelKeyOrder(keys)
-	second := duffelKeyOrder(keys)
-	if first[0] == second[0] {
-		t.Errorf("round-robin did not advance: %v then %v", first, second)
+	// Over a full cycle of len(keys) consecutive calls, the starting key must
+	// rotate through every key — regardless of the package counter's current
+	// offset — and each call must return all keys. This is hermetic: it does not
+	// depend on the counter's starting value.
+	starts := map[string]bool{}
+	for i := 0; i < len(keys); i++ {
+		order := duffelKeyOrder(keys)
+		if len(order) != len(keys) {
+			t.Fatalf("call %d: ordering = %v, want all %d keys", i, order, len(keys))
+		}
+		seen := map[string]bool{}
+		for _, k := range order {
+			seen[k] = true
+		}
+		if len(seen) != len(keys) {
+			t.Fatalf("call %d: ordering missing keys: %v", i, order)
+		}
+		starts[order[0]] = true
 	}
-	if len(first) != 3 || len(second) != 3 {
-		t.Errorf("ordering must contain all keys: %v %v", first, second)
+	if len(starts) != len(keys) {
+		t.Fatalf("round-robin did not rotate through all start keys over a full cycle: got starts %v", starts)
 	}
 }
