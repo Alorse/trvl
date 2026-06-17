@@ -156,6 +156,46 @@ func TestDuffelSlicesForLegs(t *testing.T) {
 	}
 }
 
+func TestSearchDuffel_DecimalEmissions(t *testing.T) {
+	fixture := `{"data":{"offers":[
+	 {"total_amount":"500.00","total_currency":"USD","total_emissions_kg":"1200.45","owner":{"iata_code":"BR","name":"EVA Air"},
+	  "slices":[
+	   {"origin":{"iata_code":"HAM","name":"Hamburg"},"destination":{"iata_code":"FUK","name":"Fukuoka"},"duration":"PT2H10M",
+	    "segments":[
+	     {"origin":{"iata_code":"HAM","name":"Hamburg"},"destination":{"iata_code":"FUK","name":"Fukuoka"},
+	      "departing_at":"2026-09-15T06:25:00","arriving_at":"2026-09-15T08:35:00","duration":"PT2H10M",
+	      "marketing_carrier":{"iata_code":"BR","name":"EVA Air"},"marketing_carrier_flight_number":"72",
+	      "aircraft":{"name":"Airbus A321"},
+	      "passengers":[{"baggages":[{"type":"carry_on","quantity":1}]}]}
+	    ]}
+	  ]}
+	]}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(fixture))
+	}))
+	defer srv.Close()
+
+	t.Setenv("DUFFEL_API_KEYS", "")
+	t.Setenv("DUFFEL_API_KEY", "test_key")
+	restore := duffelSetEndpointForTest(srv.URL)
+	defer restore()
+
+	got, err := SearchDuffel(context.Background(),
+		[]DuffelSlice{{Origin: "HAM", Destination: "FUK", DepartureDate: "2026-09-15"}},
+		SearchOptions{Adults: 1, CabinClass: models.Economy})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("results = %d, want 1", len(got))
+	}
+	// 1200.45 kg * 1000 = 1200450 g
+	if got[0].Emissions != 1200450 {
+		t.Errorf("emissions = %d, want 1200450", got[0].Emissions)
+	}
+}
+
 func TestSearchDuffel_FailoverToNextKey(t *testing.T) {
 	var calls int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -226,7 +226,7 @@ func mapDuffelOffer(o duffelOffer) models.FlightResult {
 		}
 	}
 
-	emissionsKg, _ := strconv.Atoi(o.TotalEmissionsKg)
+	emissionsKg, _ := strconv.ParseFloat(o.TotalEmissionsKg, 64)
 
 	return models.FlightResult{
 		Price:               price,
@@ -238,7 +238,7 @@ func mapDuffelOffer(o duffelOffer) models.FlightResult {
 		BookingURL:          "",
 		CarryOnIncluded:     carryOn,
 		CheckedBagsIncluded: checked,
-		Emissions:           emissionsKg * 1000,
+		Emissions:           int(emissionsKg * 1000),
 	}
 }
 

@@ -312,6 +312,7 @@ Everything else is Go stdlib: `net/http`, `encoding/json`, `sync`, `context`, `t
 
 When Google Flights is unavailable (anti-bot rejection retried and exhausted),
 trvl falls back to the Duffel API for one-way, round-trip, and multi-city
-searches. Requires `DUFFEL_API_KEY`. Duffel offers carry no booking deep-link
+searches. Requires `DUFFEL_API_KEYS` (comma-separated, rotated round-robin with
+failover) or a single `DUFFEL_API_KEY`. Duffel offers carry no booking deep-link
 (BookingURL is empty) and are priced in the Duffel organization's billing
 currency (not request-controllable).
