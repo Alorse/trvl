@@ -139,6 +139,23 @@ func TestDuffelSlicesForSearch(t *testing.T) {
 	}
 }
 
+func TestDuffelSlicesForLegs(t *testing.T) {
+	legs := []Leg{
+		{Origins: []string{"HAM"}, Destinations: []string{"FUK"}, Date: "2026-09-15"},
+		{Origins: []string{"NRT"}, Destinations: []string{"HAM"}, Date: "2026-09-28"},
+	}
+	slices := duffelSlicesForLegs(legs)
+	if len(slices) != 2 {
+		t.Fatalf("slices = %d, want 2", len(slices))
+	}
+	if slices[0].Origin != "HAM" || slices[0].Destination != "FUK" || slices[0].DepartureDate != "2026-09-15" {
+		t.Errorf("slice0 = %+v", slices[0])
+	}
+	if slices[1].Origin != "NRT" || slices[1].Destination != "HAM" || slices[1].DepartureDate != "2026-09-28" {
+		t.Errorf("slice1 = %+v", slices[1])
+	}
+}
+
 func TestSearchDuffel_FailoverToNextKey(t *testing.T) {
 	var calls int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

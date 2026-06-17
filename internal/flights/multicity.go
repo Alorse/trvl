@@ -59,6 +59,24 @@ func ParseLegs(specs []string) ([]Leg, error) {
 	return legs, nil
 }
 
+// duffelSlicesForLegs maps multi-city legs to Duffel slices, using the first
+// origin/destination airport of each leg (Duffel takes a single IATA code per
+// endpoint, unlike Google which accepts an airport set).
+func duffelSlicesForLegs(legs []Leg) []DuffelSlice {
+	slices := make([]DuffelSlice, 0, len(legs))
+	for _, leg := range legs {
+		if len(leg.Origins) == 0 || len(leg.Destinations) == 0 {
+			continue
+		}
+		slices = append(slices, DuffelSlice{
+			Origin:        leg.Origins[0],
+			Destination:   leg.Destinations[0],
+			DepartureDate: leg.Date,
+		})
+	}
+	return slices
+}
+
 // SearchMultiCity searches a multi-city itinerary (Google Flights tripType=3).
 // Like a round-trip, Google returns options for the first leg priced at the
 // combined itinerary total. Requires at least 2 legs. Google-only in v1.
@@ -86,6 +104,17 @@ func SearchMultiCity(ctx context.Context, legs []Leg, opts SearchOptions) (*mode
 
 	flights, err := runGoogleFlightSearch(ctx, DefaultClient(), filters, opts)
 	if err != nil {
+		// Google failed → try Duffel (paid fallback, native multi-city).
+		if DuffelEnabled() {
+			if duffelFlights, dErr := SearchDuffel(ctx, duffelSlicesForLegs(legs), opts); dErr == nil && len(duffelFlights) > 0 {
+				return &models.FlightSearchResult{
+					Success:  true,
+					Count:    len(duffelFlights),
+					TripType: "multi_city",
+					Flights:  duffelFlights,
+				}, nil
+			}
+		}
 		return &models.FlightSearchResult{Error: err.Error()}, err
 	}
 
