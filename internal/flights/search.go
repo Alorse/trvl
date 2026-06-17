@@ -58,6 +58,14 @@ type SearchOptions struct {
 	// Client-side post-filters (applied after server response).
 	RequireCheckedBag bool // Only show flights with ≥1 free checked bag
 	FirstResult       bool // Return only the first flight with Price > 0 after sorting
+
+	// Providers is an explicit allow-list of flight data providers to query
+	// (valid values: "google", "kiwi", "duffel"). When empty, the default
+	// behavior applies (Google primary → Kiwi merge → Duffel fallback on Google
+	// failure). When set, ONLY the listed providers run, each as a primary
+	// source (gating is bypassed) and their results are merged. Used by the CLI
+	// --provider flag to isolate a single provider.
+	Providers []string
 }
 
 // defaults fills in zero-value fields with sensible defaults.
@@ -90,7 +98,19 @@ func flightSearchKey(origin, destination, date string, opts SearchOptions) strin
 		opts.Currency, strings.Join(opts.Airlines, ","),
 		opts.ExcludeBasic, opts.LessEmissions, opts.RequireCheckedBag,
 		strings.Join(opts.Alliances, ","), opts.DepartAfter, opts.DepartBefore,
-	)
+	) + "|prov=" + strings.Join(opts.Providers, ",")
+}
+
+// providerListed reports whether name appears in the explicit provider
+// allow-list (case-insensitive). An empty allow-list returns false; callers use
+// len(opts.Providers)==0 to detect the default (non-explicit) mode.
+func providerListed(opts SearchOptions, name string) bool {
+	for _, p := range opts.Providers {
+		if strings.EqualFold(strings.TrimSpace(p), name) {
+			return true
+		}
+	}
+	return false
 }
 
 // SearchFlightsWithClient is like SearchFlights but accepts a pre-built client,
@@ -140,6 +160,12 @@ func SearchFlightsWithClient(ctx context.Context, client *batchexec.Client, orig
 
 // searchFlightsCore performs the actual flight search without singleflight wrapping.
 func searchFlightsCore(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
+	// Explicit provider allow-list: run only the listed providers (gating
+	// bypassed), merge their results. Empty list → default flow below.
+	if len(opts.Providers) > 0 {
+		return searchFlightsExplicit(ctx, client, origin, destination, date, opts)
+	}
+
 	googleResult, googleErr := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts)
 	googleSucceeded := googleErr == nil
 	currency := flightSearchCurrency(googleResult)
@@ -214,6 +240,62 @@ func duffelSlicesForSearch(origin, destination, date string, opts SearchOptions)
 		slices = append(slices, DuffelSlice{Origin: destination, Destination: origin, DepartureDate: opts.ReturnDate})
 	}
 	return slices
+}
+
+// searchFlightsExplicit runs only the providers named in opts.Providers, each as
+// a primary source (no Google-first / Duffel-only-on-failure gating), and merges
+// their results. Used when the CLI --provider flag restricts the search.
+func searchFlightsExplicit(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
+	var combined []models.FlightResult
+	var errs []error
+	anySucceeded := false
+
+	if providerListed(opts, "google") {
+		if r, err := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts); err != nil {
+			errs = append(errs, fmt.Errorf("google: %w", err))
+		} else {
+			anySucceeded = true
+			if r != nil {
+				combined = append(combined, r.Flights...)
+			}
+		}
+	}
+
+	if providerListed(opts, "kiwi") {
+		if f, err := SearchKiwiFlights(ctx, origin, destination, date, opts.Currency, opts); err != nil {
+			errs = append(errs, fmt.Errorf("kiwi: %w", err))
+		} else {
+			anySucceeded = true
+			combined = append(combined, f...)
+		}
+	}
+
+	if providerListed(opts, "duffel") {
+		if !DuffelEnabled() {
+			errs = append(errs, fmt.Errorf("duffel: no API keys configured (set DUFFEL_API_KEYS or DUFFEL_API_KEY)"))
+		} else if f, err := SearchDuffel(ctx, duffelSlicesForSearch(origin, destination, date, opts), opts); err != nil {
+			errs = append(errs, fmt.Errorf("duffel: %w", err))
+		} else {
+			anySucceeded = true
+			combined = append(combined, f...)
+		}
+	}
+
+	if anySucceeded {
+		merged := mergeFlightResults(combined, nil, opts)
+		return &models.FlightSearchResult{
+			Success:  true,
+			Count:    len(merged),
+			TripType: tripTypeForSearch(opts),
+			Flights:  merged,
+		}, nil
+	}
+
+	err := errors.Join(errs...)
+	if err == nil {
+		err = fmt.Errorf("no valid providers selected")
+	}
+	return &models.FlightSearchResult{Error: err.Error()}, err
 }
 
 func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {

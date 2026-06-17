@@ -74,6 +74,18 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 			return cobra.ExactArgs(3)(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// --provider: comma-separated allow-list of providers to query.
+			// "afklm" keeps its dedicated routing below; google/kiwi/duffel are
+			// passed through to the search layer as an explicit allow-list.
+			providerList, provErr := parseProviderList(provider)
+			if provErr != nil {
+				return provErr
+			}
+			afklmRequested := containsProvider(providerList, "afklm")
+			// The allow-list handed to the search layer excludes afklm (which has
+			// its own path) and is nil unless the user restricted providers.
+			searchProviders := filterSearchProviders(providerList)
+
 			// Multi-city itinerary: --leg ORIGIN:DEST:DATE (repeatable).
 			if len(legs) > 0 {
 				if returnDate != "" {
@@ -103,6 +115,7 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 					Adults:      adults,
 					Currency:    targetCurrency,
 					FirstResult: firstResult,
+					Providers:   searchProviders,
 				}
 				return runMultiCitySearch(cmd, parsedLegs, opts, format)
 			}
@@ -165,12 +178,13 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 				Adults:      adults,
 				Currency:    targetCurrency,
 				FirstResult: firstResult,
+				Providers:   searchProviders,
 			}
 
 			var result *models.FlightSearchResult
 
 			// --provider afklm: route to AF-KLM Offers API provider.
-			if strings.EqualFold(provider, "afklm") {
+			if afklmRequested {
 				p, provErr := afklm.NewProvider()
 				if provErr == afklm.ErrNoCredential {
 					fmt.Println("AF-KLM provider not enabled. Sign up for a free personal API key at https://developer.airfranceklm.com then store it via: security add-generic-password -a $USER -s afklm-api-key -w <your_key>")
@@ -307,7 +321,7 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 	cmd.Flags().StringVar(&format, "format", "table", "Output format: table, json")
 	cmd.Flags().StringVar(&targetCurrency, "currency", "", "Convert prices to this currency (e.g. EUR, USD). Empty = show API default")
 	cmd.Flags().BoolVar(&compareCabins, "compare-cabins", false, "Compare prices across all cabin classes (economy, premium, business, first)")
-	cmd.Flags().StringVar(&provider, "provider", "", "Flight data provider (e.g. afklm). Default: Google Flights")
+	cmd.Flags().StringVar(&provider, "provider", "", "Restrict to these providers (comma-separated allow-list): google, kiwi, duffel, afklm. Empty = default (Google primary, Kiwi merge, Duffel fallback on Google failure). E.g. --provider duffel queries only Duffel.")
 	cmd.Flags().BoolVar(&homeFan, "home-fan", false, "Expand origin to all home + nearby airports from preferences (e.g. AMS+EIN, HEL+TKU+TMP+TLL+ARN)")
 	cmd.Flags().BoolVar(&railFly, "rail-fly", false, "KL/AF rail+fly: also search ZYR (Brussels-Midi station), ANR, BRU as origins via AFKL provider. Requires origin to include AMS.")
 	cmd.Flags().StringVar(&minLayoverStr, "min-layover", "", "Only show flights with at least this layover duration (e.g. 12h, 90m)")
@@ -324,6 +338,54 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 	cmd.ValidArgsFunction = airportCompletion
 
 	return cmd
+}
+
+// validProviders is the set of accepted --provider values.
+var validProviders = map[string]bool{"google": true, "kiwi": true, "duffel": true, "afklm": true}
+
+// parseProviderList splits a comma-separated --provider value into a normalized
+// (lowercased, trimmed) list and validates each entry. Empty input → nil list
+// (default behavior). An unknown provider returns a clear error.
+func parseProviderList(raw string) ([]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		p := strings.ToLower(strings.TrimSpace(part))
+		if p == "" {
+			continue
+		}
+		if !validProviders[p] {
+			return nil, fmt.Errorf("unknown provider %q; valid: google, kiwi, duffel, afklm", p)
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// containsProvider reports whether list contains name.
+func containsProvider(list []string, name string) bool {
+	for _, p := range list {
+		if p == name {
+			return true
+		}
+	}
+	return false
+}
+
+// filterSearchProviders returns the google/kiwi/duffel subset of the list (afklm
+// has its own routing). Returns nil when none are present so the search layer
+// keeps its default behavior.
+func filterSearchProviders(list []string) []string {
+	var out []string
+	for _, p := range list {
+		if p == "google" || p == "kiwi" || p == "duffel" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // runMultiCitySearch handles `trvl flights --leg ...` multi-city itineraries.
