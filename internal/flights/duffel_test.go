@@ -121,6 +121,24 @@ func TestSearchDuffel_DisabledWithoutKey(t *testing.T) {
 	}
 }
 
+func TestDuffelSlicesForSearch(t *testing.T) {
+	oneway := duffelSlicesForSearch("HAM", "FUK", "2026-09-15", SearchOptions{})
+	if len(oneway) != 1 {
+		t.Fatalf("one-way slices = %d, want 1", len(oneway))
+	}
+	if oneway[0].Origin != "HAM" || oneway[0].Destination != "FUK" || oneway[0].DepartureDate != "2026-09-15" {
+		t.Errorf("one-way slice = %+v", oneway[0])
+	}
+
+	rt := duffelSlicesForSearch("HAM", "FUK", "2026-09-15", SearchOptions{ReturnDate: "2026-09-28"})
+	if len(rt) != 2 {
+		t.Fatalf("round-trip slices = %d, want 2", len(rt))
+	}
+	if rt[1].Origin != "FUK" || rt[1].Destination != "HAM" || rt[1].DepartureDate != "2026-09-28" {
+		t.Errorf("return slice = %+v", rt[1])
+	}
+}
+
 func TestSearchDuffel_FailoverToNextKey(t *testing.T) {
 	var calls int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

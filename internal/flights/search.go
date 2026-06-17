@@ -171,6 +171,21 @@ func searchFlightsCore(ctx context.Context, client *batchexec.Client, origin, de
 		}, nil
 	}
 
+	// Google failed → try Duffel (paid fallback, only when configured).
+	if !googleSucceeded && DuffelEnabled() {
+		duffelFlights, duffelErr := SearchDuffel(ctx, duffelSlicesForSearch(origin, destination, date, opts), opts)
+		if duffelErr != nil {
+			slog.Warn("duffel flight search failed", "origin", origin, "destination", destination, "date", date, "error", duffelErr)
+		} else if len(duffelFlights) > 0 {
+			return &models.FlightSearchResult{
+				Success:  true,
+				Count:    len(duffelFlights),
+				TripType: tripTypeForSearch(opts),
+				Flights:  duffelFlights,
+			}, nil
+		}
+	}
+
 	if googleErr != nil && kiwiErr != nil {
 		err := errors.Join(googleErr, kiwiErr)
 		return &models.FlightSearchResult{
@@ -189,6 +204,16 @@ func searchFlightsCore(ctx context.Context, client *batchexec.Client, origin, de
 	return &models.FlightSearchResult{
 		Error: "unreachable flight search state",
 	}, fmt.Errorf("unreachable flight search state")
+}
+
+// duffelSlicesForSearch builds Duffel slices for a point-to-point search: one
+// slice for one-way, plus a reversed return slice when opts.ReturnDate is set.
+func duffelSlicesForSearch(origin, destination, date string, opts SearchOptions) []DuffelSlice {
+	slices := []DuffelSlice{{Origin: origin, Destination: destination, DepartureDate: date}}
+	if opts.ReturnDate != "" {
+		slices = append(slices, DuffelSlice{Origin: destination, Destination: origin, DepartureDate: opts.ReturnDate})
+	}
+	return slices
 }
 
 func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
