@@ -20,6 +20,7 @@ var AirportNames = map[string]string{
 	"BRS": "Bristol",
 	"CDG": "Paris CDG",
 	"ORY": "Paris Orly",
+	"BVA": "Paris Beauvais",
 	"AMS": "Amsterdam",
 	"FRA": "Frankfurt",
 	"MUC": "Munich",
@@ -45,6 +46,7 @@ var AirportNames = map[string]string{
 	"CTA": "Catania",
 	"PSA": "Pisa",
 	"ZRH": "Zurich",
+	"STR": "Stuttgart",
 	"GVA": "Geneva",
 	"VIE": "Vienna",
 	"BRU": "Brussels",
@@ -83,6 +85,7 @@ var AirportNames = map[string]string{
 	"LYS": "Lyon",
 	"TLS": "Toulouse",
 	"MRS": "Marseille",
+	"NTE": "Nantes",
 	"DBV": "Dubrovnik",
 	"SPU": "Split",
 	"TIV": "Tivat",
@@ -142,6 +145,9 @@ var AirportNames = map[string]string{
 	"NRT": "Tokyo Narita",
 	"HND": "Tokyo Haneda",
 	"KIX": "Osaka Kansai",
+	"ITM": "Osaka Itami",
+	"FUK": "Fukuoka",
+	"HIJ": "Hiroshima",
 	"ICN": "Seoul Incheon",
 	"PEK": "Beijing Capital",
 	"PKX": "Beijing Daxing",
@@ -370,13 +376,40 @@ func buildCityAirports() {
 	cityAirports = m
 }
 
+// cityAirportsPriority is an explicit, order-preserving city → []IATA map for
+// cities where airport order matters (the primary hub must come first because
+// the Duffel slice builder uses the first airport) or where a localized spelling
+// needs an alias. It is consulted before the auto-built cityAirports map and its
+// order is returned verbatim (NOT alphabetized).
+var cityAirportsPriority = map[string][]string{
+	// French market — Paris hubs primary-first.
+	"paris": {"CDG", "ORY", "BVA"},
+	// Japan — primary hub first.
+	"tokyo": {"HND", "NRT"},
+	"osaka": {"KIX", "ITM"},
+	// Localized (Spanish/German) spellings → existing single airports.
+	"múnich":     {"MUC"},
+	"münchen":    {"MUC"},
+	"düsseldorf": {"DUS"},
+	"viena":      {"VIE"},
+	"wien":       {"VIE"},
+	"zúrich":     {"ZRH"},
+}
+
 // ResolveCityToAirports returns the IATA codes for airports serving the named
 // city. Matching is case-insensitive and exact. Returns nil if the city is
-// unknown. Results are sorted alphabetically for determinism.
+// unknown. Cities listed in cityAirportsPriority return their codes in the
+// declared (primary-first) order; all others are sorted alphabetically for
+// determinism.
 func ResolveCityToAirports(name string) []string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil
+	}
+	if codes, ok := cityAirportsPriority[strings.ToLower(name)]; ok {
+		out := make([]string, len(codes))
+		copy(out, codes)
+		return out
 	}
 	cityAirportsOnce.Do(buildCityAirports)
 	codes := cityAirports[strings.ToLower(name)]

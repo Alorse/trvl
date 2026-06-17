@@ -57,10 +57,22 @@ const (
 // It includes a token bucket rate limiter, retry with exponential backoff,
 // and an in-memory response cache.
 type Client struct {
-	http    *http.Client
-	limiter *rate.Limiter
-	cache   *cache.Cache
-	noCache bool
+	http        *http.Client
+	limiter     *rate.Limiter
+	cache       *cache.Cache
+	noCache     bool
+	baseBackoff time.Duration // 0 means use defaultBaseBackoff
+}
+
+// SetBaseBackoffForTest overrides the retry backoff base. Test-only.
+func (c *Client) SetBaseBackoffForTest(d time.Duration) { c.baseBackoff = d }
+
+// effectiveBackoff returns the configured base backoff, or the default.
+func (c *Client) effectiveBackoff() time.Duration {
+	if c.baseBackoff > 0 {
+		return c.baseBackoff
+	}
+	return defaultBaseBackoff
 }
 
 // NewClient creates a Client that impersonates Chrome's TLS fingerprint.
@@ -234,11 +246,14 @@ func (c *Client) GetWithCookie(ctx context.Context, url, cookieHeader string) (i
 	})
 }
 
-// PostForm sends a POST with form-encoded body to the given URL. It sets the
-// Content-Type to application/x-www-form-urlencoded and uses a Chrome User-Agent.
-// The request is subject to rate limiting and automatic retry on 429/5xx.
+// PostForm sends a form-encoded POST, retrying on 429/5xx.
 func (c *Client) PostForm(ctx context.Context, url, formBody string) (int, []byte, error) {
-	return c.doWithRetry(ctx, func() (*http.Request, error) {
+	return c.PostFormValidated(ctx, url, formBody, nil)
+}
+
+// PostFormValidated is PostForm with an optional 200-body retry validator.
+func (c *Client) PostFormValidated(ctx context.Context, url, formBody string, retryableBody func([]byte) bool) (int, []byte, error) {
+	return c.doWithRetryValidated(ctx, func() (*http.Request, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(formBody))
 		if err != nil {
 			return nil, err
@@ -250,40 +265,39 @@ func (c *Client) PostForm(ctx context.Context, url, formBody string) (int, []byt
 		req.Header.Set("Origin", "https://www.google.com")
 		req.Header.Set("Referer", "https://www.google.com/travel/flights")
 		return req, nil
-	})
+	}, retryableBody)
 }
 
-// doWithRetry executes an HTTP request with rate limiting and retry logic.
-// It retries up to 3 times on 429 (rate limit) and 5xx (server error) responses,
-// with exponential backoff (1s, 2s, 4s) plus jitter (+-25%).
-// Client errors (4xx except 429) are not retried.
+// doWithRetry executes an HTTP request with rate limiting and retry on 429/5xx.
 func (c *Client) doWithRetry(ctx context.Context, buildReq func() (*http.Request, error)) (int, []byte, error) {
+	return c.doWithRetryValidated(ctx, buildReq, nil)
+}
+
+// doWithRetryValidated is doWithRetry plus an optional body validator. When
+// retryableBody != nil and a 200 response's body satisfies it, the response is
+// treated as retryable (same backoff path as 429/5xx). Used to retry Google's
+// 200-OK anti-bot responses. retryableBody == nil preserves status-only retry.
+func (c *Client) doWithRetryValidated(ctx context.Context, buildReq func() (*http.Request, error), retryableBody func([]byte) bool) (int, []byte, error) {
 	var lastStatus int
 	var lastBody []byte
 	var lastErr error
 
 	for attempt := range defaultMaxRetries + 1 {
-		// Wait for rate limiter before each attempt.
 		if err := c.limiter.Wait(ctx); err != nil {
 			return 0, nil, fmt.Errorf("rate limiter: %w", err)
 		}
-		slog.Debug("rate_limit", "waiting", true)
 
 		req, err := buildReq()
 		if err != nil {
 			return 0, nil, err
 		}
 
-		slog.Debug("request", "method", req.Method, "url", req.URL.String(), "payload_len", req.ContentLength)
-		start := time.Now()
-
 		resp, err := c.http.Do(req)
 		if err != nil {
 			lastErr = err
 			if attempt < defaultMaxRetries {
-				backoff := defaultBaseBackoff << attempt
-				slog.Warn("retry", "attempt", attempt, "error", err.Error(), "backoff_ms", backoff.Milliseconds())
-				if sleepErr := backoffSleep(ctx, attempt); sleepErr != nil {
+				slog.Warn("retry", "attempt", attempt, "error", err.Error())
+				if sleepErr := backoffSleep(ctx, attempt, c.effectiveBackoff()); sleepErr != nil {
 					return 0, nil, sleepErr
 				}
 				continue
@@ -291,45 +305,41 @@ func (c *Client) doWithRetry(ctx context.Context, buildReq func() (*http.Request
 			return 0, nil, lastErr
 		}
 
-		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10MB limit
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 		resp.Body.Close()
-		elapsed := time.Since(start)
-
 		if readErr != nil {
 			lastErr = readErr
 			if attempt < defaultMaxRetries {
-				backoff := defaultBaseBackoff << attempt
-				slog.Warn("retry", "attempt", attempt, "error", readErr.Error(), "backoff_ms", backoff.Milliseconds())
-				if sleepErr := backoffSleep(ctx, attempt); sleepErr != nil {
+				slog.Warn("retry", "attempt", attempt, "error", readErr.Error())
+				if sleepErr := backoffSleep(ctx, attempt, c.effectiveBackoff()); sleepErr != nil {
 					return 0, nil, sleepErr
 				}
 				continue
 			}
 			return 0, nil, lastErr
 		}
-
-		slog.Debug("response", "status", resp.StatusCode, "body_len", len(body), "duration_ms", elapsed.Milliseconds())
 
 		lastStatus = resp.StatusCode
 		lastBody = body
 		lastErr = nil
 
-		// Don't retry on success or non-retryable client errors.
-		if !isRetryable(resp.StatusCode) {
+		retryable := isRetryable(resp.StatusCode)
+		if !retryable && resp.StatusCode == 200 && retryableBody != nil && retryableBody(body) {
+			retryable = true
+			slog.Warn("retry", "attempt", attempt, "reason", "blocked_body_200")
+		}
+		if !retryable {
 			return lastStatus, lastBody, nil
 		}
 
-		// Retryable error — backoff before next attempt (unless this was the last).
 		if attempt < defaultMaxRetries {
-			backoff := defaultBaseBackoff << attempt
-			slog.Warn("retry", "attempt", attempt, "status", resp.StatusCode, "backoff_ms", backoff.Milliseconds())
-			if sleepErr := backoffSleep(ctx, attempt); sleepErr != nil {
+			slog.Warn("retry", "attempt", attempt, "status", resp.StatusCode)
+			if sleepErr := backoffSleep(ctx, attempt, c.effectiveBackoff()); sleepErr != nil {
 				return 0, nil, sleepErr
 			}
 		}
 	}
 
-	// All retries exhausted.
 	if lastErr != nil {
 		return 0, nil, lastErr
 	}
@@ -342,14 +352,15 @@ func isRetryable(statusCode int) bool {
 	return statusCode == 429 || statusCode >= 500
 }
 
-// backoffSleep sleeps for exponential backoff duration with jitter.
-// Base delay is 1s, doubling each attempt: 1s, 2s, 4s.
-// Jitter adds +-25% randomness to prevent thundering herd.
-func backoffSleep(ctx context.Context, attempt int) error {
-	base := defaultBaseBackoff << attempt // 1s, 2s, 4s
-	// Add jitter: +-25%
-	jitter := time.Duration(float64(base) * (0.75 + rand.Float64()*0.5))
-
+// backoffSleep sleeps for exponential backoff with jitter. base doubles each
+// attempt (base, 2*base, 4*base) with +-25% jitter. A zero base returns
+// immediately (test seam).
+func backoffSleep(ctx context.Context, attempt int, base time.Duration) error {
+	if base <= 0 {
+		return nil
+	}
+	d := base << attempt
+	jitter := time.Duration(float64(d) * (0.75 + rand.Float64()*0.5))
 	timer := time.NewTimer(jitter)
 	defer timer.Stop()
 	select {
@@ -396,8 +407,8 @@ func (c *Client) SearchFlightsGLCurr(ctx context.Context, encodedFilters, gl, cu
 	if data, ok := c.getCached(url, payload); ok {
 		return 200, data, nil
 	}
-	status, body, err := c.PostForm(ctx, url, payload)
-	if err == nil && status == 200 {
+	status, body, err := c.PostFormValidated(ctx, url, payload, IsBlockedFlightResponse)
+	if err == nil && status == 200 && !IsBlockedFlightResponse(body) {
 		c.setCached(url, payload, body, FlightCacheTTL)
 	}
 	return status, body, err
