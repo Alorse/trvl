@@ -307,3 +307,12 @@ trvl has 5 direct dependencies (and 5 transitive):
 | `golang.org/x/term` | Terminal width detection for table formatting |
 
 Everything else is Go stdlib: `net/http`, `encoding/json`, `sync`, `context`, `time`, `sort`, `strings`, `fmt`.
+
+## Duffel fallback
+
+When Google Flights is unavailable (anti-bot rejection retried and exhausted),
+trvl falls back to the Duffel API for one-way, round-trip, and multi-city
+searches. Requires `DUFFEL_API_KEYS` (comma-separated, rotated round-robin with
+failover) or a single `DUFFEL_API_KEY`. Duffel offers carry no booking deep-link
+(BookingURL is empty) and are priced in the Duffel organization's billing
+currency (not request-controllable).

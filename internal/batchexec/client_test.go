@@ -429,7 +429,7 @@ func TestBackoffSleep_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately.
 
-	err := backoffSleep(ctx, 0)
+	err := backoffSleep(ctx, 0, defaultBaseBackoff)
 	if err == nil {
 		t.Error("expected error from cancelled context")
 	}

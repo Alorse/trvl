@@ -125,12 +125,12 @@ func TestResolveCityToAirports(t *testing.T) {
 		{
 			name:  "multi-airport city",
 			input: "Paris",
-			want:  []string{"CDG", "ORY"},
+			want:  []string{"CDG", "ORY", "BVA"},
 		},
 		{
 			name:  "case insensitive",
 			input: "paris",
-			want:  []string{"CDG", "ORY"},
+			want:  []string{"CDG", "ORY", "BVA"},
 		},
 		{
 			name:  "multi-airport city Tokyo",
@@ -168,5 +168,47 @@ func TestResolveCityToAirports(t *testing.T) {
 				t.Errorf("ResolveCityToAirports(%q) = %v, want %v", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestResolveCityToAirports_Markets covers the DE/FR/Japan city lists, including
+// accented Spanish spellings and the priority ordering that the Duffel slice
+// builder relies on (it uses the first airport). Order is asserted exactly.
+func TestResolveCityToAirports_Markets(t *testing.T) {
+	cases := []struct {
+		input string
+		want  []string // exact order
+	}{
+		// German-speaking market
+		{"Berlin", []string{"BER"}},
+		{"Düsseldorf", []string{"DUS"}},
+		{"Dusseldorf", []string{"DUS"}},
+		{"Frankfurt", []string{"FRA"}},
+		{"Hamburg", []string{"HAM"}},
+		{"Múnich", []string{"MUC"}},
+		{"Munich", []string{"MUC"}},
+		{"Stuttgart", []string{"STR"}},
+		{"Viena", []string{"VIE"}},
+		{"Vienna", []string{"VIE"}},
+		{"Zúrich", []string{"ZRH"}},
+		{"Zurich", []string{"ZRH"}},
+		// French market — Paris primary-first CDG, then ORY, then BVA
+		{"Paris", []string{"CDG", "ORY", "BVA"}},
+		{"Nice", []string{"NCE"}},
+		{"Lyon", []string{"LYS"}},
+		{"Marseille", []string{"MRS"}},
+		{"Toulouse", []string{"TLS"}},
+		{"Nantes", []string{"NTE"}},
+		// Japan — primary first
+		{"Tokyo", []string{"HND", "NRT"}},
+		{"Fukuoka", []string{"FUK"}},
+		{"Osaka", []string{"KIX", "ITM"}},
+		{"Hiroshima", []string{"HIJ"}},
+	}
+	for _, c := range cases {
+		got := ResolveCityToAirports(c.input)
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("ResolveCityToAirports(%q) = %v, want %v (exact order)", c.input, got, c.want)
+		}
 	}
 }
