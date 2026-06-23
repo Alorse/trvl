@@ -253,7 +253,12 @@ func (c *Client) PostForm(ctx context.Context, url, formBody string) (int, []byt
 
 // PostFormValidated is PostForm with an optional 200-body retry validator.
 func (c *Client) PostFormValidated(ctx context.Context, url, formBody string, retryableBody func([]byte) bool) (int, []byte, error) {
-	return c.doWithRetryValidated(ctx, func() (*http.Request, error) {
+	return c.PostFormValidatedN(ctx, url, formBody, retryableBody, 0)
+}
+
+// PostFormValidatedN is PostFormValidated with an explicit block-retry budget.
+func (c *Client) PostFormValidatedN(ctx context.Context, url, formBody string, retryableBody func([]byte) bool, maxBlockRetries int) (int, []byte, error) {
+	return c.doWithRetryValidatedN(ctx, func() (*http.Request, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(formBody))
 		if err != nil {
 			return nil, err
@@ -265,7 +270,7 @@ func (c *Client) PostFormValidated(ctx context.Context, url, formBody string, re
 		req.Header.Set("Origin", "https://www.google.com")
 		req.Header.Set("Referer", "https://www.google.com/travel/flights")
 		return req, nil
-	}, retryableBody)
+	}, retryableBody, maxBlockRetries)
 }
 
 // doWithRetry executes an HTTP request with rate limiting and retry on 429/5xx.
@@ -278,9 +283,20 @@ func (c *Client) doWithRetry(ctx context.Context, buildReq func() (*http.Request
 // treated as retryable (same backoff path as 429/5xx). Used to retry Google's
 // 200-OK anti-bot responses. retryableBody == nil preserves status-only retry.
 func (c *Client) doWithRetryValidated(ctx context.Context, buildReq func() (*http.Request, error), retryableBody func([]byte) bool) (int, []byte, error) {
+	return c.doWithRetryValidatedN(ctx, buildReq, retryableBody, 0)
+}
+
+// doWithRetryValidatedN is doWithRetryValidated with an explicit anti-bot block
+// retry budget. maxBlockRetries <= 0 uses defaultMaxRetries. Network errors and
+// 429/5xx still retry up to defaultMaxRetries independently of the block budget.
+func (c *Client) doWithRetryValidatedN(ctx context.Context, buildReq func() (*http.Request, error), retryableBody func([]byte) bool, maxBlockRetries int) (int, []byte, error) {
+	if maxBlockRetries <= 0 {
+		maxBlockRetries = defaultMaxRetries
+	}
 	var lastStatus int
 	var lastBody []byte
 	var lastErr error
+	blockRetriesUsed := 0
 
 	for attempt := range defaultMaxRetries + 1 {
 		if err := c.limiter.Wait(ctx); err != nil {
@@ -324,9 +340,21 @@ func (c *Client) doWithRetryValidated(ctx context.Context, buildReq func() (*htt
 		lastErr = nil
 
 		retryable := isRetryable(resp.StatusCode)
+		isBlock := false
 		if !retryable && resp.StatusCode == 200 && retryableBody != nil && retryableBody(body) {
-			retryable = true
-			slog.Warn("retry", "attempt", attempt, "reason", "blocked_body_200")
+			isBlock = true
+		}
+		if isBlock {
+			if blockRetriesUsed < maxBlockRetries {
+				blockRetriesUsed++
+				slog.Warn("retry", "attempt", attempt, "reason", "blocked_body_200")
+				if sleepErr := backoffSleep(ctx, attempt, c.effectiveBackoff()); sleepErr != nil {
+					return 0, nil, sleepErr
+				}
+				continue
+			}
+			// Block budget exhausted: return the blocked body as-is.
+			return lastStatus, lastBody, nil
 		}
 		if !retryable {
 			return lastStatus, lastBody, nil
@@ -396,6 +424,13 @@ func (c *Client) SearchFlightsGL(ctx context.Context, encodedFilters, gl string)
 
 // SearchFlightsGLCurr is the full variant with both gl= and curr= parameters.
 func (c *Client) SearchFlightsGLCurr(ctx context.Context, encodedFilters, gl, curr string) (int, []byte, error) {
+	return c.SearchFlightsGLCurrN(ctx, encodedFilters, gl, curr, 0)
+}
+
+// SearchFlightsGLCurrN is SearchFlightsGLCurr with an explicit anti-bot block
+// retry budget (maxBlockRetries <= 0 → default). Used to fail fast to a fallback
+// provider (SerpApi) without burning all of Google's block retries.
+func (c *Client) SearchFlightsGLCurrN(ctx context.Context, encodedFilters, gl, curr string, maxBlockRetries int) (int, []byte, error) {
 	url := FlightsURL
 	if gl != "" {
 		url += "&gl=" + gl
@@ -407,7 +442,7 @@ func (c *Client) SearchFlightsGLCurr(ctx context.Context, encodedFilters, gl, cu
 	if data, ok := c.getCached(url, payload); ok {
 		return 200, data, nil
 	}
-	status, body, err := c.PostFormValidated(ctx, url, payload, IsBlockedFlightResponse)
+	status, body, err := c.PostFormValidatedN(ctx, url, payload, IsBlockedFlightResponse, maxBlockRetries)
 	if err == nil && status == 200 && !IsBlockedFlightResponse(body) {
 		c.setCached(url, payload, body, FlightCacheTTL)
 	}
