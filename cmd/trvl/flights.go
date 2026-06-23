@@ -321,7 +321,7 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 	cmd.Flags().StringVar(&format, "format", "table", "Output format: table, json")
 	cmd.Flags().StringVar(&targetCurrency, "currency", "", "Convert prices to this currency (e.g. EUR, USD). Empty = show API default")
 	cmd.Flags().BoolVar(&compareCabins, "compare-cabins", false, "Compare prices across all cabin classes (economy, premium, business, first)")
-	cmd.Flags().StringVar(&provider, "provider", "", "Restrict to these providers (comma-separated allow-list): google, kiwi, duffel, afklm. Empty = default (Google primary, Kiwi merge, Duffel fallback on Google failure). E.g. --provider duffel queries only Duffel.")
+	cmd.Flags().StringVar(&provider, "provider", "", "Restrict to these providers (comma-separated allow-list): google, google_serpapi, kiwi, duffel, afklm. Empty = default (Google primary, SerpApi then Duffel on Google failure). E.g. --provider google_serpapi queries only SerpApi.")
 	cmd.Flags().BoolVar(&homeFan, "home-fan", false, "Expand origin to all home + nearby airports from preferences (e.g. AMS+EIN, HEL+TKU+TMP+TLL+ARN)")
 	cmd.Flags().BoolVar(&railFly, "rail-fly", false, "KL/AF rail+fly: also search ZYR (Brussels-Midi station), ANR, BRU as origins via AFKL provider. Requires origin to include AMS.")
 	cmd.Flags().StringVar(&minLayoverStr, "min-layover", "", "Only show flights with at least this layover duration (e.g. 12h, 90m)")
@@ -341,7 +341,7 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 }
 
 // validProviders is the set of accepted --provider values.
-var validProviders = map[string]bool{"google": true, "kiwi": true, "duffel": true, "afklm": true}
+var validProviders = map[string]bool{"google": true, "kiwi": true, "duffel": true, "afklm": true, "google_serpapi": true}
 
 // parseProviderList splits a comma-separated --provider value into a normalized
 // (lowercased, trimmed) list and validates each entry. Empty input → nil list
@@ -358,7 +358,7 @@ func parseProviderList(raw string) ([]string, error) {
 			continue
 		}
 		if !validProviders[p] {
-			return nil, fmt.Errorf("unknown provider %q; valid: google, kiwi, duffel, afklm", p)
+			return nil, fmt.Errorf("unknown provider %q; valid: google, google_serpapi, kiwi, duffel, afklm", p)
 		}
 		out = append(out, p)
 	}
@@ -381,7 +381,7 @@ func containsProvider(list []string, name string) bool {
 func filterSearchProviders(list []string) []string {
 	var out []string
 	for _, p := range list {
-		if p == "google" || p == "kiwi" || p == "duffel" {
+		if p == "google" || p == "google_serpapi" || p == "kiwi" || p == "duffel" {
 			out = append(out, p)
 		}
 	}
@@ -634,6 +634,8 @@ func flightProviderLabel(f models.FlightResult) string {
 		return ""
 	case "google_flights":
 		return "Google"
+	case "google_serpapi":
+		return "Google (SerpApi)"
 	case "kiwi":
 		return "Kiwi"
 	default:
