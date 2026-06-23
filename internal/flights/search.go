@@ -166,7 +166,13 @@ func searchFlightsCore(ctx context.Context, client *batchexec.Client, origin, de
 		return searchFlightsExplicit(ctx, client, origin, destination, date, opts)
 	}
 
-	googleResult, googleErr := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts)
+	// Free Google gets one anti-bot retry (2 attempts) when SerpApi can take
+	// over; without SerpApi it keeps the default 3 retries (nowhere to fall).
+	googleBlockRetries := 0
+	if SerpEnabled() {
+		googleBlockRetries = 1
+	}
+	googleResult, googleErr := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts, googleBlockRetries)
 	googleSucceeded := googleErr == nil
 	currency := flightSearchCurrency(googleResult)
 
@@ -195,6 +201,22 @@ func searchFlightsCore(ctx context.Context, client *batchexec.Client, origin, de
 			TripType: tripTypeForSearch(opts),
 			Flights:  mergedFlights,
 		}, nil
+	}
+
+	// Google failed → try SerpApi (same Google data via SerpApi's infra, with a
+	// rotated key per attempt). Then Duffel.
+	if !googleSucceeded && SerpEnabled() {
+		serpFlights, serpErr := SearchSerpApi(ctx, duffelSlicesForSearch(origin, destination, date, opts), opts)
+		if serpErr != nil {
+			slog.Warn("serpapi flight search failed", "origin", origin, "destination", destination, "date", date, "error", serpErr)
+		} else if len(serpFlights) > 0 {
+			return &models.FlightSearchResult{
+				Success:  true,
+				Count:    len(serpFlights),
+				TripType: tripTypeForSearch(opts),
+				Flights:  serpFlights,
+			}, nil
+		}
 	}
 
 	// Google failed → try Duffel (paid fallback, only when configured).
@@ -251,13 +273,24 @@ func searchFlightsExplicit(ctx context.Context, client *batchexec.Client, origin
 	anySucceeded := false
 
 	if providerListed(opts, "google") {
-		if r, err := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts); err != nil {
+		if r, err := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts, 0); err != nil {
 			errs = append(errs, fmt.Errorf("google: %w", err))
 		} else {
 			anySucceeded = true
 			if r != nil {
 				combined = append(combined, r.Flights...)
 			}
+		}
+	}
+
+	if providerListed(opts, "google_serpapi") {
+		if !SerpEnabled() {
+			errs = append(errs, fmt.Errorf("google_serpapi: serp-key command not available (install serp-key on PATH or set TRVL_SERP_KEY_CMD)"))
+		} else if f, err := SearchSerpApi(ctx, duffelSlicesForSearch(origin, destination, date, opts), opts); err != nil {
+			errs = append(errs, fmt.Errorf("google_serpapi: %w", err))
+		} else {
+			anySucceeded = true
+			combined = append(combined, f...)
 		}
 	}
 
@@ -298,10 +331,10 @@ func searchFlightsExplicit(ctx context.Context, client *batchexec.Client, origin
 	return &models.FlightSearchResult{Error: err.Error()}, err
 }
 
-func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
+func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions, maxBlockRetries int) (*models.FlightSearchResult, error) {
 	filters := buildFilters(origin, destination, date, opts)
 
-	flights, err := runGoogleFlightSearch(ctx, client, filters, opts)
+	flights, err := runGoogleFlightSearch(ctx, client, filters, opts, maxBlockRetries)
 	if err != nil {
 		return &models.FlightSearchResult{Error: err.Error()}, err
 	}
@@ -324,14 +357,14 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 // payload: encode → POST → decode → extract → parse. It sets Provider on each
 // flight but leaves BookingURL to the caller (route-specific). Shared by one-way/
 // round-trip (searchGoogleFlightsWithClient) and multi-city (SearchMultiCity).
-func runGoogleFlightSearch(ctx context.Context, client *batchexec.Client, filters any, opts SearchOptions) ([]models.FlightResult, error) {
+func runGoogleFlightSearch(ctx context.Context, client *batchexec.Client, filters any, opts SearchOptions, maxBlockRetries int) ([]models.FlightResult, error) {
 	encoded, err := batchexec.EncodeFlightFilters(filters)
 	if err != nil {
 		return nil, fmt.Errorf("encode filters: %w", err)
 	}
 
 	gl := CurrencyToGL(opts.Currency)
-	status, body, err := client.SearchFlightsGLCurr(ctx, encoded, gl, opts.Currency)
+	status, body, err := client.SearchFlightsGLCurrN(ctx, encoded, gl, opts.Currency, maxBlockRetries)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}

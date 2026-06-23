@@ -109,9 +109,23 @@ func SearchMultiCity(ctx context.Context, legs []Leg, opts SearchOptions) (*mode
 	// tripType 3 = multi-city.
 	filters := buildFiltersFromSegments(segments, 3, opts)
 
-	flights, err := runGoogleFlightSearch(ctx, DefaultClient(), filters, opts)
+	googleBlockRetries := 0
+	if SerpEnabled() {
+		googleBlockRetries = 1
+	}
+	flights, err := runGoogleFlightSearch(ctx, DefaultClient(), filters, opts, googleBlockRetries)
 	if err != nil {
-		// Google failed → try Duffel (paid fallback, native multi-city).
+		// Google failed → SerpApi (native multi-city), then Duffel.
+		if SerpEnabled() {
+			if serpFlights, sErr := SearchSerpApi(ctx, duffelSlicesForLegs(legs), opts); sErr == nil && len(serpFlights) > 0 {
+				return &models.FlightSearchResult{
+					Success:  true,
+					Count:    len(serpFlights),
+					TripType: "multi_city",
+					Flights:  serpFlights,
+				}, nil
+			}
+		}
 		if DuffelEnabled() {
 			if duffelFlights, dErr := SearchDuffel(ctx, duffelSlicesForLegs(legs), opts); dErr == nil && len(duffelFlights) > 0 {
 				return &models.FlightSearchResult{
@@ -164,7 +178,7 @@ func searchMultiCityExplicit(ctx context.Context, legs []Leg, opts SearchOptions
 			segments[i] = buildSegmentMulti(leg.Origins, leg.Destinations, leg.Date, opts)
 		}
 		filters := buildFiltersFromSegments(segments, 3, opts)
-		if f, err := runGoogleFlightSearch(ctx, DefaultClient(), filters, opts); err != nil {
+		if f, err := runGoogleFlightSearch(ctx, DefaultClient(), filters, opts, 0); err != nil {
 			errs = append(errs, fmt.Errorf("google: %w", err))
 		} else {
 			anySucceeded = true
@@ -173,6 +187,17 @@ func searchMultiCityExplicit(ctx context.Context, legs []Leg, opts SearchOptions
 			for i := range f {
 				f[i].BookingURL = bookingURL
 			}
+			combined = append(combined, f...)
+		}
+	}
+
+	if providerListed(opts, "google_serpapi") {
+		if !SerpEnabled() {
+			errs = append(errs, fmt.Errorf("google_serpapi: serp-key command not available"))
+		} else if f, err := SearchSerpApi(ctx, duffelSlicesForLegs(legs), opts); err != nil {
+			errs = append(errs, fmt.Errorf("google_serpapi: %w", err))
+		} else {
+			anySucceeded = true
 			combined = append(combined, f...)
 		}
 	}

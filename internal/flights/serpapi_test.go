@@ -138,6 +138,32 @@ func TestBuildSerpQueryTripTypes(t *testing.T) {
 	}
 }
 
+func TestSerpApiUsesPointToPointSlices(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Echo back that we received a round-trip query for FRA->NRT.
+		if r.URL.Query().Get("type") != "1" || r.URL.Query().Get("return_date") == "" {
+			w.WriteHeader(400)
+			return
+		}
+		_, _ = w.Write([]byte(serpOneWayFixture))
+	}))
+	defer srv.Close()
+
+	origBase, origKey := serpAPIBaseURL, serpKeyFunc
+	defer func() { serpAPIBaseURL, serpKeyFunc = origBase, origKey }()
+	serpAPIBaseURL = srv.URL
+	serpKeyFunc = func(context.Context) (string, error) { return "K", nil }
+
+	slices := duffelSlicesForSearch("FRA", "NRT", "2026-08-15", SearchOptions{ReturnDate: "2026-08-29"})
+	res, err := SearchSerpApi(context.Background(), slices, SearchOptions{Currency: "EUR", ReturnDate: "2026-08-29"})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(res) != 1 || res[0].Provider != "google_serpapi" {
+		t.Fatalf("unexpected results: %+v", res)
+	}
+}
+
 func TestSearchSerpApiRetriesWithRotatedKey(t *testing.T) {
 	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
