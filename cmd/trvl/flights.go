@@ -321,7 +321,7 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 	cmd.Flags().StringVar(&format, "format", "table", "Output format: table, json")
 	cmd.Flags().StringVar(&targetCurrency, "currency", "", "Convert prices to this currency (e.g. EUR, USD). Empty = show API default")
 	cmd.Flags().BoolVar(&compareCabins, "compare-cabins", false, "Compare prices across all cabin classes (economy, premium, business, first)")
-	cmd.Flags().StringVar(&provider, "provider", "", "Restrict to these providers (comma-separated allow-list): google, google_serpapi, kiwi, duffel, afklm. Empty = default (Google primary, SerpApi then Duffel on Google failure). E.g. --provider google_serpapi queries only SerpApi.")
+	cmd.Flags().StringVar(&provider, "provider", "", "Restrict to these providers (comma-separated allow-list): google, google_serpapi, kiwi, duffel, afklm. Empty = default (Google primary, Kiwi merge, SerpApi then Duffel on Google failure). E.g. --provider google_serpapi queries only SerpApi.")
 	cmd.Flags().BoolVar(&homeFan, "home-fan", false, "Expand origin to all home + nearby airports from preferences (e.g. AMS+EIN, HEL+TKU+TMP+TLL+ARN)")
 	cmd.Flags().BoolVar(&railFly, "rail-fly", false, "KL/AF rail+fly: also search ZYR (Brussels-Midi station), ANR, BRU as origins via AFKL provider. Requires origin to include AMS.")
 	cmd.Flags().StringVar(&minLayoverStr, "min-layover", "", "Only show flights with at least this layover duration (e.g. 12h, 90m)")

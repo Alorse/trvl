@@ -138,6 +138,26 @@ func TestBuildSerpQueryTripTypes(t *testing.T) {
 	}
 }
 
+func TestBuildSerpQueryTwoLegNonMirrorIsMultiCity(t *testing.T) {
+	q, err := buildSerpQuery([]DuffelSlice{
+		{Origin: "FRA", Destination: "NRT", DepartureDate: "2026-08-15"},
+		{Origin: "NRT", Destination: "ICN", DepartureDate: "2026-08-20"},
+	}, "K", SearchOptions{Currency: "EUR"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, _ := url.ParseQuery(q)
+	if v.Get("type") != "3" {
+		t.Fatalf("expected multi-city type=3 for non-mirror 2-leg, got type=%q (query=%s)", v.Get("type"), q)
+	}
+	if v.Get("return_date") != "" {
+		t.Fatalf("non-mirror 2-leg must not set return_date, got %q", v.Get("return_date"))
+	}
+	if !strings.Contains(v.Get("multi_city_json"), `"departure_id":"NRT"`) {
+		t.Fatalf("expected NRT leg in multi_city_json, got %s", v.Get("multi_city_json"))
+	}
+}
+
 func TestSerpApiUsesPointToPointSlices(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Echo back that we received a round-trip query for FRA->NRT.
