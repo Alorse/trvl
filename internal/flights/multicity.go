@@ -142,12 +142,28 @@ func SearchMultiCity(ctx context.Context, legs []Leg, opts SearchOptions) (*mode
 		flights[i].BookingURL = bookingURL
 	}
 
+	if r := multiCitySearchResult(flights, opts); r != nil {
+		return r, nil
+	}
 	return &models.FlightSearchResult{
 		Success:  true,
-		Count:    len(flights),
+		Count:    0,
 		TripType: "multi_city",
-		Flights:  flights,
 	}, nil
+}
+
+// multiCitySearchResult applies the same filters, bag annotation and sort the
+// point-to-point path gets, then wraps the survivors.
+//
+// Google answering normally used to return straight from the search with none
+// of that: no bag verdict in the JSON, require_checked_bag silently ignored,
+// and --stops and --sort unapplied. The fallback branch was fixed separately,
+// which is why this survived — the tests only covered the fallback.
+//
+// Returns nil when nothing survives, so callers can distinguish "filtered to
+// nothing" from "found nothing".
+func multiCitySearchResult(flights []models.FlightResult, opts SearchOptions) *models.FlightSearchResult {
+	return searchResultFrom(flights, opts, "multi_city")
 }
 
 // searchMultiCityExplicit runs only the providers named in opts.Providers for a
