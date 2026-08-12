@@ -6,37 +6,6 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
-// TestRequireCheckedBagKeepsUnknownMarked pins the require_checked_bag
-// semantics: a nil CheckedBagsIncluded means the provider never reported the
-// field (SerpApi on routes where Google omits it), not "no bag". Dropping those
-// silently emptied every SerpApi result set. They are kept and marked instead.
-func TestRequireCheckedBagKeepsUnknownMarked(t *testing.T) {
-	zero, one := 0, 1
-	flights := []models.FlightResult{
-		{Price: 100, Provider: "google_serpapi", CheckedBagsIncluded: &zero},
-		{Price: 200, Provider: "google_flights", CheckedBagsIncluded: &one},
-		{Price: 300, Provider: "google_serpapi", CheckedBagsIncluded: nil},
-	}
-
-	got := filterFlightResults(flights, SearchOptions{RequireCheckedBag: true})
-
-	if len(got) != 2 {
-		t.Fatalf("kept %d flights, want 2 (the included one + the unknown one)", len(got))
-	}
-	if got[0].Price != 200 {
-		t.Errorf("first kept price = %.0f, want 200 (bag included)", got[0].Price)
-	}
-	if got[1].Price != 300 {
-		t.Fatalf("second kept price = %.0f, want 300 (bag unknown)", got[1].Price)
-	}
-	if len(got[1].Warnings) == 0 {
-		t.Error("unknown-bag flight must be marked with a warning")
-	}
-	if len(got[0].Warnings) != 0 {
-		t.Errorf("known-bag flight must not be marked, got %v", got[0].Warnings)
-	}
-}
-
 // TestFallbackSearchResultAppliesFilters covers the fallback providers (SerpApi,
 // Duffel). Their results used to be returned raw, so max_price / max_stops /
 // airlines / require_checked_bag were silently ignored whenever Google failed —
@@ -129,5 +98,49 @@ func TestMergeFlightResults_SortsCheapestAndFiltersStops(t *testing.T) {
 	}
 	if merged[1].Price != 200 {
 		t.Fatalf("second price = %.0f, want 200", merged[1].Price)
+	}
+}
+
+// TestBagEstimateDrivesTheFilter pins the resolution cascade end to end: every
+// result carries a provenance-tagged verdict, and require_checked_bag acts on
+// that verdict rather than on the raw provider field. Without the table step a
+// Lufthansa long-haul — where Google states no allowance — would be dropped
+// even though the airline includes a bag.
+func TestBagEstimateDrivesTheFilter(t *testing.T) {
+	zero := 0
+	flights := []models.FlightResult{
+		{Price: 100, Legs: []models.FlightLeg{{AirlineCode: "LH"}}},                  // silent → table says included
+		{Price: 200, Legs: []models.FlightLeg{{AirlineCode: "FR"}}},                  // silent → table says none
+		{Price: 300, Legs: []models.FlightLeg{{AirlineCode: "TG"}}},                  // silent → not covered
+		{Price: 400, Legs: []models.FlightLeg{{AirlineCode: "LH"}}, CheckedBagsIncluded: &zero}, // provider overrides table
+	}
+
+	got := filterFlightResults(flights, SearchOptions{RequireCheckedBag: true})
+
+	if len(got) != 1 || got[0].Price != 100 {
+		t.Fatalf("expected only the Lufthansa fare without a provider verdict, got %+v", got)
+	}
+	if got[0].BagEstimate == nil {
+		t.Fatal("every result must carry a bag estimate")
+	}
+	if got[0].BagEstimate.Source != models.BagSourceTableUnsourced {
+		t.Errorf("source = %q, want the table to be credited", got[0].BagEstimate.Source)
+	}
+
+	// Unfiltered searches still get the annotation, so consumers can price it.
+	all := filterFlightResults(flights, SearchOptions{})
+	if len(all) != 4 {
+		t.Fatalf("no filter means no drops, got %d", len(all))
+	}
+	for i, f := range all {
+		if f.BagEstimate == nil {
+			t.Fatalf("flight %d has no bag estimate", i)
+		}
+	}
+	if all[2].BagEstimate.Source != models.BagSourceUnknown || all[2].BagEstimate.AmountMin != 0 {
+		t.Errorf("uncovered airline must be unknown with no invented fee, got %+v", all[2].BagEstimate)
+	}
+	if all[3].BagEstimate.Source != models.BagSourceProvider {
+		t.Errorf("provider verdict must win over the table, got %q", all[3].BagEstimate.Source)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/baggage"
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
@@ -37,10 +38,32 @@ func fallbackSearchResult(flights []models.FlightResult, opts SearchOptions, tri
 	}
 }
 
+// annotateBagEstimates resolves every result's checked-bag situation from the
+// best evidence available and records which evidence that was, so consumers can
+// price a bag and see how far to trust the figure. Runs on every search, not
+// only bag-filtered ones — trvl estimates trip cost, and a fare without its bag
+// terms understates it.
+//
+// The airline is taken from the first leg, matching how the rest of the
+// codebase attributes a flight. That is the wrong rule for interline
+// itineraries, where the governing carrier may be neither the first nor the one
+// the user sees, but changing it belongs with the other first-leg call sites.
+func annotateBagEstimates(flights []models.FlightResult) {
+	for i := range flights {
+		code := ""
+		if len(flights[i].Legs) > 0 {
+			code = flights[i].Legs[0].AirlineCode
+		}
+		est := baggage.ResolveCheckedBag(flights[i].CheckedBagsIncluded, code)
+		flights[i].BagEstimate = &est
+	}
+}
+
 func filterFlightResults(flights []models.FlightResult, opts SearchOptions) []models.FlightResult {
 	if len(flights) == 0 {
 		return nil
 	}
+	annotateBagEstimates(flights)
 
 	filtered := make([]models.FlightResult, 0, len(flights))
 	for _, f := range flights {

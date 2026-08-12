@@ -381,16 +381,16 @@ func TestSortFlightResults_ByDeparture(t *testing.T) {
 
 func TestFilterFlightsWithCheckedBag_IncludesBag(t *testing.T) {
 	bags := 1
+	// filterFlightsWithCheckedBag reads the resolved estimate, which
+	// filterFlightResults attaches; annotate the same way here.
 	flights := []models.FlightResult{
 		{CheckedBagsIncluded: &bags, Price: 200},
-		{Price: 150}, // no bags info → unknown, kept and marked
+		{Price: 150}, // no bag info and no airline to fall back on
 	}
+	annotateBagEstimates(flights)
 	got := filterFlightsWithCheckedBag(flights)
-	if len(got) != 2 {
-		t.Fatalf("expected 2 flights (included + unknown), got %d", len(got))
-	}
-	if len(got[1].Warnings) != 1 || got[1].Warnings[0] != checkedBagUnknownWarning {
-		t.Errorf("unknown-bag flight must carry the warning, got %v", got[1].Warnings)
+	if len(got) != 1 || got[0].Price != 200 {
+		t.Fatalf("expected only the confirmed flight, got %+v", got)
 	}
 }
 

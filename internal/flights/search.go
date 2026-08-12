@@ -576,28 +576,21 @@ func bagsFilter(carryOn, checked int) any {
 	return []any{carryOn, checked}
 }
 
-// checkedBagUnknownWarning marks a flight kept by the checked-bag filter whose
-// provider never reported the field.
-const checkedBagUnknownWarning = "Checked bag unconfirmed: provider did not report baggage"
-
 // filterFlightsWithCheckedBag drops flights the provider explicitly reported as
 // carrying no free checked bag. This is a client-side post-filter on parsed
 // response data (offer[4][6] for Google, option-level extensions for SerpApi).
 // The server-side bags filter at outer[1][10] is a price recalculation hint,
 // not a result filter — it changes displayed prices but doesn't remove flights.
 //
-// A nil CheckedBagsIncluded means the provider stayed silent, which is not the
-// same as "no bag": SerpApi reports the condition only on routes where Google
-// emits it, so dropping nil emptied entire SerpApi result sets. Those flights
-// are kept and marked instead, leaving the call to the user.
+// A nil CheckedBagsIncluded means the provider did not state an allowance, and
+// is treated as "no free checked bag": a filter that promises bagged flights
+// must not pass through ones we cannot vouch for. Providers all populate this
+// field from their own payload (Google and SerpApi from offer[4][6], Duffel
+// from its baggages array), so the filter is provider-agnostic.
 func filterFlightsWithCheckedBag(flights []models.FlightResult) []models.FlightResult {
 	filtered := flights[:0]
 	for _, f := range flights {
-		switch {
-		case f.CheckedBagsIncluded == nil:
-			f.Warnings = append(append([]string{}, f.Warnings...), checkedBagUnknownWarning)
-			filtered = append(filtered, f)
-		case *f.CheckedBagsIncluded >= 1:
+		if f.BagEstimate != nil && f.BagEstimate.Included {
 			filtered = append(filtered, f)
 		}
 	}

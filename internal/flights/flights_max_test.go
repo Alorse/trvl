@@ -280,11 +280,11 @@ func TestFilterFlightResults_RequireCheckedBag(t *testing.T) {
 		{CheckedBagsIncluded: &bags0, Legs: []models.FlightLeg{{DepartureTime: "2026-07-01T10:00"}}},
 		{Legs: []models.FlightLeg{{DepartureTime: "2026-07-01T10:00"}}}, // nil
 	}
-	// Only the explicit zero is dropped; nil means the provider stayed silent
-	// and is kept marked (see TestRequireCheckedBagKeepsUnknownMarked).
+	// These carry no airline code, so the table cannot rescue the silent one:
+	// only the flight the provider vouched for survives.
 	got := filterFlightResults(flights, SearchOptions{RequireCheckedBag: true})
-	if len(got) != 2 {
-		t.Errorf("expected 2 flights (bag included + bag unknown), got %d", len(got))
+	if len(got) != 1 {
+		t.Errorf("expected only the provider-confirmed flight, got %d", len(got))
 	}
 }
 
