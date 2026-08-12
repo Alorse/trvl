@@ -15,8 +15,19 @@ type AirlineBaggage struct {
 	PersonalItem      bool    `json:"personal_item"`       // True if extra personal/handbag item allowed
 	CheckedIncluded   int     `json:"checked_included"`    // Number of checked bags included (0 = none)
 	CheckedFee        float64 `json:"checked_fee_eur"`     // EUR for first checked bag (0 = included or unknown)
-	OverheadOnly      bool    `json:"overhead_only"`       // True if only small under-seat bag is free in base fare
-	Notes             string  `json:"notes"`
+	// Published fees are a range, not a point: route, booking channel, timing
+	// and weight tier move them 3x to 9.5x within one carrier and fare brand
+	// (Lufthansa Economy Light is EUR 15-100 for the same 23 kg bag). Min/Max
+	// are only set where a primary source states them; FeeSource cites it and
+	// FeeVerified dates it. Zero Min and Max means we have no sourced range.
+	CheckedFeeMin float64 `json:"checked_fee_min,omitempty"`
+	CheckedFeeMax float64 `json:"checked_fee_max,omitempty"`
+	FeeCurrency   string  `json:"fee_currency,omitempty"` // ISO code for the range; "" means EUR
+	FeeVaries     bool    `json:"fee_varies,omitempty"`   // carrier publishes no figure at all
+	FeeSource     string  `json:"fee_source,omitempty"`   // URL the range came from
+	FeeVerified   string  `json:"fee_verified,omitempty"` // YYYY-MM the range was checked
+	OverheadOnly  bool    `json:"overhead_only"`          // True if only small under-seat bag is free in base fare
+	Notes         string  `json:"notes"`
 }
 
 // database holds all known airline baggage rules, keyed by IATA code.
@@ -54,6 +65,11 @@ var database = map[string]AirlineBaggage{
 	},
 	"LH": {
 		Code:              "LH",
+		CheckedFeeMin:     15,
+		CheckedFeeMax:     100,
+		FeeCurrency:       "EUR",
+		FeeSource:         "https://business.lufthansagroup.com/content/dam/b2b/experts/files/LHG_FBAG_EcoLight_EN.pdf (Economy Light only; PDF stamped \"As at 11/2023\")",
+		FeeVerified:       "2023-11",
 		Name:              "Lufthansa",
 		CarryOnMaxKg:      8,
 		CarryOnDimensions: "55x40x23 cm",
@@ -144,6 +160,9 @@ var database = map[string]AirlineBaggage{
 	},
 	"TK": {
 		Code:              "TK",
+		FeeVaries:         true,
+		FeeSource:         "https://www.turkishairlines.com/en-int/any-questions/baggage-allowance/",
+		FeeVerified:       "2026-08",
 		Name:              "Turkish Airlines",
 		CarryOnMaxKg:      8,
 		CarryOnDimensions: "55x40x23 cm",
@@ -188,6 +207,11 @@ var database = map[string]AirlineBaggage{
 	// --- Low-cost carriers (LCC) ---
 	"FR": {
 		Code:              "FR",
+		CheckedFeeMin:     9.49,
+		CheckedFeeMax:     60,
+		FeeCurrency:       "EUR",
+		FeeSource:         "https://www.ryanair.com/ie/en/useful-info/help-centre/fees (10 kg tier: EUR 9.49 online to EUR 46-60 at the gate)",
+		FeeVerified:       "2026-08",
 		Name:              "Ryanair",
 		CarryOnMaxKg:      10,
 		CarryOnDimensions: "55x40x20 cm",
@@ -199,6 +223,9 @@ var database = map[string]AirlineBaggage{
 	},
 	"W6": {
 		Code:              "W6",
+		FeeVaries:         true,
+		FeeSource:         "https://wizzair.com/en-gb/help-centre/baggage",
+		FeeVerified:       "2026-08",
 		Name:              "Wizz Air",
 		CarryOnMaxKg:      10,
 		CarryOnDimensions: "55x40x23 cm",
@@ -210,6 +237,11 @@ var database = map[string]AirlineBaggage{
 	},
 	"U2": {
 		Code:              "U2",
+		CheckedFeeMin:     6.99,
+		CheckedFeeMax:     60,
+		FeeCurrency:       "GBP",
+		FeeSource:         "https://www.easyjet.com/en/help-centre/policy-terms-and-conditions/fees-charges (airport bag drop is a flat GBP 60 at any weight tier)",
+		FeeVerified:       "2026-08",
 		Name:              "easyJet",
 		CarryOnMaxKg:      15,
 		CarryOnDimensions: "56x45x25 cm",
@@ -240,6 +272,11 @@ var database = map[string]AirlineBaggage{
 	},
 	"VY": {
 		Code:              "VY",
+		CheckedFeeMin:     18,
+		CheckedFeeMax:     120,
+		FeeCurrency:       "EUR",
+		FeeSource:         "https://www.vueling.com/en/vueling-services/supplementary-service-rates (25 kg: EUR 18-99 online, EUR 50-120 airport, EUR 100-160 Africa/Middle East)",
+		FeeVerified:       "2026-08",
 		Name:              "Vueling",
 		CarryOnMaxKg:      10,
 		CarryOnDimensions: "55x40x20 cm",

@@ -102,6 +102,9 @@ type candidate struct {
 	baseCost  float64
 	bagCost   float64
 	ffSavings float64
+	// bagTermsUnknown marks a candidate whose airline is absent from the
+	// baggage table, so bagCost is a floor rather than an estimate.
+	bagTermsUnknown bool
 	allInCost float64
 }
 
@@ -564,13 +567,17 @@ func priceCandidate(c *candidate, input OptimizeInput) {
 		airlineCode = bestFlight.Legs[0].AirlineCode
 	}
 
-	allIn, _ := baggage.AllInCost(
+	allIn, _, bagTermsKnown := baggage.AllInCost(
 		bestFlight.Price,
 		airlineCode,
 		input.NeedCheckedBag,
 		!input.CarryOnOnly, // needCarryOn = opposite of carryOnOnly
 		ffStatuses,
 	)
+	// Unknown terms are not free terms: without this, a carrier missing from the
+	// baggage table ranked as though its checked bag cost nothing, beating
+	// carriers whose real fee we do know.
+	c.bagTermsUnknown = !bagTermsKnown
 
 	c.bagCost = allIn - bestFlight.Price
 	if c.bagCost < 0 {
@@ -578,7 +585,7 @@ func priceCandidate(c *candidate, input OptimizeInput) {
 	}
 
 	// FF savings: difference between cost without FF and cost with FF.
-	allInNoFF, _ := baggage.AllInCost(
+	allInNoFF, _, _ := baggage.AllInCost(
 		bestFlight.Price,
 		airlineCode,
 		input.NeedCheckedBag,

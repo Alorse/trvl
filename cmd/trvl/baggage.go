@@ -93,8 +93,8 @@ func printBaggageDetail(ab baggage.AirlineBaggage) error {
 	checked := "Not included"
 	if ab.CheckedIncluded > 0 {
 		checked = fmt.Sprintf("%d bag included (23 kg)", ab.CheckedIncluded)
-	} else if ab.CheckedFee > 0 {
-		checked = fmt.Sprintf("Not included — from EUR %.0f", ab.CheckedFee)
+	} else if label := baggage.CheckedFeeLabel(ab); label != "" {
+		checked = "Not included — " + label
 	}
 	fmt.Printf("  Checked:     %s\n", checked)
 
@@ -135,8 +135,8 @@ func printBaggageList(airlines []baggage.AirlineBaggage) error {
 		checked := "not included"
 		if ab.CheckedIncluded > 0 {
 			checked = fmt.Sprintf("%dx23kg", ab.CheckedIncluded)
-		} else if ab.CheckedFee > 0 {
-			checked = fmt.Sprintf("~EUR%.0f", ab.CheckedFee)
+		} else if label := baggage.CheckedFeeLabel(ab); label != "" {
+			checked = label
 		}
 
 		lcc := ""

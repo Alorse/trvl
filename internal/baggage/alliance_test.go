@@ -145,9 +145,10 @@ func TestResolveBagBenefit_AllTiersHaveFreeCarryOn(t *testing.T) {
 
 func TestAllInCost_LCCNoBenefit(t *testing.T) {
 	// Ryanair (FR) with no FF status: should add checked bag fee.
-	cost, note := AllInCost(100, "FR", true, false, nil)
-	if cost != 135 { // 100 + 35 (FR checked fee)
-		t.Errorf("AllInCost(FR, checked, no FF) = %v, want 135", cost)
+	cost, note, _ := AllInCost(100, "FR", true, false, nil)
+	// The floor of Ryanair's published range, not a made-up point estimate.
+	if cost != 109.49 { // 100 + 9.49 (cheapest online)
+		t.Errorf("AllInCost(FR, checked, no FF) = %v, want 109.49", cost)
 	}
 	if !strings.Contains(note, "checked bag") {
 		t.Errorf("note = %q, expected mention of checked bag", note)
@@ -156,7 +157,7 @@ func TestAllInCost_LCCNoBenefit(t *testing.T) {
 
 func TestAllInCost_LCCCarryOnFee(t *testing.T) {
 	// Ryanair (FR) with carry-on needed and OverheadOnly=true.
-	cost, note := AllInCost(100, "FR", false, true, nil)
+	cost, note, _ := AllInCost(100, "FR", false, true, nil)
 	if cost != 115 { // 100 + 15 carry-on
 		t.Errorf("AllInCost(FR, carry-on, no FF) = %v, want 115", cost)
 	}
@@ -167,9 +168,9 @@ func TestAllInCost_LCCCarryOnFee(t *testing.T) {
 
 func TestAllInCost_LCCBothFees(t *testing.T) {
 	// Ryanair (FR) needing both carry-on and checked.
-	cost, note := AllInCost(100, "FR", true, true, nil)
-	if cost != 150 { // 100 + 15 carry-on + 35 checked
-		t.Errorf("AllInCost(FR, both, no FF) = %v, want 150", cost)
+	cost, note, _ := AllInCost(100, "FR", true, true, nil)
+	if cost != 124.49 { // 100 + 15 carry-on + 9.49 checked floor
+		t.Errorf("AllInCost(FR, both, no FF) = %v, want 124.49", cost)
 	}
 	if !strings.Contains(note, "carry-on") || !strings.Contains(note, "checked") {
 		t.Errorf("note = %q, expected both fees mentioned", note)
@@ -179,16 +180,16 @@ func TestAllInCost_LCCBothFees(t *testing.T) {
 func TestAllInCost_LCCWrongAlliance(t *testing.T) {
 	// Ryanair with Oneworld Sapphire: wrong alliance, fees should still apply.
 	statuses := []FFStatus{{Alliance: "oneworld", Tier: "sapphire"}}
-	cost, _ := AllInCost(100, "FR", true, true, statuses)
-	if cost != 150 { // FR is not in any alliance, so no FF benefit
-		t.Errorf("AllInCost(FR, both, oneworld sapphire) = %v, want 150", cost)
+	cost, _, _ := AllInCost(100, "FR", true, true, statuses)
+	if cost != 124.49 { // FR is not in any alliance, so no FF benefit
+		t.Errorf("AllInCost(FR, both, oneworld sapphire) = %v, want 124.49", cost)
 	}
 }
 
 func TestAllInCost_FullServiceWithFFStatus(t *testing.T) {
 	// KLM (KL) with SkyTeam Gold: bags included + FF extra bag.
 	statuses := []FFStatus{{Alliance: "skyteam", Tier: "gold"}}
-	cost, note := AllInCost(300, "KL", true, false, statuses)
+	cost, note, _ := AllInCost(300, "KL", true, false, statuses)
 	if cost != 300 { // No additional fees: CheckedIncluded=1 + ExtraCheckedBags=1
 		t.Errorf("AllInCost(KL, checked, skyteam gold) = %v, want 300", cost)
 	}
@@ -199,7 +200,7 @@ func TestAllInCost_FullServiceWithFFStatus(t *testing.T) {
 
 func TestAllInCost_FullServiceNoStatus(t *testing.T) {
 	// KLM (KL) with no FF status: bags included in ticket.
-	cost, note := AllInCost(300, "KL", true, false, nil)
+	cost, note, _ := AllInCost(300, "KL", true, false, nil)
 	if cost != 300 { // CheckedIncluded=1, so no extra fee
 		t.Errorf("AllInCost(KL, checked, no FF) = %v, want 300", cost)
 	}
@@ -209,18 +210,23 @@ func TestAllInCost_FullServiceNoStatus(t *testing.T) {
 }
 
 func TestAllInCost_UnknownAirline(t *testing.T) {
-	// Unknown airline: passthrough, no extra fees.
-	cost, note := AllInCost(200, "XX", true, true, nil)
+	// Unknown airline: the fare passes through, but the caller is told the
+	// terms are unknown. An empty note used to make this indistinguishable
+	// from "bags included", which is what skewed the optimizer's ranking.
+	cost, note, known := AllInCost(200, "XX", true, true, nil)
 	if cost != 200 {
 		t.Errorf("AllInCost(XX) = %v, want 200 (passthrough)", cost)
 	}
-	if note != "" {
-		t.Errorf("note = %q, want empty for unknown airline", note)
+	if known {
+		t.Error("unknown airline must not report known terms")
+	}
+	if note != "bags unknown" {
+		t.Errorf("note = %q, want %q", note, "bags unknown")
 	}
 }
 
 func TestAllInCost_ZeroBaseFare(t *testing.T) {
-	cost, note := AllInCost(0, "KL", true, true, nil)
+	cost, note, _ := AllInCost(0, "KL", true, true, nil)
 	if cost != 0 {
 		t.Errorf("AllInCost(0 fare) = %v, want 0", cost)
 	}
@@ -230,7 +236,7 @@ func TestAllInCost_ZeroBaseFare(t *testing.T) {
 }
 
 func TestAllInCost_NegativeBaseFare(t *testing.T) {
-	cost, note := AllInCost(-50, "KL", true, true, nil)
+	cost, note, _ := AllInCost(-50, "KL", true, true, nil)
 	if cost != 0 {
 		t.Errorf("AllInCost(-50 fare) = %v, want 0", cost)
 	}
@@ -247,7 +253,7 @@ func TestAllInCost_MultipleFFStatuses(t *testing.T) {
 	}
 
 	// KLM (SkyTeam): should use SkyTeam Gold benefit.
-	cost, note := AllInCost(300, "KL", true, false, statuses)
+	cost, note, _ := AllInCost(300, "KL", true, false, statuses)
 	if cost != 300 {
 		t.Errorf("AllInCost(KL, multi-FF) = %v, want 300", cost)
 	}
@@ -256,7 +262,7 @@ func TestAllInCost_MultipleFFStatuses(t *testing.T) {
 	}
 
 	// BA (Oneworld): should use Oneworld Sapphire benefit.
-	cost2, note2 := AllInCost(400, "BA", true, false, statuses)
+	cost2, note2, _ := AllInCost(400, "BA", true, false, statuses)
 	if cost2 != 400 {
 		t.Errorf("AllInCost(BA, multi-FF) = %v, want 400", cost2)
 	}
@@ -267,7 +273,7 @@ func TestAllInCost_MultipleFFStatuses(t *testing.T) {
 
 func TestAllInCost_NoBagsNeeded(t *testing.T) {
 	// No bags needed: should just return base fare.
-	cost, note := AllInCost(100, "FR", false, false, nil)
+	cost, note, _ := AllInCost(100, "FR", false, false, nil)
 	if cost != 100 {
 		t.Errorf("AllInCost(FR, no bags) = %v, want 100", cost)
 	}
@@ -280,7 +286,7 @@ func TestAllInCost_FFStatusNoBagsNeeded(t *testing.T) {
 	// Full-service airline with FF status but no bags needed: should report
 	// "bags included + FF extra bag" since benefit exists even if unused.
 	statuses := []FFStatus{{Alliance: "skyteam", Tier: "gold"}}
-	cost, note := AllInCost(300, "KL", false, false, statuses)
+	cost, note, _ := AllInCost(300, "KL", false, false, statuses)
 	if cost != 300 {
 		t.Errorf("AllInCost(KL, no bags, FF gold) = %v, want 300", cost)
 	}
@@ -505,5 +511,58 @@ func TestAllianceTierBenefits_ConsistentKeys(t *testing.T) {
 		if _, ok := allianceMembers[alliance]; !ok {
 			t.Errorf("alliance %q in tier benefits but not in members", alliance)
 		}
+	}
+}
+
+// TestAllInCostUnknownAirlineIsNotFree pins the tri-state: an airline outside
+// the 24-row table means we do not know its baggage terms, which is not the
+// same as "bags are free". Returning the base fare with a silent ok made the
+// optimizer rank such flights as though a checked bag cost nothing.
+func TestAllInCostUnknownAirlineIsNotFree(t *testing.T) {
+	// LATAM is not in the table and publishes no fixed fee.
+	total, breakdown, known := AllInCost(500, "LA", true, true, nil)
+	if known {
+		t.Error("an airline absent from the table must report unknown")
+	}
+	if total != 500 {
+		t.Errorf("unknown terms must not invent a surcharge, got %.0f", total)
+	}
+	if breakdown == "" {
+		t.Error("unknown terms must be stated, not left blank")
+	}
+
+	// A known airline still reports known, so callers can trust the number.
+	_, _, known = AllInCost(500, "FR", true, true, nil)
+	if !known {
+		t.Error("Ryanair is in the table and must report known")
+	}
+}
+
+// TestAllInCostReportsRangeNotPoint pins the honest presentation of a checked
+// bag fee. Published fees swing 3x to 9.5x within a single carrier and fare
+// brand (Lufthansa Economy Light is EUR 15-100 for the same 23 kg bag), so a
+// single number is wrong nearly always. Airlines that publish no figure at all
+// (Wizz Air, Turkish) must say so rather than carry an invented one.
+func TestAllInCostReportsRangeNotPoint(t *testing.T) {
+	// Ryanair: sourced range, no bag included.
+	_, breakdown, known := AllInCost(100, "FR", true, false, nil)
+	if !known {
+		t.Fatal("FR is in the table")
+	}
+	if !strings.Contains(breakdown, "–") && !strings.Contains(breakdown, "-") {
+		t.Errorf("a sourced fee must be shown as a range, got %q", breakdown)
+	}
+
+	// Wizz Air publishes no figure; we must not print one.
+	_, breakdown, _ = AllInCost(100, "W6", true, false, nil)
+	if !strings.Contains(strings.ToLower(breakdown), "varies") {
+		t.Errorf("W6 publishes no fee and must be marked variable, got %q", breakdown)
+	}
+
+	// The numeric total is a floor, never the midpoint or the ceiling.
+	total, _, _ := AllInCost(100, "FR", true, false, nil)
+	fr, _ := Get("FR")
+	if total != 100+fr.CheckedFeeMin {
+		t.Errorf("total = %.2f, want base + floor %.2f", total, 100+fr.CheckedFeeMin)
 	}
 }

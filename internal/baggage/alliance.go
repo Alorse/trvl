@@ -211,14 +211,20 @@ type FFStatus struct {
 // A user with SkyTeam Gold + Oneworld Sapphire gets free bags on both
 // KLM (SkyTeam) and Finnair (Oneworld). The function finds the best
 // matching status for the given airline's alliance.
-func AllInCost(baseFare float64, airlineCode string, needCheckedBag, needCarryOn bool, ffStatuses []FFStatus) (float64, string) {
+// The third return value reports whether the airline's terms are actually
+// known. False means the airline is absent from the table and the returned
+// total is just the base fare — callers must not read that as "bags free".
+func AllInCost(baseFare float64, airlineCode string, needCheckedBag, needCarryOn bool, ffStatuses []FFStatus) (float64, string, bool) {
 	if baseFare <= 0 {
-		return 0, ""
+		return 0, "", false
 	}
 
 	ab, hasRules := Get(airlineCode)
 	if !hasRules {
-		return baseFare, ""
+		// Unknown terms, not free terms. The table covers 24 airlines; anything
+		// else must surface as unknown so callers do not rank a flight cheaper
+		// merely because its baggage policy is missing here.
+		return baseFare, "bags unknown", false
 	}
 
 	total := baseFare
@@ -233,9 +239,12 @@ func AllInCost(baseFare float64, airlineCode string, needCheckedBag, needCarryOn
 
 	if needCheckedBag {
 		freeChecked := ab.CheckedIncluded + benefit.ExtraCheckedBags
-		if freeChecked <= 0 && ab.CheckedFee > 0 {
-			total += ab.CheckedFee
-			extras = append(extras, fmt.Sprintf("+€%.0f checked bag", ab.CheckedFee))
+		if freeChecked <= 0 {
+			fee, label := checkedBagCharge(ab)
+			total += fee
+			if label != "" {
+				extras = append(extras, label)
+			}
 		}
 		if freeChecked > 1 && benefit.ExtraCheckedBags > 0 {
 			extras = append(extras, "extra bag free (FF status)")
@@ -244,12 +253,71 @@ func AllInCost(baseFare float64, airlineCode string, needCheckedBag, needCarryOn
 
 	if len(extras) == 0 {
 		if benefit.ExtraCheckedBags > 0 {
-			return total, "bags included + FF extra bag"
+			return total, "bags included + FF extra bag", true
 		}
-		return total, "bags included"
+		return total, "bags included", true
 	}
 
-	return total, strings.Join(extras, ", ")
+	return total, strings.Join(extras, ", "), true
+}
+
+// checkedBagCharge returns what to add to the fare for a first checked bag and
+// how to describe it.
+//
+// The amount added is always the FLOOR of the published range, never a midpoint
+// or ceiling: the fee is the cheapest-case online price, and the label carries
+// the spread so the reader sees it is a "from" figure rather than an estimate.
+// Carriers that publish no figure at all add nothing and say so — inventing a
+// number for them would be worse than admitting we do not know.
+func checkedBagCharge(ab AirlineBaggage) (float64, string) {
+	cur := ab.FeeCurrency
+	if cur == "" {
+		cur = "EUR"
+	}
+	switch {
+	case ab.FeeVaries:
+		return 0, "checked bag fee varies by route and date"
+	case ab.CheckedFeeMin > 0 && ab.CheckedFeeMax > ab.CheckedFeeMin:
+		return ab.CheckedFeeMin, fmt.Sprintf("+%s %s–%s checked bag",
+			cur, trimAmount(ab.CheckedFeeMin), trimAmount(ab.CheckedFeeMax))
+	case ab.CheckedFee > 0:
+		// Legacy single figure, no sourced range behind it.
+		return ab.CheckedFee, fmt.Sprintf("+€%.0f checked bag (approx.)", ab.CheckedFee)
+	default:
+		return 0, ""
+	}
+}
+
+// CheckedFeeLabel describes what a first checked bag costs, for display.
+// Returns "" when the airline includes one and there is nothing to charge.
+//
+// Long form ("from EUR 9.49–60") when a sourced range exists, an explicit
+// "varies by route and date" for carriers that publish no figure, and an
+// "approx." marker on the legacy single numbers that have no source behind
+// them — so the reader can tell the three apart at a glance.
+func CheckedFeeLabel(ab AirlineBaggage) string {
+	cur := ab.FeeCurrency
+	if cur == "" {
+		cur = "EUR"
+	}
+	switch {
+	case ab.FeeVaries:
+		return "varies by route and date"
+	case ab.CheckedFeeMin > 0 && ab.CheckedFeeMax > ab.CheckedFeeMin:
+		return fmt.Sprintf("from %s %s–%s", cur, trimAmount(ab.CheckedFeeMin), trimAmount(ab.CheckedFeeMax))
+	case ab.CheckedFee > 0:
+		return fmt.Sprintf("~EUR %s (approx., unsourced)", trimAmount(ab.CheckedFee))
+	default:
+		return ""
+	}
+}
+
+// trimAmount formats a fee without trailing zero decimals ("9.49", "60").
+func trimAmount(v float64) string {
+	if v == float64(int(v)) {
+		return fmt.Sprintf("%d", int(v))
+	}
+	return strings.TrimRight(fmt.Sprintf("%.2f", v), "0")
 }
 
 // bestBenefitForAirline finds the best baggage benefit from any of the user's

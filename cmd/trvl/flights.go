@@ -16,27 +16,27 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/flights"
 	"github.com/MikkoParkkola/trvl/internal/flights/afklm"
 	"github.com/MikkoParkkola/trvl/internal/hacks"
-	"github.com/MikkoParkkola/trvl/internal/tripsearch"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"github.com/MikkoParkkola/trvl/internal/points"
 	"github.com/MikkoParkkola/trvl/internal/preferences"
+	"github.com/MikkoParkkola/trvl/internal/tripsearch"
 	"github.com/spf13/cobra"
 )
 
 func flightsCmd() *cobra.Command {
 	var (
-		returnDate     string
-		cabin          string
-		maxStops       string
-		sortBy         string
-		airlines       []string
-		adults         int
-		format         string
-		targetCurrency string
-		compareCabins  bool
-		provider       string
-		award          bool
-		awardCookies   string
+		returnDate      string
+		cabin           string
+		maxStops        string
+		sortBy          string
+		airlines        []string
+		adults          int
+		format          string
+		targetCurrency  string
+		compareCabins   bool
+		provider        string
+		award           bool
+		awardCookies    string
 		homeFan         bool
 		railFly         bool
 		minLayoverStr   string
@@ -44,6 +44,7 @@ func flightsCmd() *cobra.Command {
 		noEarlyConn     bool
 		loungeRequired  bool
 		firstResult     bool
+		checkedBagOnly  bool
 		legs            []string
 	)
 
@@ -108,14 +109,15 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 					return fmt.Errorf("invalid sort order: %w", oerr)
 				}
 				opts := flights.SearchOptions{
-					CabinClass:  cabinClass,
-					MaxStops:    stops,
-					SortBy:      sortVal,
-					Airlines:    airlines,
-					Adults:      adults,
-					Currency:    targetCurrency,
-					FirstResult: firstResult,
-					Providers:   searchProviders,
+					CabinClass:        cabinClass,
+					MaxStops:          stops,
+					SortBy:            sortVal,
+					Airlines:          airlines,
+					Adults:            adults,
+					Currency:          targetCurrency,
+					FirstResult:       firstResult,
+					RequireCheckedBag: checkedBagOnly,
+					Providers:         searchProviders,
 				}
 				return runMultiCitySearch(cmd, parsedLegs, opts, format)
 			}
@@ -170,15 +172,16 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 			}
 
 			opts := flights.SearchOptions{
-				ReturnDate:  returnDate,
-				CabinClass:  cabinClass,
-				MaxStops:    stops,
-				SortBy:      sort,
-				Airlines:    airlines,
-				Adults:      adults,
-				Currency:    targetCurrency,
-				FirstResult: firstResult,
-				Providers:   searchProviders,
+				ReturnDate:        returnDate,
+				CabinClass:        cabinClass,
+				MaxStops:          stops,
+				SortBy:            sort,
+				Airlines:          airlines,
+				Adults:            adults,
+				Currency:          targetCurrency,
+				FirstResult:       firstResult,
+				RequireCheckedBag: checkedBagOnly,
+				Providers:         searchProviders,
 			}
 
 			var result *models.FlightSearchResult
@@ -333,6 +336,7 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 	cmd.Flags().BoolVar(&award, "award", false, "Scan Flying Blue miles prices. DATE is a month (2026-06) or a day (2026-06-15). Requires KLM session cookies via AFKL_KLM_COOKIES or --award-cookies.")
 	cmd.Flags().StringVar(&awardCookies, "award-cookies", "", "Raw KLM session Cookie header for award search (alternative to AFKL_KLM_COOKIES env var)")
 	cmd.Flags().BoolVar(&firstResult, "first", false, "Return only the first result with a valid price (respects --sort order)")
+	cmd.Flags().BoolVar(&checkedBagOnly, "require-checked-bag", false, "Only show flights that include at least one free checked bag. Flights whose provider does not state the allowance are treated as not including one.")
 	cmd.Flags().StringArrayVar(&legs, "leg", nil, "Multi-city leg as ORIGIN:DEST:DATE (repeatable, min 2; IATA code or city name). Replaces positional args. Cannot combine with --return.")
 
 	cmd.ValidArgsFunction = airportCompletion
@@ -508,7 +512,7 @@ func printFlightsTable(ctx context.Context, origin, destination, targetCurrency 
 	allInData := make([]allInInfo, len(result.Flights))
 	showAllIn := false
 	prefs, _ := preferences.Load() //nolint:errcheck // default prefs on error
-	if prefs != nil { // all-in is self-gating: column only appears when allIn != basePrice for any flight
+	if prefs != nil {              // all-in is self-gating: column only appears when allIn != basePrice for any flight
 		needCheckedBag := !prefs.CarryOnOnly
 		needCarryOn := true
 		var ffStatuses []baggage.FFStatus
@@ -526,7 +530,7 @@ func printFlightsTable(ctx context.Context, origin, destination, targetCurrency 
 			if airlineCode == "" {
 				continue
 			}
-			allIn, breakdown := baggage.AllInCost(f.Price, airlineCode, needCheckedBag, needCarryOn, ffStatuses)
+			allIn, breakdown, _ := baggage.AllInCost(f.Price, airlineCode, needCheckedBag, needCarryOn, ffStatuses)
 			allInData[i] = allInInfo{cost: allIn, breakdown: breakdown}
 			if allIn != f.Price {
 				showAllIn = true

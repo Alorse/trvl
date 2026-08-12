@@ -391,7 +391,7 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 				airlineCode = f.Legs[0].AirlineCode
 			}
 			if airlineCode != "" {
-				allIn, breakdown := baggage.AllInCost(f.Price, airlineCode, needCheckedBag, needCarryOn, ffStatuses)
+				allIn, breakdown, _ := baggage.AllInCost(f.Price, airlineCode, needCheckedBag, needCarryOn, ffStatuses)
 				if breakdown != "" {
 					enrichedFlights[i].AllInCost = allIn
 					enrichedFlights[i].BagBreakdown = breakdown

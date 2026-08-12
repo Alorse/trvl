@@ -289,7 +289,7 @@ func TestPrintBaggageDetail_LCC(t *testing.T) {
 		"Ryanair (FR)",
 		"10 kg",
 		"Personal:    No",
-		"from EUR 30",
+		"~EUR 30 (approx., unsourced)", // legacy figure with no source behind it
 		"under-seat bag free",
 		"Overhead cabin bag requires priority",
 	} {
@@ -380,7 +380,7 @@ func TestPrintBaggageList_Multiple(t *testing.T) {
 	for _, want := range []string{
 		"Airline Baggage Rules",
 		"KL", "KLM", "12kg", "yes", "1x23kg",
-		"FR", "Ryanair", "10kg", "no", "~EUR30", "overhead fee",
+		"FR", "Ryanair", "10kg", "no", "~EUR 30 (approx., unsourced)", "overhead fee",
 		"EK", "Emirates", "no limit", "2x23kg",
 	} {
 		if !strings.Contains(out, want) {
