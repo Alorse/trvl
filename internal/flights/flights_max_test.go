@@ -280,9 +280,11 @@ func TestFilterFlightResults_RequireCheckedBag(t *testing.T) {
 		{CheckedBagsIncluded: &bags0, Legs: []models.FlightLeg{{DepartureTime: "2026-07-01T10:00"}}},
 		{Legs: []models.FlightLeg{{DepartureTime: "2026-07-01T10:00"}}}, // nil
 	}
+	// Only the explicit zero is dropped; nil means the provider stayed silent
+	// and is kept marked (see TestRequireCheckedBagKeepsUnknownMarked).
 	got := filterFlightResults(flights, SearchOptions{RequireCheckedBag: true})
-	if len(got) != 1 {
-		t.Errorf("expected 1 flight with checked bag, got %d", len(got))
+	if len(got) != 2 {
+		t.Errorf("expected 2 flights (bag included + bag unknown), got %d", len(got))
 	}
 }
 
@@ -388,33 +390,76 @@ func TestSortFlightResults_TiebreakerByProvider(t *testing.T) {
 
 // --- parseBagAllowance ---
 
-func TestParseBagAllowance_ValidBags(t *testing.T) {
-	offer := make([]any, 7)
-	offer[6] = []any{0.0, 2.0} // carry-on included, 2 checked bags
-
-	var fr models.FlightResult
-	parseBagAllowance(offer, &fr)
-
-	if fr.CarryOnIncluded == nil || !*fr.CarryOnIncluded {
-		t.Error("expected carry-on included")
+// TestParseBagAllowance_RealPayloads pins offer[6] against values captured from
+// live Google shopping payloads whose baggage terms were independently
+// confirmed through Google's own booking options. Wire order is
+// [checked_bags_included, carry_on_included].
+//
+// The previous expectations here were synthetic — written to match the
+// implementation rather than the wire — which is how the reversed order went
+// unnoticed: every real search reported "1 checked bag included" for every
+// flight, because slot 1 is the carry-on flag and is constantly 1.
+func TestParseBagAllowance_RealPayloads(t *testing.T) {
+	cases := []struct {
+		name        string
+		bags        []any
+		wantChecked *int  // nil = unknown
+		wantCarryOn *bool // nil = unknown
+	}{
+		{
+			// JFK-LAX economy (JetBlue). Booking options: "1 free carry-on",
+			// "1st checked bag: 45" — i.e. no free checked bag.
+			name: "us domestic economy: no free checked bag",
+			bags: []any{0.0, 1.0}, wantChecked: intPtr(0), wantCarryOn: boolPtr(true),
+		},
+		{
+			// JFK-LAX travel_class=3 (American). Booking options:
+			// "1 free carry-on", "2 free checked bags".
+			name: "us domestic business: two free checked bags",
+			bags: []any{2.0, 1.0}, wantChecked: intPtr(2), wantCarryOn: boolPtr(true),
+		},
+		{
+			// MAD-BOG / ZRH-HND: Google states no checked-bag figure at all.
+			// Must stay unknown rather than defaulting to a count.
+			name: "international: checked bags unknown",
+			bags: []any{nil, 1.0}, wantChecked: nil, wantCarryOn: boolPtr(true),
+		},
+		{
+			name: "one free checked bag",
+			bags: []any{1.0, 1.0}, wantChecked: intPtr(1), wantCarryOn: boolPtr(true),
+		},
+		{
+			name: "carry-on not included",
+			bags: []any{0.0, 0.0}, wantChecked: intPtr(0), wantCarryOn: boolPtr(false),
+		},
 	}
-	if fr.CheckedBagsIncluded == nil || *fr.CheckedBagsIncluded != 2 {
-		t.Errorf("expected 2 checked bags, got %v", fr.CheckedBagsIncluded)
-	}
-}
 
-func TestParseBagAllowance_NotIncluded(t *testing.T) {
-	offer := make([]any, 7)
-	offer[6] = []any{1.0, 0.0} // carry-on NOT included, 0 checked bags
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			offer := make([]any, 7)
+			offer[6] = tc.bags
 
-	var fr models.FlightResult
-	parseBagAllowance(offer, &fr)
+			var fr models.FlightResult
+			parseBagAllowance(offer, &fr)
 
-	if fr.CarryOnIncluded == nil || *fr.CarryOnIncluded {
-		t.Error("expected carry-on NOT included")
-	}
-	if fr.CheckedBagsIncluded == nil || *fr.CheckedBagsIncluded != 0 {
-		t.Errorf("expected 0 checked bags, got %v", fr.CheckedBagsIncluded)
+			switch {
+			case tc.wantChecked == nil && fr.CheckedBagsIncluded != nil:
+				t.Errorf("checked bags: want unknown, got %d", *fr.CheckedBagsIncluded)
+			case tc.wantChecked != nil && fr.CheckedBagsIncluded == nil:
+				t.Errorf("checked bags: want %d, got unknown", *tc.wantChecked)
+			case tc.wantChecked != nil && *tc.wantChecked != *fr.CheckedBagsIncluded:
+				t.Errorf("checked bags: want %d, got %d", *tc.wantChecked, *fr.CheckedBagsIncluded)
+			}
+
+			switch {
+			case tc.wantCarryOn == nil && fr.CarryOnIncluded != nil:
+				t.Errorf("carry-on: want unknown, got %v", *fr.CarryOnIncluded)
+			case tc.wantCarryOn != nil && fr.CarryOnIncluded == nil:
+				t.Errorf("carry-on: want %v, got unknown", *tc.wantCarryOn)
+			case tc.wantCarryOn != nil && *tc.wantCarryOn != *fr.CarryOnIncluded:
+				t.Errorf("carry-on: want %v, got %v", *tc.wantCarryOn, *fr.CarryOnIncluded)
+			}
+		})
 	}
 }
 

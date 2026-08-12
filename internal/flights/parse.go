@@ -315,10 +315,22 @@ func isKnownCurrency(code string) bool {
 	return false
 }
 
-// parseBagAllowance extracts carry-on and checked bag info from the offer array.
-// The bag data is at offer[6] = [carry_on_flag, checked_bag_flag].
-// carry_on_flag: 0 = included in price (any other value = fee required)
-// checked_bag_flag: 0 = not included, 1 = one bag included, 2 = two bags included
+// parseBagAllowance extracts checked and carry-on bag info from the offer array.
+// The bag data is at offer[6] = [checked_bags_included, carry_on_included].
+//
+// The order was previously read reversed, which made every flight report
+// "1 checked bag included" — slot 1 is the carry-on flag and is constantly 1,
+// so a live JFK-LAX search returned 111/111 flights claiming a free checked bag
+// and require_checked_bag silently passed everything.
+//
+// Order verified against live payloads with independently known terms (Google's
+// own booking options for the same itineraries): US domestic economy on JetBlue
+// is [0, 1] and its booking terms read "1st checked bag: 45"; the same route in
+// travel_class=3 on American is [2, 1] against "2 free checked bags". Slot 0 is
+// null on international routes (MAD-BOG, ZRH-HND) — unknown, not zero.
+// punitarani/fli, which reverse-engineered the request side independently,
+// documents the matching order for the outbound filter slot:
+// "10: bags filter [checked_bags, carry_on]".
 func parseBagAllowance(offer any, fr *models.FlightResult) {
 	offerArr, ok := offer.([]any)
 	if !ok || len(offerArr) <= 6 {
@@ -330,16 +342,20 @@ func parseBagAllowance(offer any, fr *models.FlightResult) {
 		return
 	}
 
-	// carry_on_flag: 0 means included
-	if carryOn, ok := jsonutil.ToFloat(bagArr[0]); ok {
-		included := carryOn == 0
-		fr.CarryOnIncluded = &included
-	}
-
-	// checked_bag_flag: 0=none, 1=one bag, 2=two bags
-	if checked, ok := jsonutil.ToFloat(bagArr[1]); ok {
+	// checked_bags_included: 0=none, 1=one bag, 2=two bags. Null on many
+	// international routes, where Google states no figure — left as nil
+	// (unknown), never coerced to 0.
+	if checked, ok := jsonutil.ToFloat(bagArr[0]); ok {
 		n := int(checked)
 		fr.CheckedBagsIncluded = &n
+	}
+
+	// carry_on_included: 1=included, 0=not. Observed as 1 on every live payload
+	// captured so far; the 0 reading is inferred from the boolean encoding
+	// Google uses for this slot on the request side.
+	if carryOn, ok := jsonutil.ToFloat(bagArr[1]); ok {
+		included := carryOn >= 1
+		fr.CarryOnIncluded = &included
 	}
 }
 

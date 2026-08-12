@@ -383,11 +383,14 @@ func TestFilterFlightsWithCheckedBag_IncludesBag(t *testing.T) {
 	bags := 1
 	flights := []models.FlightResult{
 		{CheckedBagsIncluded: &bags, Price: 200},
-		{Price: 150}, // no bags info
+		{Price: 150}, // no bags info → unknown, kept and marked
 	}
 	got := filterFlightsWithCheckedBag(flights)
-	if len(got) != 1 {
-		t.Errorf("expected 1 flight with checked bag, got %d", len(got))
+	if len(got) != 2 {
+		t.Fatalf("expected 2 flights (included + unknown), got %d", len(got))
+	}
+	if len(got[1].Warnings) != 1 || got[1].Warnings[0] != checkedBagUnknownWarning {
+		t.Errorf("unknown-bag flight must carry the warning, got %v", got[1].Warnings)
 	}
 }
 
