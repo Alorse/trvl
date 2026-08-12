@@ -39,6 +39,9 @@ type FlightResult struct {
 	CarryOnIncluded     *bool       `json:"carry_on_included,omitempty"`     // true if carry-on bag is included in price
 	CheckedBagsIncluded *int        `json:"checked_bags_included,omitempty"` // 0=not included, 1=one bag, 2=two bags
 	Emissions           int         `json:"emissions,omitempty"`             // estimated CO2 in grams; 0 if unavailable
+	// BagEstimate resolves the checked-bag situation from the best evidence
+	// available and records which evidence that was. Nil when not computed.
+	BagEstimate *BagEstimate `json:"bag_estimate,omitempty"`
 }
 
 // FlightSearchResult is the top-level response for a flight search.
@@ -192,4 +195,49 @@ func ParseSortBy(s string) (SortBy, error) {
 	default:
 		return SortCheapest, fmt.Errorf("unknown sort order: %q", s)
 	}
+}
+
+// BagSource names where a checked-bag verdict came from, so a consumer can
+// decide how far to trust it. This travels in the flight JSON: trvl estimates
+// trip cost rather than selling tickets, and an estimate is only useful when
+// its provenance is visible.
+type BagSource string
+
+const (
+	// BagSourceProvider — the flight provider stated the allowance in its own
+	// payload (Duffel always; Google/SerpApi on routes where it publishes the
+	// figure). Hard data.
+	BagSourceProvider BagSource = "provider"
+	// BagSourceTableSourced — trvl's airline table, where the figure carries a
+	// primary-source URL and a verification date.
+	BagSourceTableSourced BagSource = "table_sourced"
+	// BagSourceTableUnsourced — trvl's airline table, where the figure has no
+	// citation behind it. A hint, not a number to rely on.
+	BagSourceTableUnsourced BagSource = "table_unsourced"
+	// BagSourceUnknown — no source covers this airline. Treated as "no free
+	// checked bag" so a bag-required filter cannot pass it, but no fee is
+	// invented.
+	BagSourceUnknown BagSource = "unknown"
+)
+
+// BagEstimate is a checked-bag verdict plus the provenance of that verdict.
+//
+// AmountMin/AmountMax bound what a first checked bag costs when one is not
+// included. They are a published range, not a point: route, booking channel,
+// timing and weight tier move real fees several-fold within a single carrier,
+// so one number would be wrong nearly always. Both stay zero when no figure is
+// available — including for carriers that publish none at all, where Reference
+// says so instead.
+//
+// Source describes the INCLUSION verdict, not the fee. A provider that states
+// "no free bag" is hard data even when the fee attached to it is an estimate;
+// the fee's own provenance travels in Reference and Verified.
+type BagEstimate struct {
+	Included  bool      `json:"included"`
+	Source    BagSource `json:"source"`
+	AmountMin float64   `json:"amount_min,omitempty"`
+	AmountMax float64   `json:"amount_max,omitempty"`
+	Currency  string    `json:"currency,omitempty"`
+	Reference string    `json:"reference,omitempty"` // where the figure came from, or why there is none
+	Verified  string    `json:"verified,omitempty"`  // YYYY-MM the reference was checked
 }
