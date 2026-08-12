@@ -20,6 +20,23 @@ func mergeFlightResults(googleFlights, kiwiFlights []models.FlightResult, opts S
 	return merged
 }
 
+// fallbackSearchResult wraps results from a fallback provider (SerpApi, Duffel)
+// into a search result, applying the same filters and sort the primary path
+// gets. Returns nil when nothing survives, so the caller keeps walking the
+// provider chain instead of returning an empty success.
+func fallbackSearchResult(flights []models.FlightResult, opts SearchOptions, tripType string) *models.FlightSearchResult {
+	merged := mergeFlightResults(flights, nil, opts)
+	if len(merged) == 0 {
+		return nil
+	}
+	return &models.FlightSearchResult{
+		Success:  true,
+		Count:    len(merged),
+		TripType: tripType,
+		Flights:  merged,
+	}
+}
+
 func filterFlightResults(flights []models.FlightResult, opts SearchOptions) []models.FlightResult {
 	if len(flights) == 0 {
 		return nil

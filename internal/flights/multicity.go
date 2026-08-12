@@ -117,23 +117,17 @@ func SearchMultiCity(ctx context.Context, legs []Leg, opts SearchOptions) (*mode
 	if err != nil {
 		// Google failed → SerpApi (native multi-city), then Duffel.
 		if SerpEnabled() {
-			if serpFlights, sErr := SearchSerpApi(ctx, duffelSlicesForLegs(legs), opts); sErr == nil && len(serpFlights) > 0 {
-				return &models.FlightSearchResult{
-					Success:  true,
-					Count:    len(serpFlights),
-					TripType: "multi_city",
-					Flights:  serpFlights,
-				}, nil
+			if serpFlights, sErr := SearchSerpApi(ctx, duffelSlicesForLegs(legs), opts); sErr == nil {
+				if r := fallbackSearchResult(serpFlights, opts, "multi_city"); r != nil {
+					return r, nil
+				}
 			}
 		}
 		if DuffelEnabled() {
-			if duffelFlights, dErr := SearchDuffel(ctx, duffelSlicesForLegs(legs), opts); dErr == nil && len(duffelFlights) > 0 {
-				return &models.FlightSearchResult{
-					Success:  true,
-					Count:    len(duffelFlights),
-					TripType: "multi_city",
-					Flights:  duffelFlights,
-				}, nil
+			if duffelFlights, dErr := SearchDuffel(ctx, duffelSlicesForLegs(legs), opts); dErr == nil {
+				if r := fallbackSearchResult(duffelFlights, opts, "multi_city"); r != nil {
+					return r, nil
+				}
 			}
 		}
 		return &models.FlightSearchResult{Error: err.Error()}, err
