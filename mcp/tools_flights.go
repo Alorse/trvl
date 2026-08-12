@@ -390,11 +390,23 @@ func handleSearchFlights(ctx context.Context, args map[string]any, elicit Elicit
 			if len(f.Legs) > 0 {
 				airlineCode = f.Legs[0].AirlineCode
 			}
+			// All-in comes from the verdict the search already resolved for this
+			// flight — provider payload, then the airline table, then any
+			// frequent-flyer entitlement — so the MCP surface and the CLI cannot
+			// disagree about what a bag costs. The airline-level calculation is
+			// still used for the cabin bag, which the per-flight verdict does not
+			// model.
 			if airlineCode != "" {
-				allIn, breakdown, _ := baggage.AllInCost(f.Price, airlineCode, needCheckedBag, needCarryOn, ffStatuses)
-				if breakdown != "" {
+				carryOnTotal, _, _ := baggage.AllInCost(f.Price, airlineCode, false, needCarryOn, ffStatuses)
+				allIn := carryOnTotal
+				if needCheckedBag && f.AllInMin > f.Price {
+					allIn += f.AllInMin - f.Price
+				}
+				if allIn != f.Price {
 					enrichedFlights[i].AllInCost = allIn
-					enrichedFlights[i].BagBreakdown = breakdown
+				}
+				if f.BagEstimate != nil {
+					enrichedFlights[i].BagBreakdown = bagBreakdown(*f.BagEstimate)
 				}
 			}
 
@@ -710,4 +722,23 @@ func flightSuggestions(result *models.FlightSearchResult, origin, dest, date str
 	}
 
 	return suggestions
+}
+
+// bagBreakdown describes a checked-bag verdict for the MCP response, naming the
+// evidence so a consumer can tell a provider fact from a table estimate.
+func bagBreakdown(est models.BagEstimate) string {
+	switch {
+	case est.Source == models.BagSourceUnknown:
+		return "checked bag unknown: no source covers this airline"
+	case est.Included && est.Source == models.BagSourceFrequentFlyer:
+		return "checked bag free via frequent-flyer status"
+	case est.Included && est.Source == models.BagSourceProvider:
+		return "checked bag included (provider)"
+	case est.Included:
+		return "checked bag included (estimated from airline rules)"
+	case est.AmountMin <= 0:
+		return "checked bag extra; fee varies by route and date"
+	default:
+		return fmt.Sprintf("checked bag extra: %s %.2f-%.2f (estimated)", est.Currency, est.AmountMin, est.AmountMax)
+	}
 }
