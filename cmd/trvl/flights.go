@@ -117,6 +117,7 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 					Currency:          targetCurrency,
 					FirstResult:       firstResult,
 					RequireCheckedBag: checkedBagOnly,
+					FFStatuses:        ffStatusesFromPrefs(),
 					Providers:         searchProviders,
 				}
 				return runMultiCitySearch(cmd, parsedLegs, opts, format)
@@ -181,6 +182,7 @@ Multi-city (repeat --leg ORIGIN:DEST:DATE, IATA or city name, min 2 legs):
 				Currency:          targetCurrency,
 				FirstResult:       firstResult,
 				RequireCheckedBag: checkedBagOnly,
+				FFStatuses:        ffStatusesFromPrefs(),
 				Providers:         searchProviders,
 			}
 
@@ -503,38 +505,33 @@ func printFlightsTable(ctx context.Context, origin, destination, targetCurrency 
 		}
 	}
 
-	// Compute all-in costs (base fare + baggage fees - FF benefits).
-	// Only shown when at least one flight's all-in cost differs from base.
+	// All-in = the fare plus what a checked bag would add, taken from the
+	// per-flight verdict the search already resolved (provider payload, then
+	// the airline table, then frequent-flyer entitlement). Shown as a range,
+	// because published bag fees swing several-fold within one carrier.
+	//
+	// Flights whose terms nobody reports carry no total at all, so the column
+	// shows the bare fare rather than implying the bag is free.
 	type allInInfo struct {
-		cost      float64
-		breakdown string
+		min, max float64
+		label    string
 	}
 	allInData := make([]allInInfo, len(result.Flights))
 	showAllIn := false
 	prefs, _ := preferences.Load() //nolint:errcheck // default prefs on error
-	if prefs != nil {              // all-in is self-gating: column only appears when allIn != basePrice for any flight
-		needCheckedBag := !prefs.CarryOnOnly
-		needCarryOn := true
-		var ffStatuses []baggage.FFStatus
-		for _, fp := range prefs.FrequentFlyerPrograms {
-			ffStatuses = append(ffStatuses, baggage.FFStatus{
-				Alliance: fp.Alliance,
-				Tier:     fp.Tier,
-			})
+	for i, f := range result.Flights {
+		if f.BagEstimate == nil {
+			continue
 		}
-		for i, f := range result.Flights {
-			airlineCode := ""
-			if len(f.Legs) > 0 {
-				airlineCode = f.Legs[0].AirlineCode
-			}
-			if airlineCode == "" {
-				continue
-			}
-			allIn, breakdown, _ := baggage.AllInCost(f.Price, airlineCode, needCheckedBag, needCarryOn, ffStatuses)
-			allInData[i] = allInInfo{cost: allIn, breakdown: breakdown}
-			if allIn != f.Price {
-				showAllIn = true
-			}
+		label := bagLabel(*f.BagEstimate)
+		if f.AllInMin <= 0 && f.BagEstimate.AmountMin > 0 {
+			// A fee exists but is quoted in another currency, so it could not
+			// be added. Name the currency rather than implying it was applied.
+			label = "bag fee in " + f.BagEstimate.Currency
+		}
+		allInData[i] = allInInfo{min: f.AllInMin, max: f.AllInMax, label: label}
+		if f.AllInMin > f.Price || f.BagEstimate.Source == models.BagSourceUnknown {
+			showAllIn = true
 		}
 	}
 
@@ -575,7 +572,7 @@ func printFlightsTable(ctx context.Context, origin, destination, targetCurrency 
 			prices.Apply(f.Price, formatPrice(f.Price, f.Currency)),
 		}
 		if showAllIn {
-			row = append(row, formatAllIn(f.Price, f.Currency, allInData[i].cost, allInData[i].breakdown))
+			row = append(row, formatAllIn(f.Price, f.Currency, allInData[i].min, allInData[i].max, allInData[i].label))
 		}
 		row = append(row,
 			formatDuration(f.Duration),
@@ -658,6 +655,21 @@ func flightWarnings(f models.FlightResult) string {
 }
 
 // flightRoute builds a route string like "HEL -> FRA -> NRT".
+// ffStatusesFromPrefs converts the user's frequent-flyer programmes into the
+// form the baggage resolver expects. Status can grant a free checked bag the
+// fare does not include, and that has to be known before the bag filter runs.
+func ffStatusesFromPrefs() []baggage.FFStatus {
+	prefs, _ := preferences.Load() //nolint:errcheck // default prefs on error
+	if prefs == nil {
+		return nil
+	}
+	statuses := make([]baggage.FFStatus, 0, len(prefs.FrequentFlyerPrograms))
+	for _, fp := range prefs.FrequentFlyerPrograms {
+		statuses = append(statuses, baggage.FFStatus{Alliance: fp.Alliance, Tier: fp.Tier})
+	}
+	return statuses
+}
+
 func flightRoute(f models.FlightResult) string {
 	if len(f.Legs) == 0 {
 		return ""
@@ -691,29 +703,50 @@ func formatDuration(minutes int) string {
 	return fmt.Sprintf("%dh %dm", h, m)
 }
 
-// formatAllIn renders the all-in cost cell for the flight table.
-// Shows the total cost and a parenthetical explaining the delta, e.g.:
+// bagLabel is the short parenthetical describing where a checked-bag verdict
+// came from, so the number in the All-in column is never read as exact.
+func bagLabel(est models.BagEstimate) string {
+	switch {
+	case est.Source == models.BagSourceUnknown:
+		return "bag unknown"
+	case est.Included && est.Source == models.BagSourceFrequentFlyer:
+		return "FF bag"
+	case est.Included && est.Source == models.BagSourceProvider:
+		return "bag incl"
+	case est.Included:
+		return "bag incl (est.)"
+	case est.AmountMin <= 0:
+		return "bag fee varies"
+	default:
+		return "bag est."
+	}
+}
+
+// formatAllIn renders the all-in cell: the fare plus a checked bag, as a range.
 //
-//	"EUR 124 (+€35 bag)" — baggage fee added
-//	"EUR 89 (bags incl)" — no extra charge
-//	"EUR 89 (FF bags)"   — FF status waived the fee
-func formatAllIn(basePrice float64, currency string, allInCost float64, breakdown string) string {
-	if allInCost <= 0 || breakdown == "" {
-		return formatPrice(basePrice, currency)
-	}
-	label := breakdown
-	if allInCost == basePrice {
-		// No price difference — shorten the label.
-		switch {
-		case strings.Contains(breakdown, "FF"):
-			label = "FF bags"
-		case strings.Contains(breakdown, "included"):
-			label = "bags incl"
-		default:
-			label = breakdown
+//	"EUR 96–147 (bag est.)"   — fee estimated from a sourced range
+//	"EUR 129 (bag incl)"      — nothing to add
+//	"EUR 121 (bag unknown)"   — no total; the bare fare with a caveat
+func formatAllIn(basePrice float64, currency string, allInMin, allInMax float64, label string) string {
+	if allInMin <= 0 {
+		// No total can be stated; show the fare and say why.
+		if label == "" {
+			return formatPrice(basePrice, currency)
 		}
+		return fmt.Sprintf("%s (%s)", formatPrice(basePrice, currency), label)
 	}
-	return fmt.Sprintf("%s %.0f (%s)", currency, allInCost, label)
+	if allInMax > allInMin {
+		return fmt.Sprintf("%s–%s (%s)", formatPrice(allInMin, currency), trimZeros(allInMax), label)
+	}
+	return fmt.Sprintf("%s (%s)", formatPrice(allInMin, currency), label)
+}
+
+// trimZeros formats an amount without trailing zero decimals.
+func trimZeros(v float64) string {
+	if v == float64(int(v)) {
+		return fmt.Sprintf("%d", int(v))
+	}
+	return strings.TrimRight(fmt.Sprintf("%.2f", v), "0")
 }
 
 // formatStops returns a human-readable stops string.
