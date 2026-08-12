@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -36,69 +38,6 @@ func TestSerpKeyCmdDefault(t *testing.T) {
 	t.Setenv("TRVL_SERP_KEY_CMD", "/custom/serp-key")
 	if got := serpKeyCmd(); got != "/custom/serp-key" {
 		t.Fatalf("expected override, got %q", got)
-	}
-}
-
-const serpOneWayFixture = `{
-  "best_flights": [{
-    "price": 767,
-    "type": "One way",
-    "total_duration": 1160,
-    "carbon_emissions": {"this_flight": 936000},
-    "layovers": [{"duration": 185, "name": "Dubai International Airport", "id": "DXB"}],
-    "flights": [
-      {"departure_airport": {"name": "Frankfurt Airport", "id": "FRA", "time": "2026-08-15 15:15"},
-       "arrival_airport": {"name": "Dubai International Airport", "id": "DXB", "time": "2026-08-15 23:35"},
-       "duration": 380, "airline": "Emirates", "flight_number": "EK 46", "airplane": "Airbus A380", "travel_class": "Economy"},
-      {"departure_airport": {"name": "Dubai International Airport", "id": "DXB", "time": "2026-08-16 02:40"},
-       "arrival_airport": {"name": "Narita International Airport", "id": "NRT", "time": "2026-08-16 17:35"},
-       "duration": 595, "airline": "Emirates", "flight_number": "EK 318", "airplane": "Airbus A380", "travel_class": "Economy"}
-    ]
-  }],
-  "other_flights": []
-}`
-
-func TestSearchSerpApiParsesFixture(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(serpOneWayFixture))
-	}))
-	defer srv.Close()
-
-	origBase, origKey := serpAPIBaseURL, serpKeyFunc
-	defer func() { serpAPIBaseURL, serpKeyFunc = origBase, origKey }()
-	serpAPIBaseURL = srv.URL
-	serpKeyFunc = func(context.Context) (string, error) { return "K", nil }
-
-	res, err := SearchSerpApi(context.Background(),
-		[]DuffelSlice{{Origin: "FRA", Destination: "NRT", DepartureDate: "2026-08-15"}},
-		SearchOptions{Currency: "EUR"})
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if len(res) != 1 {
-		t.Fatalf("expected 1 option, got %d", len(res))
-	}
-	f := res[0]
-	if f.Price != 767 || f.Currency != "EUR" {
-		t.Fatalf("price/currency: %v %q", f.Price, f.Currency)
-	}
-	if f.Provider != "google_serpapi" {
-		t.Fatalf("provider: %q", f.Provider)
-	}
-	if f.Duration != 1160 || f.Stops != 1 {
-		t.Fatalf("duration/stops: %d %d", f.Duration, f.Stops)
-	}
-	if f.Emissions != 936000 {
-		t.Fatalf("emissions (grams): %d", f.Emissions)
-	}
-	if len(f.Legs) != 2 {
-		t.Fatalf("legs: %d", len(f.Legs))
-	}
-	if f.Legs[0].AirlineCode != "EK" || f.Legs[0].FlightNumber != "EK 46" {
-		t.Fatalf("leg0 airline: %q %q", f.Legs[0].AirlineCode, f.Legs[0].FlightNumber)
-	}
-	if f.Legs[1].LayoverMinutes != 185 {
-		t.Fatalf("leg1 layover: %d", f.Legs[1].LayoverMinutes)
 	}
 }
 
@@ -165,7 +104,7 @@ func TestSerpApiUsesPointToPointSlices(t *testing.T) {
 			w.WriteHeader(400)
 			return
 		}
-		_, _ = w.Write([]byte(serpOneWayFixture))
+		_, _ = w.Write(mustReadRawFixture(t))
 	}))
 	defer srv.Close()
 
@@ -179,8 +118,126 @@ func TestSerpApiUsesPointToPointSlices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	if len(res) != 1 || res[0].Provider != "google_serpapi" {
+	if len(res) == 0 || res[0].Provider != "google_serpapi" {
 		t.Fatalf("unexpected results: %+v", res)
+	}
+}
+
+// mustReadRawFixture loads the captured raw Google payload used across the
+// SerpApi tests (JFK-LAX 2026-09-15, one-way, USD).
+func mustReadRawFixture(t *testing.T) []byte {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "serpapi_raw_jfklax.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// TestBuildSerpQuerySendsBagAndFareParams checks the two SerpApi request
+// parameters we can actually steer. Per SerpApi docs `bags` is carry-on only
+// ("Parameter defines the number of carry-on bags"); there is no checked-bag
+// request parameter, so opts.CheckedBags has nothing to map to.
+func TestBuildSerpQuerySendsBagAndFareParams(t *testing.T) {
+	q, err := buildSerpQuery(
+		[]DuffelSlice{{Origin: "JFK", Destination: "LAX", DepartureDate: "2026-09-15"}},
+		"K", SearchOptions{Currency: "USD", CarryOnBags: 1, ExcludeBasic: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, _ := url.ParseQuery(q)
+	if v.Get("bags") != "1" {
+		t.Errorf("expected bags=1 from CarryOnBags, got %q (query=%s)", v.Get("bags"), q)
+	}
+	if v.Get("exclude_basic") != "true" {
+		t.Errorf("expected exclude_basic=true, got %q (query=%s)", v.Get("exclude_basic"), q)
+	}
+
+	// Unset options must not emit the params at all.
+	q, _ = buildSerpQuery(
+		[]DuffelSlice{{Origin: "JFK", Destination: "LAX", DepartureDate: "2026-09-15"}},
+		"K", SearchOptions{Currency: "USD"})
+	v, _ = url.ParseQuery(q)
+	if v.Has("bags") || v.Has("exclude_basic") {
+		t.Errorf("unset options must not emit params, got %s", q)
+	}
+}
+
+// TestSearchSerpApiParsesRawGooglePayload covers the output=html path: SerpApi
+// returns Google's own batchexecute payload unparsed, so it goes through the
+// same decoder the google_flights provider uses. This is what gives SerpApi
+// results the bag allowance — SerpApi's normalized JSON drops that field.
+//
+// Fixture is a real capture (JFK-LAX 2026-09-15, one-way, USD) whose baggage
+// terms were confirmed via Google's booking options: no free checked bag.
+func TestSearchSerpApiParsesRawGooglePayload(t *testing.T) {
+	fixture := mustReadRawFixture(t)
+	var gotQuery url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		_, _ = w.Write(fixture)
+	}))
+	defer srv.Close()
+
+	origBase, origKey := serpAPIBaseURL, serpKeyFunc
+	defer func() { serpAPIBaseURL, serpKeyFunc = origBase, origKey }()
+	serpAPIBaseURL = srv.URL
+	serpKeyFunc = func(context.Context) (string, error) { return "K", nil }
+
+	res, err := SearchSerpApi(context.Background(),
+		[]DuffelSlice{{Origin: "JFK", Destination: "LAX", DepartureDate: "2026-09-15"}},
+		SearchOptions{Currency: "USD"})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	if gotQuery.Get("output") != "html" {
+		t.Errorf("must request the raw payload, got output=%q", gotQuery.Get("output"))
+	}
+	if len(res) == 0 {
+		t.Fatal("expected flights parsed from the raw payload")
+	}
+	for i, f := range res {
+		if f.Provider != "google_serpapi" {
+			t.Fatalf("flight %d provider = %q", i, f.Provider)
+		}
+		if f.Currency == "" {
+			t.Fatalf("flight %d has no currency", i)
+		}
+	}
+	// The whole point: bag data now survives.
+	if res[0].CheckedBagsIncluded == nil {
+		t.Fatal("checked bag allowance must be populated from the raw payload")
+	}
+	if *res[0].CheckedBagsIncluded != 0 {
+		t.Errorf("fixture has no free checked bag, got %d", *res[0].CheckedBagsIncluded)
+	}
+	if res[0].CarryOnIncluded == nil || !*res[0].CarryOnIncluded {
+		t.Errorf("fixture includes a carry-on, got %v", res[0].CarryOnIncluded)
+	}
+}
+
+// TestSearchSerpApiSurfacesAPIError checks that SerpApi's JSON error envelope is
+// still recognised on the output=html path, where success bodies are not JSON.
+func TestSearchSerpApiSurfacesAPIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"error": "Your account has run out of searches."}`))
+	}))
+	defer srv.Close()
+
+	origBase, origKey := serpAPIBaseURL, serpKeyFunc
+	defer func() { serpAPIBaseURL, serpKeyFunc = origBase, origKey }()
+	serpAPIBaseURL = srv.URL
+	serpKeyFunc = func(context.Context) (string, error) { return "K", nil }
+
+	_, err := SearchSerpApi(context.Background(),
+		[]DuffelSlice{{Origin: "JFK", Destination: "LAX", DepartureDate: "2026-09-15"}},
+		SearchOptions{Currency: "USD"})
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "run out of searches") {
+		t.Errorf("error must surface the API message, got %v", err)
 	}
 }
 
@@ -192,7 +249,7 @@ func TestSearchSerpApiRetriesWithRotatedKey(t *testing.T) {
 			w.WriteHeader(500) // first attempt fails
 			return
 		}
-		_, _ = w.Write([]byte(serpOneWayFixture))
+		_, _ = w.Write(mustReadRawFixture(t))
 	}))
 	defer srv.Close()
 
@@ -210,8 +267,8 @@ func TestSearchSerpApiRetriesWithRotatedKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success on retry, got %v", err)
 	}
-	if len(res) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(res))
+	if len(res) == 0 {
+		t.Fatal("expected results after the retry")
 	}
 	if keyCalls.Load() != 2 {
 		t.Fatalf("expected 2 serp-key calls (rotated), got %d", keyCalls.Load())

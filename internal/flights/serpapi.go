@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
@@ -62,47 +64,6 @@ func execSerpKey(ctx context.Context) (string, error) {
 func SerpEnabled() bool {
 	_, err := exec.LookPath(serpKeyCmd())
 	return err == nil
-}
-
-// --- response types ---
-
-type serpAirport struct {
-	Name string `json:"name"`
-	ID   string `json:"id"`
-	Time string `json:"time"`
-}
-
-type serpSegment struct {
-	DepartureAirport serpAirport `json:"departure_airport"`
-	ArrivalAirport   serpAirport `json:"arrival_airport"`
-	Duration         int         `json:"duration"`
-	Airline          string      `json:"airline"`
-	FlightNumber     string      `json:"flight_number"`
-	Airplane         string      `json:"airplane"`
-	TravelClass      string      `json:"travel_class"`
-}
-
-type serpLayover struct {
-	Duration int    `json:"duration"`
-	Name     string `json:"name"`
-	ID       string `json:"id"`
-}
-
-type serpOption struct {
-	Price         float64       `json:"price"`
-	Type          string        `json:"type"`
-	TotalDuration int           `json:"total_duration"`
-	Flights       []serpSegment `json:"flights"`
-	Layovers      []serpLayover `json:"layovers"`
-	CarbonEmissions struct {
-		ThisFlight int `json:"this_flight"`
-	} `json:"carbon_emissions"`
-}
-
-type serpResponse struct {
-	BestFlights  []serpOption `json:"best_flights"`
-	OtherFlights []serpOption `json:"other_flights"`
-	Error        string       `json:"error"`
 }
 
 type serpMultiCityLeg struct {
@@ -162,21 +123,53 @@ func searchSerpOnce(ctx context.Context, key string, slices []DuffelSlice, opts 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("serpapi: unexpected status %d", resp.StatusCode)
 	}
-	var decoded serpResponse
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-		return nil, fmt.Errorf("serpapi: decode response: %w", err)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("serpapi: read response: %w", err)
 	}
-	if decoded.Error != "" {
-		return nil, fmt.Errorf("serpapi: api error: %s", decoded.Error)
+	if apiErr := serpAPIError(body); apiErr != nil {
+		return nil, apiErr
 	}
-	options := append(append([]serpOption{}, decoded.BestFlights...), decoded.OtherFlights...)
-	results := make([]models.FlightResult, 0, len(options))
-	for _, o := range options {
-		r := mapSerpOption(o)
-		r.Currency = opts.Currency
-		results = append(results, r)
+
+	// With output=html the body is Google's own batchexecute payload, so it goes
+	// through the exact decoder the google_flights provider uses. SerpApi's
+	// normalized JSON drops the bag allowance; the raw payload keeps it.
+	inner, err := batchexec.DecodeFlightResponse(body)
+	if err != nil {
+		return nil, fmt.Errorf("serpapi: decode google payload: %w", err)
+	}
+	raw, err := batchexec.ExtractFlightData(inner)
+	if err != nil {
+		return nil, fmt.Errorf("serpapi: extract flights: %w", err)
+	}
+
+	results := parseFlights(raw)
+	for i := range results {
+		results[i].Provider = "google_serpapi"
+		if results[i].Currency == "" {
+			results[i].Currency = opts.Currency
+		}
 	}
 	return results, nil
+}
+
+// serpAPIError reports SerpApi's JSON error envelope. Success bodies on the
+// output=html path are not JSON, so a leading '{' is the discriminator.
+func serpAPIError(body []byte) error {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return nil
+	}
+	var envelope struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(trimmed, &envelope); err != nil {
+		return fmt.Errorf("serpapi: unrecognized response: %w", err)
+	}
+	if envelope.Error != "" {
+		return fmt.Errorf("serpapi: api error: %s", envelope.Error)
+	}
+	return nil
 }
 
 // buildSerpQuery encodes the SerpApi google_flights query for the slices:
@@ -187,6 +180,10 @@ func buildSerpQuery(slices []DuffelSlice, key string, opts SearchOptions) (strin
 	v.Set("engine", "google_flights")
 	v.Set("api_key", key)
 	v.Set("hl", "en")
+	// Ask for the unparsed upstream payload. SerpApi's normalized JSON has no
+	// baggage field at all, while the raw Google payload carries the allowance
+	// inline at offer[4][6] — the same slot the google_flights provider reads.
+	v.Set("output", "html")
 	if opts.Currency != "" {
 		v.Set("currency", opts.Currency)
 		v.Set("gl", CurrencyToGL(opts.Currency))
@@ -196,6 +193,17 @@ func buildSerpQuery(slices []DuffelSlice, key string, opts SearchOptions) (strin
 	}
 	if opts.Adults > 0 {
 		v.Set("adults", fmt.Sprintf("%d", opts.Adults))
+	}
+	// SerpApi's "bags" is carry-on only ("Parameter defines the number of
+	// carry-on bags"); there is no checked-bag request parameter, so
+	// opts.CheckedBags has nothing to map to and is enforced client-side by
+	// filterFlightResults. Sending bags does reprice: on a live JFK-LAX probe
+	// 5 of 32 itineraries changed price between bags=0 and bags=1.
+	if opts.CarryOnBags > 0 {
+		v.Set("bags", fmt.Sprintf("%d", opts.CarryOnBags))
+	}
+	if opts.ExcludeBasic {
+		v.Set("exclude_basic", "true")
 	}
 
 	isRoundTrip := len(slices) == 2 &&
@@ -227,48 +235,4 @@ func buildSerpQuery(slices []DuffelSlice, key string, opts SearchOptions) (strin
 		v.Set("multi_city_json", string(raw))
 	}
 	return v.Encode(), nil
-}
-
-// mapSerpOption converts one SerpApi flight option into a FlightResult. Segments
-// flatten into Legs; Stops is len(layovers); each leg after the first gets its
-// LayoverMinutes from the preceding layover. Emissions are already in grams.
-// Currency is left empty ("") and must be set by the caller.
-func mapSerpOption(o serpOption) models.FlightResult {
-	legs := make([]models.FlightLeg, 0, len(o.Flights))
-	for i, seg := range o.Flights {
-		layover := 0
-		if i > 0 && i-1 < len(o.Layovers) {
-			layover = o.Layovers[i-1].Duration
-		}
-		legs = append(legs, models.FlightLeg{
-			DepartureAirport: models.AirportInfo{Code: seg.DepartureAirport.ID, Name: seg.DepartureAirport.Name},
-			ArrivalAirport:   models.AirportInfo{Code: seg.ArrivalAirport.ID, Name: seg.ArrivalAirport.Name},
-			DepartureTime:    seg.DepartureAirport.Time,
-			ArrivalTime:      seg.ArrivalAirport.Time,
-			Duration:         seg.Duration,
-			Airline:          seg.Airline,
-			AirlineCode:      serpAirlineCode(seg.FlightNumber),
-			FlightNumber:     seg.FlightNumber,
-			Aircraft:         seg.Airplane,
-			LayoverMinutes:   layover,
-		})
-	}
-	return models.FlightResult{
-		Price:     o.Price,
-		Currency:  "", // set by caller (searchSerpOnce) via opts.Currency
-		Duration:  o.TotalDuration,
-		Stops:     len(o.Layovers),
-		Provider:  "google_serpapi",
-		Legs:      legs,
-		Emissions: o.CarbonEmissions.ThisFlight,
-	}
-}
-
-// serpAirlineCode extracts the IATA prefix from a flight number like "EK 46".
-func serpAirlineCode(flightNumber string) string {
-	fields := strings.Fields(flightNumber)
-	if len(fields) > 0 {
-		return fields[0]
-	}
-	return ""
 }
