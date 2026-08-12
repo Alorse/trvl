@@ -144,3 +144,37 @@ func TestBagEstimateDrivesTheFilter(t *testing.T) {
 		t.Errorf("provider verdict must win over the table, got %q", all[3].BagEstimate.Source)
 	}
 }
+
+// TestAllInRangeFromBagEstimate covers the all-in cost: the fare plus what a
+// checked bag would add, expressed as a range because published fees swing
+// several-fold within one carrier. The floor is what a comparison should sort
+// on; the ceiling is what the traveller might actually pay.
+func TestAllInRangeFromBagEstimate(t *testing.T) {
+	flights := []models.FlightResult{
+		{Price: 129, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LO"}}},  // bag included
+		{Price: 87, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "FR"}}},   // EUR 9.49-60
+		{Price: 114, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "U2"}}},  // range is GBP, fare is EUR
+		{Price: 121, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "JU"}}},  // not in the table
+	}
+
+	annotateBagEstimates(flights, nil)
+
+	// Bag included: all-in is just the fare, with no spread.
+	if flights[0].AllInMin != 129 || flights[0].AllInMax != 129 {
+		t.Errorf("included bag: all-in = %v-%v, want 129-129", flights[0].AllInMin, flights[0].AllInMax)
+	}
+	// Fee in the fare's own currency: added at both ends.
+	if flights[1].AllInMin != 96.49 || flights[1].AllInMax != 147 {
+		t.Errorf("Ryanair: all-in = %v-%v, want 96.49-147", flights[1].AllInMin, flights[1].AllInMax)
+	}
+	// A GBP fee cannot be added to a EUR fare without a rate we do not have.
+	// Leaving it unset is honest; inventing a conversion is not.
+	if flights[2].AllInMin != 0 || flights[2].AllInMax != 0 {
+		t.Errorf("currency mismatch must not produce a total, got %v-%v", flights[2].AllInMin, flights[2].AllInMax)
+	}
+	// Unknown terms: no total either, so a consumer cannot mistake the bare
+	// fare for a complete one.
+	if flights[3].AllInMin != 0 || flights[3].AllInMax != 0 {
+		t.Errorf("unknown terms must not produce a total, got %v-%v", flights[3].AllInMin, flights[3].AllInMax)
+	}
+}

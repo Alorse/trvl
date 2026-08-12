@@ -42,6 +42,15 @@ type FlightResult struct {
 	// BagEstimate resolves the checked-bag situation from the best evidence
 	// available and records which evidence that was. Nil when not computed.
 	BagEstimate *BagEstimate `json:"bag_estimate,omitempty"`
+	// AllInMin/AllInMax bound the fare plus what a checked bag would add, in
+	// Currency. A range rather than a point because published bag fees swing
+	// several-fold within one carrier; sort on the floor, budget for the
+	// ceiling. Both stay zero when no total can be stated honestly — the
+	// airline's terms are unknown, or its fee is quoted in another currency
+	// and we hold no rate to convert it. Zero therefore means "no total",
+	// never "free".
+	AllInMin float64 `json:"all_in_min,omitempty"`
+	AllInMax float64 `json:"all_in_max,omitempty"`
 }
 
 // FlightSearchResult is the top-level response for a flight search.
@@ -214,6 +223,9 @@ const (
 	// BagSourceTableUnsourced — trvl's airline table, where the figure has no
 	// citation behind it. A hint, not a number to rely on.
 	BagSourceTableUnsourced BagSource = "table_unsourced"
+	// BagSourceFrequentFlyer — the traveller's alliance status entitles them to
+	// a free checked bag regardless of the fare.
+	BagSourceFrequentFlyer BagSource = "frequent_flyer"
 	// BagSourceUnknown — no source covers this airline. Treated as "no free
 	// checked bag" so a bag-required filter cannot pass it, but no fee is
 	// invented.

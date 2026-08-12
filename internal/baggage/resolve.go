@@ -12,10 +12,23 @@ import (
 // what a bag would cost if it does not, from the best evidence available.
 //
 // providerChecked is what the flight provider reported: a count, or nil when it
-// did not state one. Provider data wins outright; the airline table fills the
-// gap; an airline in neither is reported as unknown rather than guessed at.
-func ResolveCheckedBag(providerChecked *int, airlineCode string) models.BagEstimate {
+// did not state one. A frequent-flyer entitlement wins over everything; then
+// provider data; then the airline table; an airline in neither is reported as
+// unknown rather than guessed at.
+func ResolveCheckedBag(providerChecked *int, airlineCode string, ffStatuses []FFStatus) models.BagEstimate {
 	ab, inTable := Get(airlineCode)
+
+	// Frequent-flyer status can grant a free checked bag outright, and that
+	// beats every other source. It is applied here rather than after filtering,
+	// where it used to run: a bag the traveller's status entitles them to could
+	// not rescue a flight the bag filter had already dropped.
+	if benefit := bestBenefitForAirline(airlineCode, ffStatuses); benefit.ExtraCheckedBags > 0 {
+		return models.BagEstimate{
+			Included:  true,
+			Source:    models.BagSourceFrequentFlyer,
+			Reference: fmt.Sprintf("%s alliance status grants %d extra checked bag(s)", airlineCode, benefit.ExtraCheckedBags),
+		}
+	}
 
 	if providerChecked != nil {
 		if *providerChecked >= 1 {

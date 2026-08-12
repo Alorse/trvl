@@ -55,7 +55,7 @@ func TestResolveCheckedBag(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := ResolveCheckedBag(tc.provider, tc.airline)
+			got := ResolveCheckedBag(tc.provider, tc.airline, nil)
 			if got.Included != tc.wantIncl {
 				t.Errorf("Included = %v, want %v (%s)", got.Included, tc.wantIncl, tc.description)
 			}
@@ -75,7 +75,7 @@ func TestResolveCheckedBag(t *testing.T) {
 // TestResolveCheckedBagVariableFee covers carriers that publish no figure at
 // all: we must state that the fee varies rather than emit a number.
 func TestResolveCheckedBagVariableFee(t *testing.T) {
-	got := ResolveCheckedBag(nil, "W6")
+	got := ResolveCheckedBag(nil, "W6", nil)
 	if got.Included {
 		t.Error("Wizz Air includes no checked bag")
 	}
@@ -84,5 +84,27 @@ func TestResolveCheckedBagVariableFee(t *testing.T) {
 	}
 	if got.Reference == "" {
 		t.Error("expected the variable-fee situation to be stated in Reference")
+	}
+}
+
+// TestResolveCheckedBagFrequentFlyer pins that alliance status grants a bag the
+// fare itself does not include. This has to happen before the bag filter runs:
+// applied afterwards, as it used to be, it could never rescue a flight the
+// filter had already dropped.
+func TestResolveCheckedBagFrequentFlyer(t *testing.T) {
+	gold := []FFStatus{{Alliance: "star_alliance", Tier: "gold"}}
+
+	// Ryanair is in no alliance, so status changes nothing.
+	if got := ResolveCheckedBag(nil, "FR", gold); got.Included {
+		t.Error("Ryanair is in no alliance; status must not grant a bag")
+	}
+
+	// Swiss is Star Alliance: Gold grants a checked bag even on a fare without one.
+	got := ResolveCheckedBag(nil, "LX", gold)
+	if !got.Included {
+		t.Error("Star Alliance Gold must grant a checked bag on Swiss")
+	}
+	if got.Source != models.BagSourceFrequentFlyer {
+		t.Errorf("source = %q, want the entitlement to be credited", got.Source)
 	}
 }

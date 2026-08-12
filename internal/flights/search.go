@@ -9,6 +9,7 @@ import (
 
 	"net/url"
 
+	"github.com/MikkoParkkola/trvl/internal/baggage"
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"golang.org/x/sync/singleflight"
@@ -54,6 +55,12 @@ type SearchOptions struct {
 	DepartAfter   string   // Earliest departure time "HH:MM" (e.g. "06:00")
 	DepartBefore  string   // Latest departure time "HH:MM" (e.g. "22:00")
 	LessEmissions bool     // Only show flights with less emissions
+
+	// FFStatuses are the traveller's frequent-flyer memberships. They feed the
+	// checked-bag verdict, since alliance status can grant a free bag the fare
+	// itself does not include — which has to be known before the bag filter
+	// runs, not after.
+	FFStatuses []baggage.FFStatus
 
 	// Client-side post-filters (applied after server response).
 	RequireCheckedBag bool // Only show flights with ≥1 free checked bag
