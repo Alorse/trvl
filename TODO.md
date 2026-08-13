@@ -106,16 +106,21 @@ calls to Frankfurter. When those fail the fallback covers only EUR, USD and
 GBP — so HKD, JPY and KRW lose their rate, and the flights priced in them
 silently lose their all-in.
 
-This is not hypothetical. Sweeping four routes back to back, one run's HK
-Express results came back with no total while three consecutive single runs of
-the same search converted correctly. A cron walking many dates is exactly the
-burst pattern that trips it, and the failure is invisible: the flight simply
-stops having a total, which downstream reads as "cannot price" rather than
-"could not reach the ECB".
+The failure mode is nasty because it is selective and quiet: USD and GBP keep
+resolving from the hardcoded fallbacks, so only the Asian carriers stop
+producing a total, and downstream that reads as "cannot price this flight"
+rather than "could not reach the ECB".
 
-Writing the rates under `~/.trvl/` with the date already attached would fix it
-without weakening provenance — a rate from yesterday is still a real published
-rate, and `conversion_as_of` already says which day it is.
+The acute cause is fixed: the client pointed at `api.frankfurter.app`, which now
+answers 301 to `api.frankfurter.dev/v1`. Go followed the redirect, so it worked
+— at double the round trips, and under a burst that exhausted the 5s timeout.
+Pointing straight at the versioned host made JPY conversion reproducible across
+runs where it had been intermittent.
+
+That removes the trigger, not the fragility: a network blip still costs the same
+currencies. Writing the rates under `~/.trvl/` with the date already attached
+would fix it properly and without weakening provenance — a rate from yesterday
+is still a real published rate, and `conversion_as_of` already says which day.
 
 **Done when:** a run with no network still converts HKD, JPY and KRW from the
 last stored rates, and says how old they are.

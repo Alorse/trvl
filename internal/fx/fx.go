@@ -64,7 +64,7 @@ type Cache struct {
 }
 
 // frankfurterResponse is the JSON shape returned by
-// https://api.frankfurter.app/latest?from=CUR
+// https://api.frankfurter.dev/v1/latest?from=CUR
 type frankfurterResponse struct {
 	Base  string             `json:"base"`
 	Date  string             `json:"date"`
@@ -85,11 +85,18 @@ var Default = New()
 // New builds an empty cache pointed at the live Frankfurter API.
 func New() *Cache {
 	return &Cache{
-		rates:   make(map[string]map[string]float64),
-		asOf:    make(map[string]string),
-		ttl:     24 * time.Hour,
-		client:  &http.Client{Timeout: 5 * time.Second},
-		baseURL: "https://api.frankfurter.app",
+		rates:  make(map[string]map[string]float64),
+		asOf:   make(map[string]string),
+		ttl:    24 * time.Hour,
+		client: &http.Client{Timeout: 5 * time.Second},
+		// The versioned .dev host, not the older api.frankfurter.app, which now
+		// answers 301 to exactly this URL. Go follows the redirect, so the old
+		// host worked — but it doubled the round trips, three fetches became
+		// six, and under a burst that was enough to exhaust the timeout. The
+		// symptom was ugly: USD and GBP still resolved from the hardcoded
+		// fallbacks while JPY, KRW and HKD silently lost their rate, so the
+		// Asian carriers alone stopped producing an all-in.
+		baseURL: "https://api.frankfurter.dev/v1",
 	}
 }
 
