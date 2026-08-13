@@ -23,28 +23,104 @@ whether the table is getting better.
 
 ---
 
-## 1. Convert bag fees into the fare's currency
+## 1. Cover the Asian carriers — the whole remaining gap
 
-**Biggest single cause of a missing all-in: 45 of the 477 flights.** British
-Airways alone accounts for 18, United 10, LATAM 8, Air Canada 6, Etihad 3.
+Surfaced by a question from Sebas in the MyVentura daily: had the price cache
+ever been checked on internal/domestic routes? It had not, and the answer is
+bad. Measured 2026-08-13 on the two routes the internal cron actually runs:
 
-These airlines have a perfectly good fee — BA in GBP, UA and LA in USD — but the
-fare is quoted in EUR, and `allInRange` refuses to add across currencies rather
-than invent a rate. Refusing is right; having no rate is the gap.
+| route | priced | `unknown` | cheapest flight |
+|---|---|---|---|
+| KIX–HKG one way | 123 | 42 (34%) | Peach 115 EUR, unknown |
+| KIX–ICN one way | 61 | 41 (**67%**) | Air Busan 113 EUR, unknown |
+| KIX–HKG round trip | 71 | 27 (38%) | Peach 222 EUR, unknown |
 
-The consequence is the one the whole baggage effort exists to prevent: a flight
-with no all-in drops out of price comparison, and a downstream selection can
-substitute a much more expensive flight in its place.
+Two things the framing got wrong on the way in, both worth keeping straight:
 
-There is an FX cache at `internal/providers/fx.go` (Frankfurter API, daily ECB
-rates, hardcoded fallbacks) but it is unexported and does network I/O from a
-hotels package. Options: export it, or store a rate with its own date alongside
-the fee — which matches how the rest of this data records provenance.
+**It is not a one-way bug.** The same route as a round trip drops the same
+carriers. The variable is the region, not the trip type — the table covers
+European long-haul and four Asian full-service carriers, and these routes are
+flown by neither.
 
-**Done when:** the "currency does not match" row above is zero, and a converted
-figure carries the rate and the date it was taken.
+**It is not five LCCs.** `7C` Jeju, `UO` HK Express, `HX` Hong Kong Airlines,
+`MM` Peach, `TW` T'Way, `BX` Air Busan, `LJ` Jin Air, `ZE` Eastar, `HB` Greater
+Bay, `SC` Shandong, `CI` China Airlines, `PR` Philippine, `MH` Malaysia. The
+largest single contributor is China Airlines, a full-service carrier.
 
-## 2. Cite the six airlines whose claims have expired
+`UO`, `7C`, `MM`, `BX`, `TW` and `HX` are now in the table, all cited from the
+airline's own page or fee PDF. That took flights with no all-in on the internal
+routes from 37 to 16, and **the cheapest flight is now priced on every route
+measured** — which was the whole point.
+
+Still open, by measured damage: `LJ` Jin Air 7, `ZE` Eastar 4, `HB` Greater Bay
+2, `RS` Air Seoul 2, `GK` Jetstar Japan 1. Then `SC`, `CI`, `PR`, `MH` on the
+wider sweep. None of them holds the cheapest flight on any route measured.
+
+**`LJ` Jin Air — do not restart from scratch.** Its excess-baggage page has been
+read and is *not* the one needed. It gives pre-purchase and airport rates only
+(Japan/Shanghai KRW 45,000, Hong Kong/Taiwan KRW 55,000, both **per 5 kg**) and
+never states the free allowance, which is the half that decides the verdict.
+Two consequences:
+
+- The missing page is the free-allowance one (`무료 수하물` / "Free Baggage
+  Allowance"), specifically the international economy row.
+- Even with it, no fee should be stored unless Jin Air publishes a per-bag
+  price. A 5 kg band is the Etihad case: multiplying it up would manufacture a
+  first-bag figure the airline never states. So if the allowance turns out to be
+  15 kg the entry needs no fee at all and is complete; if it turns out to be
+  zero, the entry is a cited verdict with no figure and the flight still has no
+  all-in.
+
+**Do not assume LCC means no bag.** Air Busan includes 15 kg in regular
+international economy — the opposite of the assumption that opened this
+investigation. Adding a fee there would have inflated the cheapest flight on
+the route and caused the same substitution from the other side.
+
+What makes this the priority is not the count but the *position*: the cheapest
+flight was `unknown` in every measurement taken. Twenty-four correctly resolved
+Korean Air results do not compensate for the one flight the cache will actually
+store being the one we cannot price. **Rank this work by whether the cheapest
+flight is covered, not by how many results are.**
+
+Downstream the failure is concrete: with no all-in the cron discards the cheap
+flight and stores a full-service one instead — 115 EUR becoming 341, 113
+becoming 282. That is not a bag being added, it is a different airline being
+substituted.
+
+**Blocked on reading, not on code.** Conversion (below) is done, so a fee in
+yen or won is now usable. Getting the figures is the work: `flypeach.com`,
+`jejuair.net`, `hkexpress.com` and `support.flypeach.com` variously return 404,
+time out, exceed the redirect limit, or fail the TLS handshake to an automated
+fetch. Search snippets and a Scribd copy of an HK Express price table are
+available and are *not* good enough — see the sourcing rules below. This needs
+a browser session or a manual read.
+
+**Done when:** each carrier has `CheckedIncluded`, `CheckedSource` and
+`CheckedVerified` read off the airline's own page, and the two routes above
+show the cheapest flight priced.
+
+## 2. Persist FX rates across runs
+
+Every `trvl` invocation starts with an empty rate cache and makes three HTTP
+calls to Frankfurter. When those fail the fallback covers only EUR, USD and
+GBP — so HKD, JPY and KRW lose their rate, and the flights priced in them
+silently lose their all-in.
+
+This is not hypothetical. Sweeping four routes back to back, one run's HK
+Express results came back with no total while three consecutive single runs of
+the same search converted correctly. A cron walking many dates is exactly the
+burst pattern that trips it, and the failure is invisible: the flight simply
+stops having a total, which downstream reads as "cannot price" rather than
+"could not reach the ECB".
+
+Writing the rates under `~/.trvl/` with the date already attached would fix it
+without weakening provenance — a rate from yesterday is still a real published
+rate, and `conversion_as_of` already says which day it is.
+
+**Done when:** a run with no network still converts HKD, JPY and KRW from the
+last stored rates, and says how old they are.
+
+## 3. Cite the six airlines whose claims have expired
 
 `OS` Austrian · `LO` LOT · `SK` SAS · `AZ` ITA · `TP` TAP · `SQ` Singapore
 
@@ -60,13 +136,41 @@ But it costs real results until the figures are sourced.
 **Done when:** each has `CheckedSource` and `CheckedVerified` in
 `internal/baggage/baggage.go`, read off the airline's own page.
 
-## 3. Add the five airlines that close most of the coverage gap
+## 4. Add the five airlines that close most of the coverage gap
 
 `DL` Delta · `VL` · `AA` American · `SN` Brussels · `AM` Aeroméxico
 
 **41 of the 81 unknowns.** Adding these plus item 2 would take unknowns from 16%
 to roughly 1%. The remaining tail (`4Y`, `EN`, `OU`, `AR`, `9B`) appears once or
 twice each.
+
+---
+
+## Done
+
+**Bag fees convert into the fare's currency** (`internal/fx`). Was the largest
+cause of a missing all-in — 45 of 477 flights, BA in GBP, UA and LATAM in USD
+against EUR fares. `allInRange` now converts rather than dropping the flight,
+and records the rate and its ECB publication date on the estimate
+(`conversion_rate`, `conversion_as_of`) so a derived figure can be audited. The
+published fee stays in the airline's own currency. Where no rate exists for the
+pair the total is still withheld — converting is not licence to invent.
+
+The FX cache moved out of `internal/providers` into its own package so both
+hotels and flights can reach it, and it now inverts the ECB's EUR table, which
+is what makes JPY, KRW and HKD reachable at all. Measured after: the European
+long-haul routes went to zero flights without an all-in.
+
+**`included` is three-valued** (`*bool`, JSON `null`). trvl used to emit
+`"included": false` alongside `"source": "unknown"`, collapsing "this fare
+carries no checked bag" into "we do not know what this fare carries". The
+second is not the first, and any consumer reading `included` without also
+reading `source` was being told something trvl cannot support. Raised by the
+downstream cache's maintainer.
+
+Note for consumers: `included` may now be `null`. Nothing that reads it as
+falsy changes behaviour; anything that distinguishes the two states now can.
+`HasBag()` and `LacksBag()` are deliberately not each other's negation.
 
 ---
 
@@ -80,6 +184,15 @@ thirteen carriers whose standard brand includes one: Air France Light, Finnair
 Light, Iberia Basic, KLM Light, British Airways Basic, SWISS Light, Air Canada
 Basic, Etihad Basic, United Basic Economy, China Eastern Basic, Air Europa LITE,
 LATAM Basic and Avianca Basic.
+
+**A brand ladder and a ticket kind are not the same thing, and they decide the
+answer in opposite directions.** T'Way publishes Event, Smart, Normal and
+Business as rungs of one ladder, so Event is the cheapest brand and the rule
+above applies unchanged: it carries no allowance. Air Busan's "Special/Event
+Flights" instead names a *class of flight* alongside "Economy/Regular Airfare",
+which carries 15 kg. Reading both the same way would have been wrong about one
+of them whichever way it went. Ask what the label is a member of — a set of
+fares, or a set of flights.
 
 **Where a carrier publishes no static table, its calculator usually does.** SWISS
 and Turkish both hide a fare selector on the calculator's *results* screen, not
