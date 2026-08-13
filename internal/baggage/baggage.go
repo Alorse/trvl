@@ -583,6 +583,86 @@ var database = map[string]AirlineBaggage{
 		CheckedFee:        35,
 		Notes:             "No weight limit on carry-on; 1 personal item free. Checked bag from USD 35 (Blue Basic: no carry-on overhead).",
 	},
+
+	// --- Added 2026-08: the carriers that fly intra-Asia, where the table had
+	// no coverage at all. On KIX-ICN two thirds of priced results resolved to
+	// unknown and the cheapest flight was unknown on every route measured, so a
+	// downstream price cache was discarding the cheap carrier and storing a
+	// full-service fare in its place. Fees here are published in HKD, JPY and
+	// KRW, which only became usable once bag fees started converting into the
+	// fare's currency. ---
+	"UO": {
+		Code:            "UO",
+		Name:            "HK Express",
+		CheckedIncluded: 0,
+		CheckedSource:   "https://www.hkexpress.com/en/Plan/Extras/Baggage/Checked-Baggage (\"Checked Baggage is only included in the Essential and Max fare categories\"; the cheaper bundles carry none)",
+		CheckedVerified: "2026-08",
+		CheckedFeeMin:   310,
+		CheckedFeeMax:   600,
+		FeeCurrency:     "HKD",
+		FeeSource:       "https://www.hkexpress.com/-/media/Plan/Extras/Baggage/Baggage%20Fee/202603%20Price%20Table%20-%20Baggage%20-%20EN.pdf, the airline's own price table, last updated 4 November 2025. Range is one 20 kg piece across booking channels: HKD 310 at initial booking, 380 via Manage My Booking, 460 at online check-in, 600 at the airport counter. The floor is the advance online price because the floor is what drives ranking",
+		FeeVerified:     "2026-08",
+		Notes:           "Fee is stated per passenger PER SEGMENT, which is the same shape as charging it per direction. A 32 kg piece is HKD 430-740. The table is a single grid with no route dimension, so unlike the network carriers there is nothing route-dependent to approximate.",
+	},
+	"7C": {
+		Code:            "7C",
+		Name:            "Jeju Air",
+		CheckedIncluded: 0,
+		CheckedSource:   "https://www.jejuair.net/en/linkService/boardingProcessGuide/trustBaggage.do, the airline's own baggage calculator with Japan-Korea selected: \"BASIC passengers : Free baggage service 0KG\". STANDARD carries 15 kg and BIZ LITE 30 kg, so the zero belongs to the cheapest brand exactly as the search surfaces it",
+		CheckedVerified: "2026-08",
+		CheckedFeeMin:   40,
+		CheckedFeeMax:   60,
+		FeeCurrency:     "USD",
+		FeeSource:       "Same calculator: first 15 kg is USD 40 booked online, USD 60 booked offline at an airport or branch. The floor is the online price because the floor is what drives ranking",
+		FeeVerified:     "2026-08",
+		Notes:           "Jeju charges in KRW for departures from Korea (KRW 40,000 online / 60,000 offline) and in USD from everywhere else, converting any local currency to USD. USD is stored because it is the currency for the Japan-origin routes this covers. Jeju also states charges apply per itinerary regardless of transfers, which matches charging per direction rather than per ticket.",
+	},
+	"MM": {
+		Code:            "MM",
+		Name:            "Peach Aviation",
+		CheckedIncluded: 0,
+		CheckedSource:   "https://www.flypeach.com/en/lm/fares/fees_and_charges — the international checked-baggage table prices a first bag under Minimum and marks it free under Standard and Standard Plus. Minimum is the cheapest of the three brands, so the fare a search surfaces carries none",
+		CheckedVerified: "2026-08",
+		CheckedFeeMin:   2600,
+		CheckedFeeMax:   7500,
+		FeeCurrency:     "JPY",
+		FeeSource:       "Same page, the Minimum first-bag row bought over the internet, which is priced by route zone: Zone A (Japan-Seoul) JPY 2,600, Zone B (Japan-Taipei/Kaohsiung/Hong Kong) JPY 3,600, Zone D (Kansai-Bangkok/Singapore) JPY 6,100, Zone C (Japan-Shanghai) JPY 7,500",
+		FeeVerified:     "2026-08",
+		Notes:           "Four published zones spanning nearly 3x, so a single carrier-level range is unusually coarse here — Kansai-Seoul really is JPY 2,600 and Kansai-Shanghai really is JPY 7,500. Booking through the contact centre or the airport counter raises all of them (Zone C reaches JPY 8,900). Domestic Japan is a flat JPY 2,000. Peach charges in the currency of the point of origin. This is the clearest case yet for keying the table by (carrier, region) rather than by carrier alone.",
+	},
+	"BX": {
+		Code:            "BX",
+		Name:            "Air Busan",
+		CarryOnMaxKg:    10,
+		PersonalItem:    true,
+		CheckedIncluded: 1,
+		CheckedSource:   "https://en.airbusan.com free baggage page, International Flight table: \"Economy/Regular Airfare (Non-America Routes): 15 kg, maximum size 203 cm\". Americas routes get 2x23 kg to Guam and 1x23 kg to Saipan",
+		CheckedVerified: "2026-08",
+		Notes:           "An exception to the cheapest-brand rule, and the entry here most likely to be wrong. Air Busan splits by ticket kind rather than by fare brand: the same table says \"Special/Event Flights (including routes to the Americas): Not applicable\", so a promotional ticket carries nothing. Unlike Iberia Basic or KLM Light, Special/Event reads as an occasional promotion rather than the permanently-available cheap brand, so the regular 15 kg is recorded as the normal case. If it turns out these routes routinely sell as Special/Event tickets, this must become 0 — it is the one claim in the intra-Asia block that a real booking would settle faster than any page.",
+	},
+	"HX": {
+		Code:            "HX",
+		CarryOnMaxKg:    7,
+		PersonalItem:    true,
+		Name:            "Hong Kong Airlines",
+		CheckedIncluded: 1,
+		CheckedSource:   "https://www.hongkongairlines.com/en_HK/fly-with-us/baggage/checkedbaggage, free allowance for tickets flying 26 October 2025 or later: \"Standard, FlexiPlus and Main Economy Class: 2 pieces of 23 kg each. Value Economy Class: 1 piece of 23 kg\"",
+		CheckedVerified: "2026-08",
+		Notes:           "The reassuring shape: a published brand ladder whose CHEAPEST rung still carries a bag, so the cheapest-brand rule and the generous answer agree. Value Economy gets one 23 kg piece and everything above it two — the same pattern as Cathay's Light fare. One piece is recorded rather than two because Value is what a price search surfaces. Fortune Wing Club Platinum, Gold and Silver each add a piece on top, which the frequent-flyer path handles separately. Zones are drawn from Hong Kong, and Japan sits in Zone 1.",
+	},
+	"TW": {
+		Code:            "TW",
+		Name:            "T'Way Air",
+		CheckedIncluded: 0,
+		CheckedSource:   "https://www.twayair.com fee regulations PDF, revision 2026-05-08, section 3-1 Excess Baggage Fee. The zone tables set a free allowance per brand by naming the weight it must exceed — Smart 15 kg, Normal 20 kg, Business 30 kg — while Event fare instead has its own row: \"~15 kilograms or less | You need to pay a rate up to 15 kilograms regardless of the weight of checked baggage\". A flat charge from the first gram is a zero allowance",
+		CheckedVerified: "2026-08",
+		CheckedFeeMin:   60000,
+		CheckedFeeMax:   80000,
+		FeeCurrency:     "KRW",
+		FeeSource:       "Same PDF, Event-fare flat rate for travel dates from 30 March 2026: Zone 2 (Japan, China short-haul) KRW 60,000; Zone 3 (Hong Kong, Taiwan, Macao, China long-haul) KRW 80,000. The earlier 50,000/70,000 figures apply only to travel before that date and are not used",
+		FeeVerified:     "2026-08",
+		Notes:           "Recorded at the cheapest brand, unlike Air Busan above, and the difference is real rather than a coin flip: T'Way's Event fare sits in a published brand ladder (Event, Smart, Normal, Business) as the cheapest rung, whereas Air Busan's Special/Event names a class of flight. Where a brand ladder exists, the rule that burned us on Iberia and KLM applies unchanged. Zones are measured from Korea, so a Japan-Korea leg is Zone 2 and Japan-Hong Kong is Zone 3. Fees are stated per one-way trip per person, matching per-direction charging.",
+	},
 }
 
 // Get returns baggage rules for an airline by its IATA code.

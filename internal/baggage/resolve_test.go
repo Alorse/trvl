@@ -343,3 +343,92 @@ func TestResolveCheckedBagDecaysWithAge(t *testing.T) {
 		t.Errorf("a negative claim must survive unchanged: %+v", got)
 	}
 }
+
+// TestResolveCheckedBagIntraAsia covers the carriers flying intra-Asian routes,
+// where the table previously had no coverage at all. The gap was not academic:
+// on KIX-ICN two thirds of priced results resolved to unknown, and on every
+// route measured the CHEAPEST flight was one of them — so a price cache that
+// drops flights it cannot total was discarding the cheap carrier and storing a
+// full-service fare two to three times the price.
+//
+// HK Express publishes in HKD, which is only usable because bag fees now
+// convert into the fare's currency.
+func TestResolveCheckedBagIntraAsia(t *testing.T) {
+	uo := ResolveCheckedBag(nil, "UO", nil)
+	if uo.HasBag() {
+		t.Error("HK Express includes a checked bag only in Essential and Max, not in its cheapest bundle")
+	}
+	if !uo.LacksBag() {
+		t.Errorf("this is a cited negative, not an absence of evidence: %+v", uo)
+	}
+	if uo.Source != models.BagSourceTableSourced {
+		t.Errorf("Source = %q, want table_sourced — read off the airline's own page", uo.Source)
+	}
+	if uo.Currency != "HKD" {
+		t.Errorf("Currency = %q, want the fee kept in the currency HK Express publishes", uo.Currency)
+	}
+	if uo.AmountMin != 310 || uo.AmountMax != 600 {
+		t.Errorf("fee = %v-%v, want the published 310-600 for a 20 kg piece", uo.AmountMin, uo.AmountMax)
+	}
+	if uo.Verified == "" {
+		t.Error("a sourced claim must carry the date it was checked")
+	}
+
+	// Jeju's cheapest brand is explicit about it: "BASIC passengers : Free
+	// baggage service 0KG". Its STANDARD brand carries 15 kg, which is why
+	// reading the standard brand would have got this backwards.
+	jj := ResolveCheckedBag(nil, "7C", nil)
+	if !jj.LacksBag() {
+		t.Errorf("Jeju BASIC carries no free allowance: %+v", jj)
+	}
+	if jj.Source != models.BagSourceTableSourced {
+		t.Errorf("Source = %q, want table_sourced", jj.Source)
+	}
+	if jj.Currency != "USD" || jj.AmountMin != 40 || jj.AmountMax != 60 {
+		t.Errorf("fee = %s %v-%v, want USD 40-60 for the first 15 kg", jj.Currency, jj.AmountMin, jj.AmountMax)
+	}
+
+	// Peach prices a first bag under Minimum and gives it free under Standard.
+	// Minimum is the cheapest of its three brands, so the surfaced fare has none.
+	mm := ResolveCheckedBag(nil, "MM", nil)
+	if !mm.LacksBag() {
+		t.Errorf("Peach Minimum pays for its first bag: %+v", mm)
+	}
+	if mm.Currency != "JPY" || mm.AmountMin != 2600 || mm.AmountMax != 7500 {
+		t.Errorf("fee = %s %v-%v, want the published JPY 2600-7500 zone span", mm.Currency, mm.AmountMin, mm.AmountMax)
+	}
+
+	// Air Busan goes the other way, and the direction matters: assuming a
+	// low-cost carrier includes nothing would have added a fee to a fare that
+	// already carries 15 kg, inflating the cheapest flight on the route and
+	// causing the same substitution from the opposite side.
+	bx := ResolveCheckedBag(nil, "BX", nil)
+	if !bx.HasBag() {
+		t.Errorf("Air Busan's regular economy carries 15 kg on non-America routes: %+v", bx)
+	}
+	if bx.Source != models.BagSourceTableSourced {
+		t.Errorf("Source = %q, want table_sourced — read off the airline's own table", bx.Source)
+	}
+
+	// T'Way goes back the other way, and the two must not be confused. Its
+	// Event fare is the cheapest rung of a published brand ladder, so the
+	// cheapest-brand rule applies exactly as it does to Iberia Basic; Air
+	// Busan's Special/Event names a class of flight, not a brand.
+	tw := ResolveCheckedBag(nil, "TW", nil)
+	if !tw.LacksBag() {
+		t.Errorf("T'Way's Event fare pays a flat rate from the first gram: %+v", tw)
+	}
+	if tw.Currency != "KRW" || tw.AmountMin != 60000 || tw.AmountMax != 80000 {
+		t.Errorf("fee = %s %v-%v, want KRW 60000-80000 for travel from 2026-03-30", tw.Currency, tw.AmountMin, tw.AmountMax)
+	}
+
+	// Hong Kong Airlines is the case where the rule and the generous answer
+	// agree: a brand ladder exists, and even its cheapest rung carries a bag.
+	hx := ResolveCheckedBag(nil, "HX", nil)
+	if !hx.HasBag() {
+		t.Errorf("Value Economy carries 1x23 kg; dropping it is a false negative: %+v", hx)
+	}
+	if hx.Source != models.BagSourceTableSourced || hx.Verified == "" {
+		t.Errorf("want a dated citation, got source %q verified %q", hx.Source, hx.Verified)
+	}
+}
