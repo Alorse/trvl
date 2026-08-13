@@ -277,7 +277,7 @@ func checkedBagCharge(ab AirlineBaggage) (float64, string) {
 	switch {
 	case ab.FeeVaries:
 		return 0, "checked bag fee varies by route and date"
-	case ab.CheckedFeeMin > 0 && ab.CheckedFeeMax > ab.CheckedFeeMin:
+	case ab.CheckedFeeMin > 0 && ab.CheckedFeeMax >= ab.CheckedFeeMin:
 		return ab.CheckedFeeMin, fmt.Sprintf("+%s %s–%s checked bag",
 			cur, trimAmount(ab.CheckedFeeMin), trimAmount(ab.CheckedFeeMax))
 	case ab.CheckedFee > 0:
@@ -303,7 +303,7 @@ func CheckedFeeLabel(ab AirlineBaggage) string {
 	switch {
 	case ab.FeeVaries:
 		return "varies by route and date"
-	case ab.CheckedFeeMin > 0 && ab.CheckedFeeMax > ab.CheckedFeeMin:
+	case ab.CheckedFeeMin > 0 && ab.CheckedFeeMax >= ab.CheckedFeeMin:
 		return fmt.Sprintf("from %s %s–%s", cur, trimAmount(ab.CheckedFeeMin), trimAmount(ab.CheckedFeeMax))
 	case ab.CheckedFee > 0:
 		return fmt.Sprintf("~EUR %s (approx., unsourced)", trimAmount(ab.CheckedFee))

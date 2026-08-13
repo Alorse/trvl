@@ -50,52 +50,66 @@ func ResolveCheckedBag(providerChecked *int, airlineCode string, ffStatuses []FF
 	}
 
 	if ab.CheckedIncluded >= 1 {
-		// The table's inclusion claims carry no citation of their own, so this
-		// is flagged unsourced even for airlines whose fee range is sourced.
 		return models.BagEstimate{
 			Included:  true,
-			Source:    models.BagSourceTableUnsourced,
-			Reference: fmt.Sprintf("%s baggage table entry: %d checked bag(s) included", ab.Code, ab.CheckedIncluded),
+			Source:    inclusionSource(ab),
+			Reference: inclusionReference(ab),
+			Verified:  ab.CheckedVerified,
 		}
 	}
 
-	est := models.BagEstimate{Included: false, Source: models.BagSourceTableUnsourced}
+	est := models.BagEstimate{
+		Included:  false,
+		Source:    inclusionSource(ab),
+		Reference: inclusionReference(ab),
+		Verified:  ab.CheckedVerified,
+	}
 	applyFee(&est, ab)
 	return est
 }
 
+// inclusionSource reports whether the airline's allowance figure was read from
+// a primary source or is an uncited table value.
+func inclusionSource(ab AirlineBaggage) models.BagSource {
+	if ab.CheckedSource != "" {
+		return models.BagSourceTableSourced
+	}
+	return models.BagSourceTableUnsourced
+}
+
+func inclusionReference(ab AirlineBaggage) string {
+	if ab.CheckedSource != "" {
+		return ab.CheckedSource
+	}
+	return fmt.Sprintf("%s baggage table: %d checked bag(s), no primary source", ab.Code, ab.CheckedIncluded)
+}
+
 // applyFee attaches the fee range and its provenance.
 //
-// Source describes the INCLUSION verdict, not the fee, so a provider verdict is
-// never downgraded here: when the provider states there is no free bag, that
-// stays hard data even though the fee we attach is an estimate. The fee's own
-// provenance travels in Reference and Verified.
+// Source is left alone: it describes the INCLUSION verdict, which the caller has
+// already established. A cited fee does not make an uncited allowance cited —
+// Turkish publishes a fee page but no allowance table, and reporting that as
+// sourced would launder the weaker claim behind the stronger one.
 func applyFee(est *models.BagEstimate, ab AirlineBaggage) {
-	promote := func(s models.BagSource) {
-		if est.Source != models.BagSourceProvider {
-			est.Source = s
-		}
-	}
 	switch {
 	case ab.FeeVaries:
 		est.Reference = "airline publishes no fixed fee; it varies by route and date"
 		if ab.FeeSource != "" {
-			promote(models.BagSourceTableSourced)
 			est.Reference += " — " + ab.FeeSource
 			est.Verified = ab.FeeVerified
 		}
-	case ab.CheckedFeeMin > 0 && ab.CheckedFeeMax > ab.CheckedFeeMin:
-		promote(models.BagSourceTableSourced)
+	case ab.CheckedFeeMin > 0 && ab.CheckedFeeMax >= ab.CheckedFeeMin:
 		est.AmountMin, est.AmountMax = ab.CheckedFeeMin, ab.CheckedFeeMax
 		est.Currency = ab.FeeCurrency
 		if est.Currency == "" {
 			est.Currency = "EUR"
 		}
-		est.Reference, est.Verified = ab.FeeSource, ab.FeeVerified
+		if ab.FeeSource != "" {
+			est.Reference += " — fee: " + ab.FeeSource
+		}
 	case ab.CheckedFee > 0:
-		promote(models.BagSourceTableUnsourced)
 		est.AmountMin, est.AmountMax = ab.CheckedFee, ab.CheckedFee
 		est.Currency = "EUR"
-		est.Reference = "baggage table figure with no primary source"
+		est.Reference += " — fee: baggage table figure with no primary source"
 	}
 }

@@ -34,18 +34,18 @@ func TestResolveCheckedBag(t *testing.T) {
 		},
 		{
 			name: "provider silent, table says included", provider: nil, airline: "LH",
-			wantIncl: true, wantSource: models.BagSourceTableUnsourced,
-			description: "the table's inclusion claims carry no citation, so say so",
+			wantIncl: true, wantSource: models.BagSourceTableSourced,
+			description: "Lufthansa's allowance was read off its own page, so the claim is cited",
 		},
 		{
 			name: "provider silent, table says not included", provider: nil, airline: "VY",
-			wantIncl: false, wantSource: models.BagSourceTableSourced, wantAmtMin: 18,
-			description: "Vueling's range has a primary source behind it",
+			wantIncl: false, wantSource: models.BagSourceTableUnsourced, wantAmtMin: 18,
+			description: "Vueling's fee has a source but its allowance does not; the weaker claim governs",
 		},
 		{
-			name: "provider silent, airline not in table", provider: nil, airline: "TG",
+			name: "provider silent, airline not in table", provider: nil, airline: "JU",
 			wantIncl: false, wantSource: models.BagSourceUnknown,
-			description: "Thai is not covered; assume no bag but never invent a fee",
+			description: "Air Serbia is not covered; assume no bag but never invent a fee",
 		},
 		{
 			name: "no airline code at all", provider: nil, airline: "",
@@ -106,5 +106,39 @@ func TestResolveCheckedBagFrequentFlyer(t *testing.T) {
 	}
 	if got.Source != models.BagSourceFrequentFlyer {
 		t.Errorf("source = %q, want the entitlement to be credited", got.Source)
+	}
+}
+
+// TestResolveCheckedBagCitesInclusion covers the inclusion claim's own
+// provenance. Until now only the fee carried a source, so even an airline whose
+// allowance we had read off its own page came back table_unsourced — every
+// verdict on a real route did, which is what made the whole filter rest on
+// uncited data.
+func TestResolveCheckedBagCitesInclusion(t *testing.T) {
+	// Finnair: Economy Light carries no checked bag, read off Finnair's table.
+	ay := ResolveCheckedBag(nil, "AY", nil)
+	if ay.Included {
+		t.Error("Finnair's cheapest long-haul brand includes no checked bag")
+	}
+	if ay.Source != models.BagSourceTableSourced {
+		t.Errorf("source = %q, want table_sourced — the claim has a citation", ay.Source)
+	}
+
+	// Cathay: Economy Light does include one, so it must survive a bag filter.
+	cx := ResolveCheckedBag(nil, "CX", nil)
+	if !cx.Included {
+		t.Error("Cathay's Light fare includes 1x23 kg; dropping it is a false negative")
+	}
+	if cx.Source != models.BagSourceTableSourced {
+		t.Errorf("source = %q, want table_sourced", cx.Source)
+	}
+	if cx.Reference == "" || cx.Verified == "" {
+		t.Errorf("a sourced claim must carry its reference and date, got %q / %q", cx.Reference, cx.Verified)
+	}
+
+	// Turkish publishes no route table, so its value stays explicitly uncited.
+	tk := ResolveCheckedBag(nil, "TK", nil)
+	if tk.Source != models.BagSourceTableUnsourced {
+		t.Errorf("source = %q, want table_unsourced — Turkish publishes no table", tk.Source)
 	}
 }
