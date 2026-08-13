@@ -397,10 +397,12 @@ var database = map[string]AirlineBaggage{
 		CheckedIncluded:   0,
 		CheckedSource:     "https://www.aireuropa.com/us/en/aea/aexperience/our-fares.html (Long-haul Economy: LITE in-hold included \"--\"; STANDARD and FLEX 1x23kg)",
 		CheckedVerified:   "2026-08",
-		FeeVaries:         true,
-		FeeSource:         "https://www.aireuropa.com/us/en/aea/travel-information/baggage/checked-baggage.html (fare table says only \"Paid\"; no figure published)",
-		FeeVerified:       "2026-08",
 		Notes:             "LITE includes no checked bag; STANDARD and FLEX include 1x23kg. All three keep the cabin allowance. Exception: flights originating in Bolivia to MAD or BCN include 2x23kg both ways.",
+		CheckedFeeMin:     120,
+		CheckedFeeMax:     140,
+		FeeCurrency:       "EUR",
+		FeeSource:         "https://www.aireuropa.com/us/en/aea/travel-information/baggage/checked-baggage.html — route selector set to Frankfurt-Lima: first bag EUR 120 in advance, EUR 140 close to departure. Identical across every fare brand, so the figure is banded by route rather than by brand. Read manually; the selector computes client-side and no automated pass could drive it",
+		FeeVerified:       "2026-08",
 	},
 
 	// --- Added 2026-08 from primary sources: Europe to Latin America, plus the
