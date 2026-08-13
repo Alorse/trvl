@@ -1,6 +1,7 @@
 package flights
 
 import (
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -131,7 +132,27 @@ func allInRange(price float64, currency string, est models.BagEstimate, directio
 		directions = 1
 	}
 	n := float64(directions)
-	return price + feeMin*n, price + max*n, used
+	return toCents(price + feeMin*n), toCents(price + max*n), used
+}
+
+// toCents rounds a money amount to the smallest unit its currency actually has.
+//
+// Converting a fee produces a number like 155.81188442074333, and the digits
+// past the second are not precision — no currency here is denominated below a
+// hundredth, so they are an artefact of the rate arithmetic. Emitting them
+// invites consumers to store them: a downstream price cache did exactly that
+// and put a fourteen-digit figure in a calendar.
+//
+// This is not the consumer's rounding decision, which is theirs to make — a
+// cache storing whole euros still needs its own. It only stops trvl from
+// publishing digits it does not mean. Note that fractional all-in totals long
+// predate any conversion: Ryanair's EUR 9.49 bag has always produced them.
+//
+// The fee itself is left alone. AmountMin/AmountMax carry what the airline
+// publishes, and rounding a published figure would corrupt a source, not tidy
+// a derivation.
+func toCents(v float64) float64 {
+	return math.Round(v*100) / 100
 }
 
 func filterFlightResults(flights []models.FlightResult, opts SearchOptions) []models.FlightResult {

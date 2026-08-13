@@ -258,3 +258,37 @@ func TestAllInWithoutAnyRateStaysSilent(t *testing.T) {
 		t.Errorf("the published fee must still be reported, got %v %s", est.AmountMin, est.Currency)
 	}
 }
+
+// TestAllInRoundsToCents pins that a converted total is published to the cent
+// and no further. The digits past the second come from rate arithmetic, not
+// from any currency, and a downstream price cache stored one verbatim — a
+// fourteen-digit figure ended up in a calendar.
+//
+// This does not do the consumer's rounding for them: a cache that wants whole
+// euros still has to round. It stops trvl publishing digits it does not mean.
+func TestAllInRoundsToCents(t *testing.T) {
+	// 1 GBP = 1.234567 EUR is deliberately awkward: easyJet's GBP 6.99 floor
+	// becomes 8.629622... and the ceiling GBP 60 becomes 74.07402.
+	defer stubFXRates(t, map[string]float64{"GBP": 1 / 1.234567}, "2026-08-13")()
+
+	flights := []models.FlightResult{
+		{Price: 114, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "U2"}}},
+	}
+	annotateBagEstimates(flights, nil, 1)
+
+	if got := flights[0].AllInMin; got != 122.63 {
+		t.Errorf("AllInMin = %v, want 122.63 — rounded to the cent", got)
+	}
+	if got := flights[0].AllInMax; got != 188.07 {
+		t.Errorf("AllInMax = %v, want 188.07 — rounded to the cent", got)
+	}
+
+	// The published fee is a source, not a derivation, and must survive intact.
+	if est := flights[0].BagEstimate; est.AmountMin != 6.99 || est.Currency != "GBP" {
+		t.Errorf("published fee altered: %v %s", est.AmountMin, est.Currency)
+	}
+	// The rate is not money and keeps its precision.
+	if r := flights[0].BagEstimate.ConversionRate; r == toCents(r) && r != 0 {
+		t.Errorf("conversion rate %v looks rounded; rates are not money", r)
+	}
+}
