@@ -57,9 +57,9 @@ func TestResolveCheckedBag(t *testing.T) {
 			description: "inclusion is hard data; the fee to add is still an estimate",
 		},
 		{
-			name: "provider silent, table says included", provider: nil, airline: "LH",
+			name: "provider silent, table says included", provider: nil, airline: "CX",
 			wantIncl: inclYes, wantSource: models.BagSourceTableSourced,
-			description: "Lufthansa's allowance was read off its own page, so the claim is cited",
+			description: "Cathay's Light fare carries 1x23kg, read off its own page. This case used to name Lufthansa, until Lufthansa's own calculator showed Economy Light carrying none",
 		},
 		{
 			name: "provider silent, table says not included", provider: nil, airline: "VY",
@@ -430,5 +430,73 @@ func TestResolveCheckedBagIntraAsia(t *testing.T) {
 	}
 	if hx.Source != models.BagSourceTableSourced || hx.Verified == "" {
 		t.Errorf("want a dated citation, got source %q verified %q", hx.Source, hx.Verified)
+	}
+}
+
+// TestResolveCheckedBagAustrian pins a correction rather than an addition.
+// Austrian was already in the table claiming "1x23kg checked bag included on
+// most fares" with nothing behind it. Its own baggage calculator, run on a
+// long-haul route, returns a carry-on and a personal item and prices a first
+// checked bag as an extra — so the claim was not merely uncited, it was
+// backwards, the same way it had been for Iberia, KLM, British Airways and
+// SWISS.
+//
+// The staleness guard had already demoted the undated claim to unknown, so trvl
+// was not asserting it. That is the guard working: it converted a wrong answer
+// into an honest absence while nobody was looking, and the absence is what
+// prompted someone to go and read the page.
+func TestResolveCheckedBagAustrian(t *testing.T) {
+	os := ResolveCheckedBag(nil, "OS", nil)
+	if os.HasBag() {
+		t.Error("Austrian's cheapest intercontinental brand carries no checked bag")
+	}
+	if !os.LacksBag() {
+		t.Errorf("this is now a cited verdict, not an absence of evidence: %+v", os)
+	}
+	if os.Source != models.BagSourceTableSourced {
+		t.Errorf("Source = %q, want table_sourced — read off Austrian's own calculator", os.Source)
+	}
+	if os.Currency != "EUR" || os.AmountMin != 65 || os.AmountMax != 110 {
+		t.Errorf("fee = %s %v-%v, want EUR 65-110 (online floor to counter plus the stated surcharge)",
+			os.Currency, os.AmountMin, os.AmountMax)
+	}
+}
+
+// TestResolveCheckedBagLufthansaGroup pins the correction that cost the most.
+//
+// Lufthansa's entry asserted an included bag on the strength of an inference —
+// its citation literally ended "INFERRED: no per-brand row published" — and
+// explained away the zero-bag Economy Light brand as "confined to
+// Scandinavia-US routes". Lufthansa's own baggage calculator, run on FRA-LIM,
+// returns Economy Light with a carry-on and a personal item and prices a first
+// checked bag as an extra.
+//
+// This one was worse than the uncited claims elsewhere in the table. Those
+// carry no date, so the staleness guard demotes them to unknown and they merely
+// cost results. This one was dated and cited, so it PASSED a bag filter and
+// reported its all-in as the bare fare: every Lufthansa fare understated by a
+// bag, in the direction a ratcheting price cache pins and never corrects.
+func TestResolveCheckedBagLufthansaGroup(t *testing.T) {
+	for _, tc := range []struct {
+		airline, currency string
+		min, max          float64
+		why               string
+	}{
+		{"LH", "USD", 75, 120, "Lufthansa Economy Light on FRA-LIM carries none"},
+		{"OS", "EUR", 65, 110, "Austrian Economy Light on FRA-LIM carries none"},
+		{"LX", "EUR", 70, 105, "SWISS Light was already known to carry none"},
+	} {
+		t.Run(tc.airline, func(t *testing.T) {
+			got := ResolveCheckedBag(nil, tc.airline, nil)
+			if !got.LacksBag() {
+				t.Fatalf("%s: %s, got %+v", tc.airline, tc.why, got)
+			}
+			if got.Source != models.BagSourceTableSourced {
+				t.Errorf("Source = %q, want table_sourced", got.Source)
+			}
+			if got.Currency != tc.currency || got.AmountMin != tc.min || got.AmountMax != tc.max {
+				t.Errorf("fee = %s %v-%v, want %s %v-%v", got.Currency, got.AmountMin, got.AmountMax, tc.currency, tc.min, tc.max)
+			}
+		})
 	}
 }

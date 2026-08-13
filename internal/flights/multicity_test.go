@@ -57,11 +57,11 @@ func TestParseLeg_MultiAirportEndpoint(t *testing.T) {
 
 func TestParseLeg_Errors(t *testing.T) {
 	cases := []string{
-		"CDG:HND",                // missing date
-		"CDG:HND:2020-01-01",     // past date
-		"CDG:HND:not-a-date",     // bad format
-		":HND:" + futureDate,     // missing origin
-		"CDG::" + futureDate,     // missing destination
+		"CDG:HND",            // missing date
+		"CDG:HND:2020-01-01", // past date
+		"CDG:HND:not-a-date", // bad format
+		":HND:" + futureDate, // missing origin
+		"CDG::" + futureDate, // missing destination
 	}
 	for _, spec := range cases {
 		if _, err := ParseLeg(spec); err == nil {
@@ -175,8 +175,8 @@ func TestSearchMultiCity_RejectsIncompleteLeg(t *testing.T) {
 // fallback branch, so nothing caught it.
 func TestMultiCitySuccessBranchIsFiltered(t *testing.T) {
 	flights := []models.FlightResult{
-		{Price: 900, Currency: "EUR", Stops: 0, Legs: []models.FlightLeg{{AirlineCode: "LH"}}},
-		{Price: 100, Currency: "EUR", Stops: 3, Legs: []models.FlightLeg{{AirlineCode: "LH"}}},
+		{Price: 900, Currency: "EUR", Stops: 0, Legs: []models.FlightLeg{{AirlineCode: "CX"}}},
+		{Price: 100, Currency: "EUR", Stops: 3, Legs: []models.FlightLeg{{AirlineCode: "CX"}}},
 		{Price: 300, Currency: "EUR", Stops: 0, Legs: []models.FlightLeg{{AirlineCode: "FR"}}},
 	}
 
@@ -208,6 +208,6 @@ func TestMultiCitySuccessBranchIsFiltered(t *testing.T) {
 	// And the bag filter must actually bite here too.
 	bagged := multiCitySearchResult(flights, SearchOptions{RequireCheckedBag: true})
 	if bagged == nil || len(bagged.Flights) != 2 {
-		t.Fatalf("expected the two Lufthansa fares, got %v", bagged)
+		t.Fatalf("expected the two Cathay fares, got %v", bagged)
 	}
 }

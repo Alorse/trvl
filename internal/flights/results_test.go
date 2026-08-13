@@ -104,21 +104,24 @@ func TestMergeFlightResults_SortsCheapestAndFiltersStops(t *testing.T) {
 // TestBagEstimateDrivesTheFilter pins the resolution cascade end to end: every
 // result carries a provenance-tagged verdict, and require_checked_bag acts on
 // that verdict rather than on the raw provider field. Without the table step a
-// Lufthansa long-haul — where Google states no allowance — would be dropped
-// even though the airline includes a bag.
+// Cathay long-haul — where Google states no allowance — would be dropped even
+// though the airline includes a bag.
+//
+// The fixture used to be Lufthansa, until Lufthansa's own baggage calculator
+// showed its Economy Light brand carrying none.
 func TestBagEstimateDrivesTheFilter(t *testing.T) {
 	zero := 0
 	flights := []models.FlightResult{
-		{Price: 100, Legs: []models.FlightLeg{{AirlineCode: "LH"}}},                             // silent → table says included
+		{Price: 100, Legs: []models.FlightLeg{{AirlineCode: "CX"}}},                             // silent → table says included
 		{Price: 200, Legs: []models.FlightLeg{{AirlineCode: "FR"}}},                             // silent → table says none
 		{Price: 300, Legs: []models.FlightLeg{{AirlineCode: "JU"}}},                             // silent → not covered
-		{Price: 400, Legs: []models.FlightLeg{{AirlineCode: "LH"}}, CheckedBagsIncluded: &zero}, // provider overrides table
+		{Price: 400, Legs: []models.FlightLeg{{AirlineCode: "CX"}}, CheckedBagsIncluded: &zero}, // provider overrides table
 	}
 
 	got := filterFlightResults(flights, SearchOptions{RequireCheckedBag: true})
 
 	if len(got) != 1 || got[0].Price != 100 {
-		t.Fatalf("expected only the Lufthansa fare without a provider verdict, got %+v", got)
+		t.Fatalf("expected only the Cathay fare without a provider verdict, got %+v", got)
 	}
 	if got[0].BagEstimate == nil {
 		t.Fatal("every result must carry a bag estimate")
@@ -151,7 +154,7 @@ func TestBagEstimateDrivesTheFilter(t *testing.T) {
 // on; the ceiling is what the traveller might actually pay.
 func TestAllInRangeFromBagEstimate(t *testing.T) {
 	flights := []models.FlightResult{
-		{Price: 129, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LH"}}}, // bag included, and cited so it survives the staleness guard
+		{Price: 129, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "CX"}}}, // bag included, and cited so it survives the staleness guard
 		{Price: 87, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "FR"}}},  // EUR 9.49-60
 		{Price: 114, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "U2"}}}, // range is GBP, fare is EUR
 		{Price: 121, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "JU"}}}, // not in the table
@@ -223,7 +226,7 @@ func TestAllInChargesTheBagPerDirection(t *testing.T) {
 
 	// An included bag costs nothing extra however many directions are flown.
 	included := []models.FlightResult{
-		{Price: 900, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LH"}}},
+		{Price: 900, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "CX"}}},
 	}
 	annotateBagEstimates(included, nil, 3)
 	if included[0].AllInMin != 900 || included[0].AllInMax != 900 {
