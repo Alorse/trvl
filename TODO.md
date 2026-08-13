@@ -333,10 +333,18 @@ from a one-way fare, and say that the displayed routing covers leg 1 only. The
 data is right; the presentation invites the wrong conclusion, and it cost
 somebody an afternoon.
 
-**Also worth doing:** `ExtractFlightData`'s message names array indices. A
-message that distinguished "Google returned an error or empty page" from "the
-payload had an unexpected shape" would have pointed at rate limiting
-immediately.
+**Follow-up, now fixed.** The real defect was next door, and the open-jaw framing
+hid it twice. `ExtractFlightData` treated an empty result as an error, so any
+over-constrained search failed: `BER FUK --stops one_stop` errored because no
+one-stop BER–FUK exists, and so did `--stops nonstop`. Single-leg, not
+multi-city — `--leg BER:HND --leg HND:BER --stops one_stop` returns 45 flights
+quite happily. An empty set is now a successful `count: 0`, which is what let a
+downstream cache tell an impossible filter from a rate limit.
+
+Worth noting the distinction was already drawn in `IsBlockedFlightResponse`,
+whose comment says a real response "even one with zero results" decodes into a
+`[]any` precisely so genuine empties are not retried. One function honoured
+that; its neighbour undid it.
 
 ## Pre-existing test failures
 

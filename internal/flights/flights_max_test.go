@@ -179,6 +179,14 @@ func TestSearchFlightsWithClient_BadResponseBody(t *testing.T) {
 	}
 }
 
+// TestSearchFlightsWithClient_EmptyFlightData covers a well-formed response
+// carrying no itineraries. Real searches produce this whenever a filter matches
+// nothing — there is no one-stop BER-FUK to be had — and that is an answer, not
+// a failure.
+//
+// It used to assert an error, and the error cost a downstream price cache the
+// ability to tell an impossible filter from a rate limit: both surfaced as the
+// same message about array indices.
 func TestSearchFlightsWithClient_EmptyFlightData(t *testing.T) {
 	// Valid JSON structure but no flights at indices [2] or [3]
 	inner := make([]any, 2)
@@ -191,9 +199,15 @@ func TestSearchFlightsWithClient_EmptyFlightData(t *testing.T) {
 	defer ts.Close()
 
 	client := batchexec.NewTestClient(ts.URL)
-	_, err := SearchFlightsWithClient(t.Context(), client, "HEL", "NRT", "2026-06-15", SearchOptions{})
-	if err == nil {
-		t.Error("expected error for empty flight data")
+	res, err := SearchFlightsWithClient(t.Context(), client, "HEL", "NRT", "2026-06-15", SearchOptions{})
+	if err != nil {
+		t.Errorf("an empty result set is not an error: %v", err)
+	}
+	if res == nil {
+		t.Fatal("a successful search must return a result, even an empty one")
+	}
+	if res.Count != 0 || len(res.Flights) != 0 {
+		t.Errorf("expected no flights, got count=%d len=%d", res.Count, len(res.Flights))
 	}
 }
 

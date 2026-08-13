@@ -111,9 +111,12 @@ func TestExtractFlightData_EmptyBuckets(t *testing.T) {
 		[]any{[]any{}}, // bucket with empty items
 	}
 
-	_, err := ExtractFlightData(inner)
-	if err == nil {
-		t.Error("expected error for empty flight buckets")
+	flights, err := ExtractFlightData(inner)
+	if err != nil {
+		t.Errorf("present-but-empty buckets are a real \"no flights\" answer: %v", err)
+	}
+	if len(flights) != 0 {
+		t.Errorf("expected no flights, got %d", len(flights))
 	}
 }
 
@@ -143,9 +146,16 @@ func TestExtractFlightData_BucketNotArray(t *testing.T) {
 		"not an array",
 	}
 
-	_, err := ExtractFlightData(inner)
-	if err == nil {
-		t.Error("expected error when bucket is not array")
+	// A bucket of the wrong type is skipped rather than fatal: the other index
+	// may still hold data, and a response that decoded into a []any has already
+	// passed the anti-bot check. With neither index usable the answer is simply
+	// no flights.
+	flights, err := ExtractFlightData(inner)
+	if err != nil {
+		t.Errorf("a malformed bucket is skipped, not fatal: %v", err)
+	}
+	if len(flights) != 0 {
+		t.Errorf("expected no flights, got %d", len(flights))
 	}
 }
 

@@ -209,12 +209,24 @@ func TestExtractFlightData_OnlyIndex2(t *testing.T) {
 	}
 }
 
+// TestExtractFlightData_NoData covers a well-formed response that simply
+// contains no flights. That is an answer, not a failure: ask for a non-stop
+// BER-FUK and Google has none to give.
+//
+// This used to assert an error, and the error was expensive. It read like a
+// parsing fault, was worded in terms of array indices, and was identical to
+// what an anti-bot page produced — so an over-constrained search looked like a
+// broken request encoder, and a filtering caller could not tell "nothing
+// matched" from "the call failed".
 func TestExtractFlightData_NoData(t *testing.T) {
 	inner := []any{nil, nil}
 
-	_, err := ExtractFlightData(inner)
-	if err == nil {
-		t.Error("expected error for no flight data")
+	flights, err := ExtractFlightData(inner)
+	if err != nil {
+		t.Errorf("an empty result is not an error: %v", err)
+	}
+	if len(flights) != 0 {
+		t.Errorf("expected no flights, got %d", len(flights))
 	}
 }
 
@@ -222,5 +234,48 @@ func TestExtractFlightData_NotArray(t *testing.T) {
 	_, err := ExtractFlightData("not an array")
 	if err == nil {
 		t.Error("expected error for non-array input")
+	}
+}
+
+// TestExtractFlightDataEmptyIsAnAnswerNotAnError pins the distinction that a
+// downstream price cache depends on, using the shape that actually caused the
+// bug: an over-constrained search.
+//
+// Google answers "one stop, BER to FUK" with a well-formed page containing no
+// itineraries, because none exist — the cheapest real option has two stops.
+// Returning an error there is wrong twice over. It says the call failed when it
+// succeeded, and it collapses into the same message an anti-bot page produces,
+// so nobody downstream can tell an impossible filter from a rate limit.
+//
+// The anti-bot case is already separated upstream: IsBlockedFlightResponse
+// treats anything that does not decode into a []any as blocked, so a
+// well-formed empty array only ever reaches here as a genuine empty result.
+func TestExtractFlightDataEmptyIsAnAnswerNotAnError(t *testing.T) {
+	cases := []struct {
+		name  string
+		inner any
+	}{
+		{"buckets absent entirely", []any{nil, nil}},
+		{"buckets present but empty", []any{nil, nil, []any{[]any{}}, []any{[]any{}}}},
+		{"array too short to hold buckets", []any{nil}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			flights, err := ExtractFlightData(tc.inner)
+			if err != nil {
+				t.Errorf("a filter matching nothing is not a failure: %v", err)
+			}
+			if len(flights) != 0 {
+				t.Errorf("expected no flights, got %d", len(flights))
+			}
+		})
+	}
+
+	// A payload that is not an array never came from a real flight response,
+	// and that stays an error — it is the one case here that means something
+	// went wrong rather than something was absent.
+	if _, err := ExtractFlightData("not an array"); err == nil {
+		t.Error("a non-array payload is a genuine fault and must still error")
 	}
 }

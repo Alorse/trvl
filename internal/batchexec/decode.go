@@ -154,6 +154,20 @@ func DecodeBatchResponse(body []byte) ([]any, error) {
 // After DecodeFlightResponse, the inner result should be an array where
 // indices [2] and [3] contain flight data arrays. Each of those has
 // sub-array [0] containing individual flight entries.
+//
+// An empty result is NOT an error. A search can legitimately match nothing —
+// ask for a non-stop BER-FUK and Google has none to give — and that is an
+// answer, not a failure. This used to return "no flight data at indices [2] or
+// [3]", which read like a parsing fault and was indistinguishable from an
+// anti-bot page, sending one investigation after another toward the request
+// encoding. It also broke callers that filter: a price cache asking for
+// one-stop itineraries got an error instead of "nothing matched", and could not
+// tell the two apart.
+//
+// The distinction is already drawn upstream and is safe to rely on:
+// IsBlockedFlightResponse treats anything that does not decode into a []any as
+// blocked, precisely so that a well-formed empty array reaches here as a
+// genuine "no flights". So by this point, empty means empty.
 func ExtractFlightData(inner any) ([]any, error) {
 	arr, ok := inner.([]any)
 	if !ok {
@@ -174,10 +188,6 @@ func ExtractFlightData(inner any) ([]any, error) {
 			continue
 		}
 		flights = append(flights, items...)
-	}
-
-	if len(flights) == 0 {
-		return nil, fmt.Errorf("no flight data at indices [2] or [3]")
 	}
 
 	return flights, nil
