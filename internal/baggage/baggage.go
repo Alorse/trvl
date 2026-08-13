@@ -69,6 +69,11 @@ var database = map[string]AirlineBaggage{
 		Notes:             "Economy Light/Superlight include NO checked bag. Classic/Flex include 1x23kg, or 2 on Japan-Europe.",
 		CheckedSource:     "https://www.finnair.com/us-en/baggage-on-finnair-flights/checked-baggage (Light and Superlight: 0 PC on every band; Classic/Flex: 1 PC, 2 PC Japan-Europe)",
 		CheckedVerified:   "2026-08",
+		CheckedFeeMin:     75,
+		CheckedFeeMax:     120,
+		FeeCurrency:       "EUR",
+		FeeSource:         "https://www.finnair.com/en/baggage-on-finnair-flights/extra-baggage-fees (Europe-North America EUR 75 online / 90 airport; Europe-Asia EUR 75-100 online / 120 airport; Oceania reaches 140. Priced by ticket-purchase date since 2025-04, which is why the published figures are ranges)",
+		FeeVerified:       "2026-08",
 	},
 	"AF": {
 		Code:              "AF",
@@ -81,6 +86,9 @@ var database = map[string]AirlineBaggage{
 		Notes:             "Economy Light includes NO checked bag; standard brands include 1x23kg. Air France publishes no fixed excess-bag fee.",
 		CheckedSource:     "https://wwws.airfrance.co.uk/information/bagages/bagage-cabine-soute (Light fare: no checked baggage; standard brands include 1)",
 		CheckedVerified:   "2026-08",
+		FeeVaries:         true,
+		FeeSource:         "https://wwws.airfrance.co.uk/information/bagages/bagage-cabine-soute (sold as a priced Baggage Option whose price depends on the booking; Air France publishes no fixed figure, and its fee pages returned protocol errors across three country editions)",
+		FeeVerified:       "2026-08",
 	},
 	"LH": {
 		Code:              "LH",
@@ -144,6 +152,11 @@ var database = map[string]AirlineBaggage{
 		Notes:             "Economy Light on long-haul includes no checked bag. The prose brand table on swiss.com is scoped to European routes; the answer lives in the baggage calculator's fare selector, which appears only on the results screen - which is why an earlier pass concluded SWISS did not publish it.",
 		CheckedSource:     "https://www.swiss.com/us/en/prepare/baggage/checked-baggage/baggage-calculator (JFK-ZRH, Economy Light: carry-on and personal item only, no checked bag; Comfort returns 1x23kg)",
 		CheckedVerified:   "2026-08",
+		CheckedFeeMin:     70,
+		CheckedFeeMax:     105,
+		FeeCurrency:       "EUR",
+		FeeSource:         "https://www.swiss.com/us/en/prepare/baggage/excess-baggage (first bag on the Light fare: EUR 70 on swiss.com for any intercontinental route; EUR 70 at check-in to the USA and Canada, EUR 105 at check-in elsewhere. Published as \"from\" floors, so no ceiling is stated)",
+		FeeVerified:       "2026-08",
 	},
 	"OS": {
 		Code:              "OS",
