@@ -125,29 +125,51 @@ is still a real published rate, and `conversion_as_of` already says which day.
 **Done when:** a run with no network still converts HKD, JPY and KRW from the
 last stored rates, and says how old they are.
 
-## 3. Cite the six airlines whose claims have expired
+## 3. Re-check Lufthansa, which may be asserting a bag it does not give
 
-`OS` Austrian · `LO` LOT · `SK` SAS · `AZ` ITA · `TP` TAP · `SQ` Singapore
+`LH` resolves to **included**, cited — but its own citation ends
+`- INFERRED: no per-brand row published`, and the note claims the zero-bag
+Economy Light brand is "confined to Scandinavia-US routes". Two things sit badly
+against that:
 
-Together **33 of the 81 unknowns** — Austrian 13, SAS 7, TAP 7, LOT 6. Each
-claims one included bag with no source behind it, and since an undated positive
-claim never counts as fresh, all six now resolve to `unknown` and are dropped by
-`--require-checked-bag`.
+- The fee attached to the same entry comes from a Lufthansa **Group** B2B PDF
+  titled `LHG_FBAG_EcoLight_EN`. A brand confined to three countries would not
+  get a group-wide fee sheet.
+- Austrian, its sister carrier, was found selling Economy Light with no checked
+  bag on FRA–LIM — a route that is neither Scandinavian nor American.
+
+This one does not cost results. It is worse: `LH` currently **passes**
+`--require-checked-bag` and reports its all-in as the bare fare. If Economy
+Light is sold on the routes trvl searches, every Lufthansa fare is understated
+by a bag — the direction that gets cached and ratcheted, and the exact failure
+this whole effort exists to prevent.
+
+**Done when:** Lufthansa's own baggage calculator has been run on an
+intercontinental route outside Scandinavia–US, and the entry either gains a real
+per-brand citation or drops to 0 with a fee.
+
+## 4. Cite the airlines whose claims have expired
+
+`LO` LOT · `SK` SAS · `AZ` ITA · `TP` TAP · `SQ` Singapore
+
+Each claims one included bag with no source behind it, and since an undated
+positive claim never counts as fresh, all resolve to `unknown` and are dropped
+by `--require-checked-bag`.
 
 This is deliberate. The same uncited "includes one bag" proved wrong for Iberia,
-KLM, British Airways and SWISS — all four sell a long-haul brand carrying none.
-But it costs real results until the figures are sourced.
+KLM, British Airways, SWISS — and now Austrian, whose entry was not merely
+uncited but backwards. But it costs real results until the figures are sourced.
 
 **Done when:** each has `CheckedSource` and `CheckedVerified` in
 `internal/baggage/baggage.go`, read off the airline's own page.
 
-## 4. Add the five airlines that close most of the coverage gap
+## 5. Add the remaining carriers on the long-haul sweep
 
-`DL` Delta · `VL` · `AA` American · `SN` Brussels · `AM` Aeroméxico
+`VL` · `SN` Brussels · `DL` Delta · `AM` Aeroméxico, then the tail (`4Y`, `EN`,
+`OU`, `AR`, `9B`), which appear once or twice each.
 
-**41 of the 81 unknowns.** Adding these plus item 2 would take unknowns from 16%
-to roughly 1%. The remaining tail (`4Y`, `EN`, `OU`, `AR`, `9B`) appears once or
-twice each.
+`VL` and `SN` are 6 results each on MUC–LIM alone. Brussels is Lufthansa Group,
+so item 3's calculator settles it in the same sitting.
 
 ---
 
@@ -189,6 +211,20 @@ thirteen carriers whose standard brand includes one: Air France Light, Finnair
 Light, Iberia Basic, KLM Light, British Airways Basic, SWISS Light, Air Canada
 Basic, Etihad Basic, United Basic Economy, China Eastern Basic, Air Europa LITE,
 LATAM Basic and Avianca Basic.
+
+**A carrier's own calculator settles in one query what its help pages argue
+about.** Austrian's baggage calculator, run FRA–LIM, returned "Included in:
+Economy Light — 1 x Carry-on baggage, 1 x Personal item" and priced a first
+checked bag as an extra. That single result overturned a table entry, produced
+the fee range, and revealed a fare brand below Light. Reach for the calculator
+before the prose.
+
+**An uncited claim is not neutral — it has a direction, and the expensive
+direction is "includes".** Austrian's entry did not merely lack a source; it
+asserted the opposite of the truth. It cost nothing only because the staleness
+guard had already demoted it to unknown for want of a date. Every remaining
+uncited "includes one bag" should be read as a probable false positive rather
+than a probably-fine figure awaiting paperwork.
 
 **A brand ladder and a ticket kind are not the same thing, and they decide the
 answer in opposite directions.** T'Way publishes Event, Smart, Normal and
@@ -282,6 +318,11 @@ stashing the changes and re-running:
   was not updated. Decide which is correct.
 - `TestParseFlightLocations_Mixed` — same cause.
 - `TestSearchDigitransit_MockHappyPath2` — in `internal/ground`, unrelated.
+
+One more is flaky rather than failing: `TestResourceLinkInHotelResults` in `mcp`
+failed once in a full run and passed three times out of three in isolation. It
+depends on live hotel data. Worth pinning to a fixture so a red suite always
+means something.
 
 ---
 
