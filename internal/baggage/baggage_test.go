@@ -22,8 +22,14 @@ func TestGet_KnownAirline(t *testing.T) {
 	if !ab.PersonalItem {
 		t.Error("expected PersonalItem = true for KLM")
 	}
-	if ab.CheckedIncluded != 1 {
-		t.Errorf("CheckedIncluded = %d, want 1", ab.CheckedIncluded)
+	// KLM's cheapest intercontinental brand is Light, which includes no
+	// checked bag — the figure is keyed to the fare a search surfaces, not to
+	// the Standard brand.
+	if ab.CheckedIncluded != 0 {
+		t.Errorf("CheckedIncluded = %d, want 0", ab.CheckedIncluded)
+	}
+	if ab.CheckedSource == "" {
+		t.Error("KLM's allowance must carry its citation")
 	}
 }
 

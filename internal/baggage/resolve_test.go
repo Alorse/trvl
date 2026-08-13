@@ -136,10 +136,11 @@ func TestResolveCheckedBagCitesInclusion(t *testing.T) {
 		t.Errorf("a sourced claim must carry its reference and date, got %q / %q", cx.Reference, cx.Verified)
 	}
 
-	// Turkish publishes no route table, so its value stays explicitly uncited.
-	tk := ResolveCheckedBag(nil, "TK", nil)
-	if tk.Source != models.BagSourceTableUnsourced {
-		t.Errorf("source = %q, want table_unsourced — Turkish publishes no table", tk.Source)
+	// Singapore Airlines has never been researched, so its figure stays
+	// explicitly uncited rather than passing itself off as verified.
+	sq := ResolveCheckedBag(nil, "SQ", nil)
+	if sq.Source != models.BagSourceTableUnsourced {
+		t.Errorf("source = %q, want table_unsourced — SQ has no citation yet", sq.Source)
 	}
 }
 
@@ -212,5 +213,38 @@ func TestResolveCheckedBagLatinAmerica(t *testing.T) {
 	la := ResolveCheckedBag(nil, "LA", nil)
 	if la.AmountMin != 35 || la.AmountMax != 150 {
 		t.Errorf("LATAM fee = %v-%v, want the published 35-150", la.AmountMin, la.AmountMax)
+	}
+}
+
+// TestResolveCheckedBagEuropeanNetworkCarriers pins the six that had been
+// claiming a checked bag with no citation behind the claim. Four of them turned
+// out to sell a long-haul brand carrying none — Iberia Basic, KLM Light,
+// British Airways Basic and SWISS Light — and between them they carried 38 of
+// 127 results on a single Munich-Lima search, every one of which had been
+// passing a bag filter on an optimistic guess.
+func TestResolveCheckedBagEuropeanNetworkCarriers(t *testing.T) {
+	cases := []struct {
+		airline  string
+		wantIncl bool
+		why      string
+	}{
+		{"IB", false, "Iberia's long-haul tab shows Basic checked baggage as 'Purchase'"},
+		{"KL", false, "KLM: 'Light ticket ... Checked baggage: not included, but can be added for a fee'"},
+		{"BA", false, "British Airways Basic in World Traveller is 'hand bag and cabin bag only'"},
+		{"LX", false, "SWISS Economy Light on JFK-ZRH returns carry-on and personal item only"},
+		{"QR", true, "Qatar's cheapest brand, Economy Lite, still carries a bag"},
+		{"TK", true, "Turkish EcoFly returns a 20 kg allowance on Europe-Asia long-haul"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.airline, func(t *testing.T) {
+			got := ResolveCheckedBag(nil, tc.airline, nil)
+			if got.Included != tc.wantIncl {
+				t.Errorf("Included = %v, want %v — %s", got.Included, tc.wantIncl, tc.why)
+			}
+			if got.Source != models.BagSourceTableSourced {
+				t.Errorf("Source = %q, want table_sourced — all six now carry a citation", got.Source)
+			}
+		})
 	}
 }

@@ -199,10 +199,12 @@ func TestAllInCost_FullServiceWithFFStatus(t *testing.T) {
 }
 
 func TestAllInCost_FullServiceNoStatus(t *testing.T) {
-	// KLM (KL) with no FF status: bags included in ticket.
-	cost, note, _ := AllInCost(300, "KL", true, false, nil)
+	// Qatar with no FF status: even its cheapest brand carries a bag, so there
+	// is nothing to add. KLM used to serve as this example, until its Light
+	// brand turned out to include none.
+	cost, note, _ := AllInCost(300, "QR", true, false, nil)
 	if cost != 300 { // CheckedIncluded=1, so no extra fee
-		t.Errorf("AllInCost(KL, checked, no FF) = %v, want 300", cost)
+		t.Errorf("AllInCost(QR, checked, no FF) = %v, want 300", cost)
 	}
 	if note != "bags included" {
 		t.Errorf("note = %q, want 'bags included'", note)
