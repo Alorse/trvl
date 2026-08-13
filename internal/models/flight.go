@@ -226,9 +226,10 @@ const (
 	// BagSourceFrequentFlyer — the traveller's alliance status entitles them to
 	// a free checked bag regardless of the fare.
 	BagSourceFrequentFlyer BagSource = "frequent_flyer"
-	// BagSourceUnknown — no source covers this airline. Treated as "no free
-	// checked bag" so a bag-required filter cannot pass it, but no fee is
-	// invented.
+	// BagSourceUnknown — no source covers this airline, or the only claim we had
+	// has expired. Included is nil here: we are not asserting that the fare
+	// carries no bag, only that we do not know. A bag-required filter drops it
+	// for want of evidence, and no fee is invented.
 	BagSourceUnknown BagSource = "unknown"
 )
 
@@ -245,7 +246,13 @@ const (
 // "no free bag" is hard data even when the fee attached to it is an estimate;
 // the fee's own provenance travels in Reference and Verified.
 type BagEstimate struct {
-	Included  bool      `json:"included"`
+	// Included is three-valued on purpose. "This fare carries no checked bag"
+	// and "we do not know what this fare carries" are different claims, and a
+	// plain bool collapses them into the first — asserting something trvl
+	// cannot support to any consumer that reads Included without also reading
+	// Source. nil is the honest encoding of the second, and serialises to JSON
+	// null.
+	Included  *bool     `json:"included"`
 	Source    BagSource `json:"source"`
 	AmountMin float64   `json:"amount_min,omitempty"`
 	AmountMax float64   `json:"amount_max,omitempty"`
@@ -253,3 +260,19 @@ type BagEstimate struct {
 	Reference string    `json:"reference,omitempty"` // where the figure came from, or why there is none
 	Verified  string    `json:"verified,omitempty"`  // YYYY-MM the reference was checked
 }
+
+// HasBag reports whether a free checked bag is affirmatively included. Unknown
+// reads as false: absence of evidence is not an included bag.
+func (e BagEstimate) HasBag() bool { return e.Included != nil && *e.Included }
+
+// LacksBag reports whether we affirmatively know no free checked bag is
+// included. Unknown reads as false — which is what separates this from
+// !HasBag(), and why pricing a bag in must use this one.
+func (e BagEstimate) LacksBag() bool { return e.Included != nil && !*e.Included }
+
+// IsUnknown reports that we have no verdict either way.
+func (e BagEstimate) IsUnknown() bool { return e.Included == nil }
+
+// BagIncluded and BagNotIncluded build the two definite verdicts.
+func BagIncluded() *bool    { v := true; return &v }
+func BagNotIncluded() *bool { v := false; return &v }

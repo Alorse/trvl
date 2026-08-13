@@ -78,7 +78,7 @@ func allInRange(price float64, currency string, est models.BagEstimate, directio
 	if price <= 0 {
 		return 0, 0
 	}
-	if est.Included {
+	if est.HasBag() {
 		return price, price
 	}
 	if est.AmountMin <= 0 {

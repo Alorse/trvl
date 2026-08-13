@@ -25,7 +25,7 @@ func ResolveCheckedBag(providerChecked *int, airlineCode string, ffStatuses []FF
 	// not rescue a flight the bag filter had already dropped.
 	if benefit := bestBenefitForAirline(airlineCode, ffStatuses); benefit.ExtraCheckedBags > 0 {
 		return models.BagEstimate{
-			Included:  true,
+			Included:  models.BagIncluded(),
 			Source:    models.BagSourceFrequentFlyer,
 			Reference: fmt.Sprintf("%s alliance status grants %d extra checked bag(s)", airlineCode, benefit.ExtraCheckedBags),
 		}
@@ -33,12 +33,12 @@ func ResolveCheckedBag(providerChecked *int, airlineCode string, ffStatuses []FF
 
 	if providerChecked != nil {
 		if *providerChecked >= 1 {
-			return models.BagEstimate{Included: true, Source: models.BagSourceProvider}
+			return models.BagEstimate{Included: models.BagIncluded(), Source: models.BagSourceProvider}
 		}
 		// The provider is authoritative that no bag is included, but it does
 		// not price one — so the fee, if we can offer one, is still an estimate
 		// and is labelled with the table's own provenance.
-		est := models.BagEstimate{Included: false, Source: models.BagSourceProvider}
+		est := models.BagEstimate{Included: models.BagNotIncluded(), Source: models.BagSourceProvider}
 		if inTable {
 			applyFee(&est, ab)
 		}
@@ -46,7 +46,8 @@ func ResolveCheckedBag(providerChecked *int, airlineCode string, ffStatuses []FF
 	}
 
 	if !inTable {
-		return models.BagEstimate{Included: false, Source: models.BagSourceUnknown,
+		// Included stays nil: an airline we do not cover may well include a bag.
+		return models.BagEstimate{Source: models.BagSourceUnknown,
 			Reference: "airline not covered by the baggage table"}
 	}
 
@@ -78,18 +79,20 @@ const (
 // resolveFromTable turns a table entry into a verdict, applying the staleness
 // guard to positive claims.
 func resolveFromTable(ab AirlineBaggage) models.BagEstimate {
+	included := ab.CheckedIncluded >= 1
 	est := models.BagEstimate{
-		Included:  ab.CheckedIncluded >= 1,
+		Included:  &included,
 		Source:    inclusionSource(ab),
 		Reference: inclusionReference(ab),
 		Verified:  ab.CheckedVerified,
 	}
 
-	if est.Included {
+	if est.HasBag() {
 		switch age := claimAge(ab.CheckedVerified); {
 		case age > bagClaimExpiresAfter:
+			// The claim lapses to nil, not to false: the allowance expiring
+			// from our table says nothing about what the airline now sells.
 			return models.BagEstimate{
-				Included: false,
 				Source:   models.BagSourceUnknown,
 				Verified: ab.CheckedVerified,
 				Reference: fmt.Sprintf("%s: allowance last verified %s and no longer relied on; allowances only shrink",
@@ -101,7 +104,7 @@ func resolveFromTable(ab AirlineBaggage) models.BagEstimate {
 		}
 	}
 
-	if !est.Included {
+	if est.LacksBag() {
 		applyFee(&est, ab)
 	}
 	return est

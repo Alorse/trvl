@@ -615,7 +615,7 @@ func bagsFilter(carryOn, checked int) any {
 func filterFlightsWithCheckedBag(flights []models.FlightResult) []models.FlightResult {
 	filtered := flights[:0]
 	for _, f := range flights {
-		if f.BagEstimate != nil && f.BagEstimate.Included {
+		if f.BagEstimate != nil && f.BagEstimate.HasBag() {
 			filtered = append(filtered, f)
 		}
 	}

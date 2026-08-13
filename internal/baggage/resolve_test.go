@@ -1,11 +1,34 @@
 package baggage
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
+
+// The three states Included can now hold. Unknown is nil, and inclEq keeps a
+// nil from quietly comparing equal to "no bag" — the exact conflation the
+// pointer was introduced to stop.
+var (
+	inclYes = models.BagIncluded()
+	inclNo  = models.BagNotIncluded()
+)
+
+func inclEq(got, want *bool) bool {
+	if got == nil || want == nil {
+		return got == nil && want == nil
+	}
+	return *got == *want
+}
+
+func inclStr(v *bool) string {
+	if v == nil {
+		return "unknown"
+	}
+	return fmt.Sprintf("%v", *v)
+}
 
 func TestResolveCheckedBag(t *testing.T) {
 	one, two, zero := 1, 2, 0
@@ -14,57 +37,60 @@ func TestResolveCheckedBag(t *testing.T) {
 		name        string
 		provider    *int // what the flight provider reported (nil = did not state)
 		airline     string
-		wantIncl    bool
+		wantIncl    *bool
 		wantSource  models.BagSource
 		wantAmtMin  float64
 		description string
 	}{
 		{
 			name: "provider states one bag", provider: &one, airline: "LH",
-			wantIncl: true, wantSource: models.BagSourceProvider,
+			wantIncl: inclYes, wantSource: models.BagSourceProvider,
 			description: "hard data always wins over the table",
 		},
 		{
 			name: "provider states two bags", provider: &two, airline: "AA",
-			wantIncl: true, wantSource: models.BagSourceProvider,
+			wantIncl: inclYes, wantSource: models.BagSourceProvider,
 		},
 		{
 			name: "provider states none, table has a sourced range", provider: &zero, airline: "FR",
-			wantIncl: false, wantSource: models.BagSourceProvider, wantAmtMin: 9.49,
+			wantIncl: inclNo, wantSource: models.BagSourceProvider, wantAmtMin: 9.49,
 			description: "inclusion is hard data; the fee to add is still an estimate",
 		},
 		{
 			name: "provider silent, table says included", provider: nil, airline: "LH",
-			wantIncl: true, wantSource: models.BagSourceTableSourced,
+			wantIncl: inclYes, wantSource: models.BagSourceTableSourced,
 			description: "Lufthansa's allowance was read off its own page, so the claim is cited",
 		},
 		{
 			name: "provider silent, table says not included", provider: nil, airline: "VY",
-			wantIncl: false, wantSource: models.BagSourceTableUnsourced, wantAmtMin: 18,
+			wantIncl: inclNo, wantSource: models.BagSourceTableUnsourced, wantAmtMin: 18,
 			description: "Vueling's fee has a source but its allowance does not; the weaker claim governs",
 		},
 		{
 			name: "provider silent, airline not in table", provider: nil, airline: "JU",
-			wantIncl: false, wantSource: models.BagSourceUnknown,
-			description: "Air Serbia is not covered; assume no bag but never invent a fee",
+			wantIncl: nil, wantSource: models.BagSourceUnknown,
+			description: "Air Serbia is not covered: no verdict either way, and never invent a fee",
 		},
 		{
 			name: "no airline code at all", provider: nil, airline: "",
-			wantIncl: false, wantSource: models.BagSourceUnknown,
+			wantIncl: nil, wantSource: models.BagSourceUnknown,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := ResolveCheckedBag(tc.provider, tc.airline, nil)
-			if got.Included != tc.wantIncl {
-				t.Errorf("Included = %v, want %v (%s)", got.Included, tc.wantIncl, tc.description)
+			if !inclEq(got.Included, tc.wantIncl) {
+				t.Errorf("Included = %s, want %s (%s)", inclStr(got.Included), inclStr(tc.wantIncl), tc.description)
 			}
 			if got.Source != tc.wantSource {
 				t.Errorf("Source = %q, want %q", got.Source, tc.wantSource)
 			}
 			if got.AmountMin != tc.wantAmtMin {
 				t.Errorf("AmountMin = %v, want %v", got.AmountMin, tc.wantAmtMin)
+			}
+			if got.Source == models.BagSourceUnknown && got.Included != nil {
+				t.Errorf("an unknown source must not assert an inclusion verdict, got %s", inclStr(got.Included))
 			}
 			if got.Source == models.BagSourceUnknown && got.AmountMin != 0 {
 				t.Errorf("unknown terms must never carry an amount, got %v", got.AmountMin)
@@ -77,7 +103,7 @@ func TestResolveCheckedBag(t *testing.T) {
 // all: we must state that the fee varies rather than emit a number.
 func TestResolveCheckedBagVariableFee(t *testing.T) {
 	got := ResolveCheckedBag(nil, "W6", nil)
-	if got.Included {
+	if got.HasBag() {
 		t.Error("Wizz Air includes no checked bag")
 	}
 	if got.AmountMin != 0 || got.AmountMax != 0 {
@@ -96,13 +122,13 @@ func TestResolveCheckedBagFrequentFlyer(t *testing.T) {
 	gold := []FFStatus{{Alliance: "star_alliance", Tier: "gold"}}
 
 	// Ryanair is in no alliance, so status changes nothing.
-	if got := ResolveCheckedBag(nil, "FR", gold); got.Included {
+	if got := ResolveCheckedBag(nil, "FR", gold); got.HasBag() {
 		t.Error("Ryanair is in no alliance; status must not grant a bag")
 	}
 
 	// Swiss is Star Alliance: Gold grants a checked bag even on a fare without one.
 	got := ResolveCheckedBag(nil, "LX", gold)
-	if !got.Included {
+	if !got.HasBag() {
 		t.Error("Star Alliance Gold must grant a checked bag on Swiss")
 	}
 	if got.Source != models.BagSourceFrequentFlyer {
@@ -118,7 +144,7 @@ func TestResolveCheckedBagFrequentFlyer(t *testing.T) {
 func TestResolveCheckedBagCitesInclusion(t *testing.T) {
 	// Finnair: Economy Light carries no checked bag, read off Finnair's table.
 	ay := ResolveCheckedBag(nil, "AY", nil)
-	if ay.Included {
+	if ay.HasBag() {
 		t.Error("Finnair's cheapest long-haul brand includes no checked bag")
 	}
 	if ay.Source != models.BagSourceTableSourced {
@@ -127,7 +153,7 @@ func TestResolveCheckedBagCitesInclusion(t *testing.T) {
 
 	// Cathay: Economy Light does include one, so it must survive a bag filter.
 	cx := ResolveCheckedBag(nil, "CX", nil)
-	if !cx.Included {
+	if !cx.HasBag() {
 		t.Error("Cathay's Light fare includes 1x23 kg; dropping it is a false negative")
 	}
 	if cx.Source != models.BagSourceTableSourced {
@@ -142,8 +168,11 @@ func TestResolveCheckedBagCitesInclusion(t *testing.T) {
 	// KLM, British Airways and SWISS, so it carries no date, never counts as
 	// fresh, and is reported as unknown rather than asserted.
 	sq := ResolveCheckedBag(nil, "SQ", nil)
-	if sq.Included {
+	if sq.HasBag() {
 		t.Error("an uncited positive claim must not assert a bag")
+	}
+	if !sq.IsUnknown() {
+		t.Errorf("Included = %s, want unknown: dropping an uncited claim leaves us without a verdict, not with a negative one", inclStr(sq.Included))
 	}
 	if sq.Source != models.BagSourceUnknown {
 		t.Errorf("source = %q, want unknown", sq.Source)
@@ -171,8 +200,11 @@ func TestResolveCheckedBagJapanRoutes(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.airline, func(t *testing.T) {
 			got := ResolveCheckedBag(nil, tc.airline, nil)
-			if got.Included != tc.wantIncl {
-				t.Errorf("Included = %v, want %v — %s", got.Included, tc.wantIncl, tc.why)
+			if got.IsUnknown() {
+				t.Fatalf("no verdict at all — %s", tc.why)
+			}
+			if got.HasBag() != tc.wantIncl {
+				t.Errorf("Included = %s, want %v — %s", inclStr(got.Included), tc.wantIncl, tc.why)
 			}
 			if got.Source != models.BagSourceTableSourced {
 				t.Errorf("Source = %q, want table_sourced — each was read off the airline's own page", got.Source)
@@ -206,8 +238,11 @@ func TestResolveCheckedBagLatinAmerica(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.airline, func(t *testing.T) {
 			got := ResolveCheckedBag(nil, tc.airline, nil)
-			if got.Included != tc.wantIncl {
-				t.Errorf("Included = %v, want %v — %s", got.Included, tc.wantIncl, tc.why)
+			if got.IsUnknown() {
+				t.Fatalf("no verdict at all — %s", tc.why)
+			}
+			if got.HasBag() != tc.wantIncl {
+				t.Errorf("Included = %s, want %v — %s", inclStr(got.Included), tc.wantIncl, tc.why)
 			}
 			if got.Source != models.BagSourceTableSourced {
 				t.Errorf("Source = %q, want table_sourced", got.Source)
@@ -245,8 +280,11 @@ func TestResolveCheckedBagEuropeanNetworkCarriers(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.airline, func(t *testing.T) {
 			got := ResolveCheckedBag(nil, tc.airline, nil)
-			if got.Included != tc.wantIncl {
-				t.Errorf("Included = %v, want %v — %s", got.Included, tc.wantIncl, tc.why)
+			if got.IsUnknown() {
+				t.Fatalf("no verdict at all — %s", tc.why)
+			}
+			if got.HasBag() != tc.wantIncl {
+				t.Errorf("Included = %s, want %v — %s", inclStr(got.Included), tc.wantIncl, tc.why)
 			}
 			if got.Source != models.BagSourceTableSourced {
 				t.Errorf("Source = %q, want table_sourced — all six now carry a citation", got.Source)
@@ -272,13 +310,13 @@ func TestResolveCheckedBagDecaysWithAge(t *testing.T) {
 	at := func(ym string) { nowFunc = func() time.Time { t, _ := time.Parse("2006-01", ym); return t } }
 
 	at("2026-10") // 2 months on — still trusted
-	if got := resolveFromTable(fresh); got.Source != models.BagSourceTableSourced || !got.Included {
+	if got := resolveFromTable(fresh); got.Source != models.BagSourceTableSourced || !got.HasBag() {
 		t.Errorf("a recent claim must stand: %+v", got)
 	}
 
 	at("2027-08") // 12 months on — past its shelf life, still believed but no longer cited
 	got := resolveFromTable(fresh)
-	if !got.Included {
+	if !got.HasBag() {
 		t.Error("a year on, the claim is doubted but not yet discarded")
 	}
 	if got.Source != models.BagSourceTableUnsourced {
@@ -287,8 +325,11 @@ func TestResolveCheckedBagDecaysWithAge(t *testing.T) {
 
 	at("2028-06") // ~22 months on — no longer good enough to pass a bag filter
 	got = resolveFromTable(fresh)
-	if got.Included {
+	if got.HasBag() {
 		t.Error("an expired positive claim must stop asserting a bag")
+	}
+	if !got.IsUnknown() {
+		t.Errorf("Included = %s, want unknown: an expired allowance tells us nothing about what the airline now sells", inclStr(got.Included))
 	}
 	if got.Source != models.BagSourceUnknown {
 		t.Errorf("Source = %q, want unknown", got.Source)
@@ -298,7 +339,7 @@ func TestResolveCheckedBagDecaysWithAge(t *testing.T) {
 	// and airlines do not quietly start including bags again.
 	none := AirlineBaggage{Code: "YY", CheckedIncluded: 0, CheckedSource: "https://example.test/none", CheckedVerified: "2020-01"}
 	at("2028-06")
-	if got := resolveFromTable(none); got.Included || got.Source != models.BagSourceTableSourced {
+	if got := resolveFromTable(none); got.HasBag() || got.Source != models.BagSourceTableSourced {
 		t.Errorf("a negative claim must survive unchanged: %+v", got)
 	}
 }

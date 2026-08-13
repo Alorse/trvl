@@ -16,7 +16,7 @@ func TestPriceBaggageUsesFlightVerdict(t *testing.T) {
 		Legs:        []models.FlightLeg{{AirlineCode: "FR"}},
 		AllInMin:    96.49,
 		AllInMax:    147,
-		BagEstimate: &models.BagEstimate{Included: false, Source: models.BagSourceTableSourced, AmountMin: 9.49, AmountMax: 60, Currency: "EUR"},
+		BagEstimate: &models.BagEstimate{Included: models.BagNotIncluded(), Source: models.BagSourceTableSourced, AmountMin: 9.49, AmountMax: 60, Currency: "EUR"},
 	}
 
 	// bagCost covers every extra: Ryanair charges for the overhead cabin bag
@@ -43,7 +43,7 @@ func TestPriceBaggageUsesFlightVerdict(t *testing.T) {
 	unknown := models.FlightResult{
 		Price: 121, Currency: "EUR",
 		Legs:        []models.FlightLeg{{AirlineCode: "JU"}},
-		BagEstimate: &models.BagEstimate{Included: false, Source: models.BagSourceUnknown},
+		BagEstimate: &models.BagEstimate{Included: models.BagNotIncluded(), Source: models.BagSourceUnknown},
 	}
 	c = &candidate{}
 	priceBaggage(c, unknown, OptimizeInput{NeedCheckedBag: true})
@@ -63,7 +63,7 @@ func TestPriceBaggageFrequentFlyerSaving(t *testing.T) {
 		AllInMin: 120,
 		AllInMax: 222,
 		// As the search resolves it for a Oneworld member: status grants the bag.
-		BagEstimate: &models.BagEstimate{Included: true, Source: models.BagSourceFrequentFlyer},
+		BagEstimate: &models.BagEstimate{Included: models.BagIncluded(), Source: models.BagSourceFrequentFlyer},
 	}
 
 	c := &candidate{}

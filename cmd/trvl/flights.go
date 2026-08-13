@@ -709,11 +709,11 @@ func bagLabel(est models.BagEstimate) string {
 	switch {
 	case est.Source == models.BagSourceUnknown:
 		return "bag unknown"
-	case est.Included && est.Source == models.BagSourceFrequentFlyer:
+	case est.HasBag() && est.Source == models.BagSourceFrequentFlyer:
 		return "FF bag"
-	case est.Included && est.Source == models.BagSourceProvider:
+	case est.HasBag() && est.Source == models.BagSourceProvider:
 		return "bag incl"
-	case est.Included:
+	case est.HasBag():
 		return "bag incl (est.)"
 	case est.AmountMin <= 0:
 		return "bag fee varies"

@@ -756,7 +756,7 @@ func priceBaggage(c *candidate, f models.FlightResult, input OptimizeInput) {
 	}
 
 	checkedFee := 0.0
-	if input.NeedCheckedBag && !est.Included && f.AllInMin > 0 {
+	if input.NeedCheckedBag && est.LacksBag() && f.AllInMin > 0 {
 		checkedFee = f.AllInMin - f.Price
 	}
 	if input.NeedCheckedBag && est.Source == models.BagSourceUnknown {
@@ -766,7 +766,7 @@ func priceBaggage(c *candidate, f models.FlightResult, input OptimizeInput) {
 	// What the same bag would have cost without the traveller's status.
 	if input.NeedCheckedBag {
 		withoutFF := baggage.ResolveCheckedBag(f.CheckedBagsIncluded, firstLegAirline(f), nil)
-		if est.Included && !withoutFF.Included && withoutFF.AmountMin > 0 {
+		if est.HasBag() && withoutFF.LacksBag() && withoutFF.AmountMin > 0 {
 			c.ffSavings = withoutFF.AmountMin
 		}
 	}

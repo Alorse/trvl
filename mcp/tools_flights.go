@@ -730,11 +730,11 @@ func bagBreakdown(est models.BagEstimate) string {
 	switch {
 	case est.Source == models.BagSourceUnknown:
 		return "checked bag unknown: no source covers this airline"
-	case est.Included && est.Source == models.BagSourceFrequentFlyer:
+	case est.HasBag() && est.Source == models.BagSourceFrequentFlyer:
 		return "checked bag free via frequent-flyer status"
-	case est.Included && est.Source == models.BagSourceProvider:
+	case est.HasBag() && est.Source == models.BagSourceProvider:
 		return "checked bag included (provider)"
-	case est.Included:
+	case est.HasBag():
 		return "checked bag included (estimated from airline rules)"
 	case est.AmountMin <= 0:
 		return "checked bag extra; fee varies by route and date"
