@@ -109,17 +109,25 @@ func SearchMultiCity(ctx context.Context, legs []Leg, opts SearchOptions) (*mode
 	// tripType 3 = multi-city.
 	filters := buildFiltersFromSegments(segments, 3, opts)
 
-	flights, err := runGoogleFlightSearch(ctx, DefaultClient(), filters, opts)
+	googleBlockRetries := 0
+	if SerpEnabled() {
+		googleBlockRetries = 1
+	}
+	flights, err := runGoogleFlightSearch(ctx, DefaultClient(), filters, opts, googleBlockRetries)
 	if err != nil {
-		// Google failed → try Duffel (paid fallback, native multi-city).
+		// Google failed → SerpApi (native multi-city), then Duffel.
+		if SerpEnabled() {
+			if serpFlights, sErr := SearchSerpApi(ctx, duffelSlicesForLegs(legs), opts); sErr == nil {
+				if r := fallbackSearchResult(serpFlights, opts, "multi_city"); r != nil {
+					return r, nil
+				}
+			}
+		}
 		if DuffelEnabled() {
-			if duffelFlights, dErr := SearchDuffel(ctx, duffelSlicesForLegs(legs), opts); dErr == nil && len(duffelFlights) > 0 {
-				return &models.FlightSearchResult{
-					Success:  true,
-					Count:    len(duffelFlights),
-					TripType: "multi_city",
-					Flights:  duffelFlights,
-				}, nil
+			if duffelFlights, dErr := SearchDuffel(ctx, duffelSlicesForLegs(legs), opts); dErr == nil {
+				if r := fallbackSearchResult(duffelFlights, opts, "multi_city"); r != nil {
+					return r, nil
+				}
 			}
 		}
 		return &models.FlightSearchResult{Error: err.Error()}, err
@@ -134,12 +142,28 @@ func SearchMultiCity(ctx context.Context, legs []Leg, opts SearchOptions) (*mode
 		flights[i].BookingURL = bookingURL
 	}
 
+	if r := multiCitySearchResult(flights, opts); r != nil {
+		return r, nil
+	}
 	return &models.FlightSearchResult{
 		Success:  true,
-		Count:    len(flights),
+		Count:    0,
 		TripType: "multi_city",
-		Flights:  flights,
 	}, nil
+}
+
+// multiCitySearchResult applies the same filters, bag annotation and sort the
+// point-to-point path gets, then wraps the survivors.
+//
+// Google answering normally used to return straight from the search with none
+// of that: no bag verdict in the JSON, require_checked_bag silently ignored,
+// and --stops and --sort unapplied. The fallback branch was fixed separately,
+// which is why this survived — the tests only covered the fallback.
+//
+// Returns nil when nothing survives, so callers can distinguish "filtered to
+// nothing" from "found nothing".
+func multiCitySearchResult(flights []models.FlightResult, opts SearchOptions) *models.FlightSearchResult {
+	return searchResultFrom(flights, opts, "multi_city")
 }
 
 // searchMultiCityExplicit runs only the providers named in opts.Providers for a
@@ -164,7 +188,7 @@ func searchMultiCityExplicit(ctx context.Context, legs []Leg, opts SearchOptions
 			segments[i] = buildSegmentMulti(leg.Origins, leg.Destinations, leg.Date, opts)
 		}
 		filters := buildFiltersFromSegments(segments, 3, opts)
-		if f, err := runGoogleFlightSearch(ctx, DefaultClient(), filters, opts); err != nil {
+		if f, err := runGoogleFlightSearch(ctx, DefaultClient(), filters, opts, 0); err != nil {
 			errs = append(errs, fmt.Errorf("google: %w", err))
 		} else {
 			anySucceeded = true
@@ -173,6 +197,17 @@ func searchMultiCityExplicit(ctx context.Context, legs []Leg, opts SearchOptions
 			for i := range f {
 				f[i].BookingURL = bookingURL
 			}
+			combined = append(combined, f...)
+		}
+	}
+
+	if providerListed(opts, "google_serpapi") {
+		if !SerpEnabled() {
+			errs = append(errs, fmt.Errorf("google_serpapi: serp-key command not available"))
+		} else if f, err := SearchSerpApi(ctx, duffelSlicesForLegs(legs), opts); err != nil {
+			errs = append(errs, fmt.Errorf("google_serpapi: %w", err))
+		} else {
+			anySucceeded = true
 			combined = append(combined, f...)
 		}
 	}

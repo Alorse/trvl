@@ -24,47 +24,30 @@ import (
 // formatAllIn
 // ---------------------------------------------------------------------------
 
-func TestFormatAllIn_ZeroAllIn(t *testing.T) {
-	got := formatAllIn(100, "EUR", 0, "")
-	if got != "EUR 100" {
-		t.Errorf("expected fallback to formatPrice, got %q", got)
+func TestFormatAllIn_NoTotalAvailable(t *testing.T) {
+	// Nothing could be totalled and nothing to say about it: bare fare.
+	if got := formatAllIn(100, "EUR", 0, 0, ""); got != "EUR 100" {
+		t.Errorf("got %q, want %q", got, "EUR 100")
+	}
+	// No total, but the reason is worth stating.
+	if got := formatAllIn(121, "EUR", 0, 0, "bag unknown"); got != "EUR 121 (bag unknown)" {
+		t.Errorf("got %q, want %q", got, "EUR 121 (bag unknown)")
 	}
 }
 
-func TestFormatAllIn_EmptyBreakdown(t *testing.T) {
-	got := formatAllIn(100, "EUR", 135, "")
-	if got != "EUR 100" {
-		t.Errorf("expected fallback to formatPrice, got %q", got)
-	}
-}
-
-func TestFormatAllIn_BagFee(t *testing.T) {
-	got := formatAllIn(100, "EUR", 135, "+35 bag")
-	want := "EUR 135 (+35 bag)"
+func TestFormatAllIn_Range(t *testing.T) {
+	// A bag fee with a published spread renders as a range.
+	got := formatAllIn(87, "EUR", 96.49, 147, "bag est.")
+	want := "EUR 96–147 (bag est.)"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
-func TestFormatAllIn_BagsIncluded(t *testing.T) {
-	got := formatAllIn(89, "EUR", 89, "bags included")
-	want := "EUR 89 (bags incl)"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}
-
-func TestFormatAllIn_FFBags(t *testing.T) {
-	got := formatAllIn(89, "EUR", 89, "FF waiver")
-	want := "EUR 89 (FF bags)"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}
-
-func TestFormatAllIn_SamePriceOtherBreakdown(t *testing.T) {
-	got := formatAllIn(89, "EUR", 89, "promo discount")
-	want := "EUR 89 (promo discount)"
+func TestFormatAllIn_SinglePoint(t *testing.T) {
+	// Bag included: the total equals the fare, so no spread is shown.
+	got := formatAllIn(129, "EUR", 129, 129, "bag incl")
+	want := "EUR 129 (bag incl)"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

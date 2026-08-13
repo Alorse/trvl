@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/MikkoParkkola/trvl/internal/models"
 )
 
 const futureDate = "2999-01-01" // always valid/future for models.ValidateDate
@@ -163,5 +165,49 @@ func TestSearchMultiCity_RejectsIncompleteLeg(t *testing.T) {
 	_, err := SearchMultiCity(context.Background(), legs, SearchOptions{})
 	if err == nil {
 		t.Fatal("expected error for incomplete leg, got nil")
+	}
+}
+
+// TestMultiCitySuccessBranchIsFiltered covers the path where Google answers
+// normally — the one the earlier fallback fix did not touch, which is exactly
+// why the bug survived it. Results from the success branch went back raw: no
+// bag verdict, no client-side filters, no sort. Tests only exercised the
+// fallback branch, so nothing caught it.
+func TestMultiCitySuccessBranchIsFiltered(t *testing.T) {
+	flights := []models.FlightResult{
+		{Price: 900, Currency: "EUR", Stops: 0, Legs: []models.FlightLeg{{AirlineCode: "LH"}}},
+		{Price: 100, Currency: "EUR", Stops: 3, Legs: []models.FlightLeg{{AirlineCode: "LH"}}},
+		{Price: 300, Currency: "EUR", Stops: 0, Legs: []models.FlightLeg{{AirlineCode: "FR"}}},
+	}
+
+	got := multiCitySearchResult(flights, SearchOptions{
+		MaxStops: models.NonStop,
+		SortBy:   models.SortCheapest,
+	})
+
+	if got == nil {
+		t.Fatal("expected a result")
+	}
+	if len(got.Flights) != 2 {
+		t.Fatalf("client-side stop filter must apply, got %d flights", len(got.Flights))
+	}
+	if got.Flights[0].Price != 300 {
+		t.Errorf("results must be sorted, got %.0f first", got.Flights[0].Price)
+	}
+	if got.Count != len(got.Flights) {
+		t.Errorf("Count = %d, want %d", got.Count, len(got.Flights))
+	}
+	if got.TripType != "multi_city" {
+		t.Errorf("TripType = %q", got.TripType)
+	}
+	for i, f := range got.Flights {
+		if f.BagEstimate == nil {
+			t.Fatalf("flight %d has no bag estimate", i)
+		}
+	}
+	// And the bag filter must actually bite here too.
+	bagged := multiCitySearchResult(flights, SearchOptions{RequireCheckedBag: true})
+	if bagged == nil || len(bagged.Flights) != 2 {
+		t.Fatalf("expected the two Lufthansa fares, got %v", bagged)
 	}
 }

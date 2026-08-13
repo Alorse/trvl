@@ -9,6 +9,7 @@ import (
 
 	"net/url"
 
+	"github.com/MikkoParkkola/trvl/internal/baggage"
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
 	"golang.org/x/sync/singleflight"
@@ -54,6 +55,12 @@ type SearchOptions struct {
 	DepartAfter   string   // Earliest departure time "HH:MM" (e.g. "06:00")
 	DepartBefore  string   // Latest departure time "HH:MM" (e.g. "22:00")
 	LessEmissions bool     // Only show flights with less emissions
+
+	// FFStatuses are the traveller's frequent-flyer memberships. They feed the
+	// checked-bag verdict, since alliance status can grant a free bag the fare
+	// itself does not include — which has to be known before the bag filter
+	// runs, not after.
+	FFStatuses []baggage.FFStatus
 
 	// Client-side post-filters (applied after server response).
 	RequireCheckedBag bool // Only show flights with ≥1 free checked bag
@@ -166,7 +173,13 @@ func searchFlightsCore(ctx context.Context, client *batchexec.Client, origin, de
 		return searchFlightsExplicit(ctx, client, origin, destination, date, opts)
 	}
 
-	googleResult, googleErr := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts)
+	// Free Google gets one anti-bot retry (2 attempts) when SerpApi can take
+	// over; without SerpApi it keeps the default 3 retries (nowhere to fall).
+	googleBlockRetries := 0
+	if SerpEnabled() {
+		googleBlockRetries = 1
+	}
+	googleResult, googleErr := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts, googleBlockRetries)
 	googleSucceeded := googleErr == nil
 	currency := flightSearchCurrency(googleResult)
 
@@ -197,18 +210,24 @@ func searchFlightsCore(ctx context.Context, client *batchexec.Client, origin, de
 		}, nil
 	}
 
+	// Google failed → try SerpApi (same Google data via SerpApi's infra, with a
+	// rotated key per attempt). Then Duffel.
+	if !googleSucceeded && SerpEnabled() {
+		serpFlights, serpErr := SearchSerpApi(ctx, duffelSlicesForSearch(origin, destination, date, opts), opts)
+		if serpErr != nil {
+			slog.Warn("serpapi flight search failed", "origin", origin, "destination", destination, "date", date, "error", serpErr)
+		} else if r := fallbackSearchResult(serpFlights, opts, tripTypeForSearch(opts)); r != nil {
+			return r, nil
+		}
+	}
+
 	// Google failed → try Duffel (paid fallback, only when configured).
 	if !googleSucceeded && DuffelEnabled() {
 		duffelFlights, duffelErr := SearchDuffel(ctx, duffelSlicesForSearch(origin, destination, date, opts), opts)
 		if duffelErr != nil {
 			slog.Warn("duffel flight search failed", "origin", origin, "destination", destination, "date", date, "error", duffelErr)
-		} else if len(duffelFlights) > 0 {
-			return &models.FlightSearchResult{
-				Success:  true,
-				Count:    len(duffelFlights),
-				TripType: tripTypeForSearch(opts),
-				Flights:  duffelFlights,
-			}, nil
+		} else if r := fallbackSearchResult(duffelFlights, opts, tripTypeForSearch(opts)); r != nil {
+			return r, nil
 		}
 	}
 
@@ -251,13 +270,24 @@ func searchFlightsExplicit(ctx context.Context, client *batchexec.Client, origin
 	anySucceeded := false
 
 	if providerListed(opts, "google") {
-		if r, err := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts); err != nil {
+		if r, err := searchGoogleFlightsWithClient(ctx, client, origin, destination, date, opts, 0); err != nil {
 			errs = append(errs, fmt.Errorf("google: %w", err))
 		} else {
 			anySucceeded = true
 			if r != nil {
 				combined = append(combined, r.Flights...)
 			}
+		}
+	}
+
+	if providerListed(opts, "google_serpapi") {
+		if !SerpEnabled() {
+			errs = append(errs, fmt.Errorf("google_serpapi: serp-key command not available (install serp-key on PATH or set TRVL_SERP_KEY_CMD)"))
+		} else if f, err := SearchSerpApi(ctx, duffelSlicesForSearch(origin, destination, date, opts), opts); err != nil {
+			errs = append(errs, fmt.Errorf("google_serpapi: %w", err))
+		} else {
+			anySucceeded = true
+			combined = append(combined, f...)
 		}
 	}
 
@@ -298,10 +328,10 @@ func searchFlightsExplicit(ctx context.Context, client *batchexec.Client, origin
 	return &models.FlightSearchResult{Error: err.Error()}, err
 }
 
-func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions) (*models.FlightSearchResult, error) {
+func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client, origin, destination, date string, opts SearchOptions, maxBlockRetries int) (*models.FlightSearchResult, error) {
 	filters := buildFilters(origin, destination, date, opts)
 
-	flights, err := runGoogleFlightSearch(ctx, client, filters, opts)
+	flights, err := runGoogleFlightSearch(ctx, client, filters, opts, maxBlockRetries)
 	if err != nil {
 		return &models.FlightSearchResult{Error: err.Error()}, err
 	}
@@ -324,14 +354,14 @@ func searchGoogleFlightsWithClient(ctx context.Context, client *batchexec.Client
 // payload: encode → POST → decode → extract → parse. It sets Provider on each
 // flight but leaves BookingURL to the caller (route-specific). Shared by one-way/
 // round-trip (searchGoogleFlightsWithClient) and multi-city (SearchMultiCity).
-func runGoogleFlightSearch(ctx context.Context, client *batchexec.Client, filters any, opts SearchOptions) ([]models.FlightResult, error) {
+func runGoogleFlightSearch(ctx context.Context, client *batchexec.Client, filters any, opts SearchOptions, maxBlockRetries int) ([]models.FlightResult, error) {
 	encoded, err := batchexec.EncodeFlightFilters(filters)
 	if err != nil {
 		return nil, fmt.Errorf("encode filters: %w", err)
 	}
 
 	gl := CurrencyToGL(opts.Currency)
-	status, body, err := client.SearchFlightsGLCurr(ctx, encoded, gl, opts.Currency)
+	status, body, err := client.SearchFlightsGLCurrN(ctx, encoded, gl, opts.Currency, maxBlockRetries)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -553,15 +583,21 @@ func bagsFilter(carryOn, checked int) any {
 	return []any{carryOn, checked}
 }
 
-// filterFlightsWithCheckedBag returns only flights that include at least one
-// free checked bag. This is a client-side post-filter on parsed response data
-// (offer[4][6]). The server-side bags filter at outer[1][10] is a price
-// recalculation hint, not a result filter — it changes displayed prices but
-// doesn't remove flights.
+// filterFlightsWithCheckedBag drops flights the provider explicitly reported as
+// carrying no free checked bag. This is a client-side post-filter on parsed
+// response data (offer[4][6] for Google, option-level extensions for SerpApi).
+// The server-side bags filter at outer[1][10] is a price recalculation hint,
+// not a result filter — it changes displayed prices but doesn't remove flights.
+//
+// A nil CheckedBagsIncluded means the provider did not state an allowance, and
+// is treated as "no free checked bag": a filter that promises bagged flights
+// must not pass through ones we cannot vouch for. Providers all populate this
+// field from their own payload (Google and SerpApi from offer[4][6], Duffel
+// from its baggages array), so the filter is provider-agnostic.
 func filterFlightsWithCheckedBag(flights []models.FlightResult) []models.FlightResult {
 	filtered := flights[:0]
 	for _, f := range flights {
-		if f.CheckedBagsIncluded != nil && *f.CheckedBagsIncluded >= 1 {
+		if f.BagEstimate != nil && f.BagEstimate.Included {
 			filtered = append(filtered, f)
 		}
 	}

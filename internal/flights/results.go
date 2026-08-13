@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MikkoParkkola/trvl/internal/baggage"
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
@@ -20,10 +21,84 @@ func mergeFlightResults(googleFlights, kiwiFlights []models.FlightResult, opts S
 	return merged
 }
 
+// fallbackSearchResult wraps results from a fallback provider (SerpApi, Duffel).
+// Returns nil when nothing survives, so the caller keeps walking the provider
+// chain instead of returning an empty success.
+func fallbackSearchResult(flights []models.FlightResult, opts SearchOptions, tripType string) *models.FlightSearchResult {
+	return searchResultFrom(flights, opts, tripType)
+}
+
+// searchResultFrom applies the filters, bag annotation and sort that every
+// search path owes its results, then wraps the survivors. Every provider and
+// every branch goes through here: the paths that skipped it returned unsorted,
+// unfiltered results with no bag verdict, and each was found separately.
+func searchResultFrom(flights []models.FlightResult, opts SearchOptions, tripType string) *models.FlightSearchResult {
+	merged := mergeFlightResults(flights, nil, opts)
+	if len(merged) == 0 {
+		return nil
+	}
+	return &models.FlightSearchResult{
+		Success:  true,
+		Count:    len(merged),
+		TripType: tripType,
+		Flights:  merged,
+	}
+}
+
+// annotateBagEstimates resolves every result's checked-bag situation from the
+// best evidence available and records which evidence that was, so consumers can
+// price a bag and see how far to trust the figure. Runs on every search, not
+// only bag-filtered ones — trvl estimates trip cost, and a fare without its bag
+// terms understates it.
+//
+// The airline is taken from the first leg, matching how the rest of the
+// codebase attributes a flight. That is the wrong rule for interline
+// itineraries, where the governing carrier may be neither the first nor the one
+// the user sees, but changing it belongs with the other first-leg call sites.
+func annotateBagEstimates(flights []models.FlightResult, ffStatuses []baggage.FFStatus) {
+	for i := range flights {
+		code := ""
+		if len(flights[i].Legs) > 0 {
+			code = flights[i].Legs[0].AirlineCode
+		}
+		est := baggage.ResolveCheckedBag(flights[i].CheckedBagsIncluded, code, ffStatuses)
+		flights[i].BagEstimate = &est
+		flights[i].AllInMin, flights[i].AllInMax = allInRange(flights[i].Price, flights[i].Currency, est)
+	}
+}
+
+// allInRange bounds the fare plus a checked bag.
+//
+// Returns zeroes when no total can be stated honestly: an airline whose terms
+// nobody reports, a carrier that publishes no figure, or a fee quoted in a
+// currency we cannot convert into the fare's. Emitting the bare fare in those
+// cases would be the same mistake the baggage table used to make — an unpriced
+// bag reading as a free one, and the flight ranking cheaper than it is.
+func allInRange(price float64, currency string, est models.BagEstimate) (float64, float64) {
+	if price <= 0 {
+		return 0, 0
+	}
+	if est.Included {
+		return price, price
+	}
+	if est.AmountMin <= 0 {
+		return 0, 0 // fee varies, or the airline is not covered at all
+	}
+	if est.Currency != "" && currency != "" && !strings.EqualFold(est.Currency, currency) {
+		return 0, 0
+	}
+	max := est.AmountMax
+	if max < est.AmountMin {
+		max = est.AmountMin
+	}
+	return price + est.AmountMin, price + max
+}
+
 func filterFlightResults(flights []models.FlightResult, opts SearchOptions) []models.FlightResult {
 	if len(flights) == 0 {
 		return nil
 	}
+	annotateBagEstimates(flights, opts.FFStatuses)
 
 	filtered := make([]models.FlightResult, 0, len(flights))
 	for _, f := range flights {

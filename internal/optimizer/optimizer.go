@@ -72,10 +72,10 @@ type Leg struct {
 
 // OptimizeResult is the output of the optimization engine.
 type OptimizeResult struct {
-	Success  bool           `json:"success"`
+	Success  bool            `json:"success"`
 	Options  []BookingOption `json:"options"`
 	Baseline *BookingOption  `json:"baseline,omitempty"`
-	Error    string         `json:"error,omitempty"`
+	Error    string          `json:"error,omitempty"`
 }
 
 // candidate is an internal search candidate generated during the EXPAND phase.
@@ -102,7 +102,10 @@ type candidate struct {
 	baseCost  float64
 	bagCost   float64
 	ffSavings float64
-	allInCost float64
+	// bagTermsUnknown marks a candidate whose airline is absent from the
+	// baggage table, so bagCost is a floor rather than an estimate.
+	bagTermsUnknown bool
+	allInCost       float64
 }
 
 // defaults fills zero-value fields with sensible defaults.
@@ -281,11 +284,11 @@ func expandCandidates(input OptimizeInput) []*candidate {
 	hiddenCityBeyond := map[string][]string{
 		"AMS": {"HEL", "RIX", "TLL", "ARN"}, // KLM hub — search to Nordics/Baltics via AMS
 		"FRA": {"PRG", "WAW", "BUD", "VIE"}, // Lufthansa hub — search to Central/Eastern Europe via FRA
-		"CDG": {"BRU", "GVA", "LIS"},         // Air France hub
-		"MUC": {"PRG", "VIE", "BUD"},         // Lufthansa hub
-		"IST": {"TBS", "SOF", "OTP"},         // Turkish hub
-		"CPH": {"ARN", "HEL", "OSL"},         // SAS hub
-		"ZRH": {"MXP", "VIE", "MUC"},         // Swiss hub
+		"CDG": {"BRU", "GVA", "LIS"},        // Air France hub
+		"MUC": {"PRG", "VIE", "BUD"},        // Lufthansa hub
+		"IST": {"TBS", "SOF", "OTP"},        // Turkish hub
+		"CPH": {"ARN", "HEL", "OSL"},        // SAS hub
+		"ZRH": {"MXP", "VIE", "MUC"},        // Swiss hub
 	}
 
 	if beyondCities, ok := hiddenCityBeyond[dest]; ok {
@@ -557,41 +560,8 @@ func priceCandidate(c *candidate, input OptimizeInput) {
 		c.hackTypes = append(c.hackTypes, hackType)
 	}
 
-	// Compute baggage costs via AllInCost.
-	ffStatuses := convertFFStatuses(input.FFStatuses)
-	airlineCode := ""
-	if len(bestFlight.Legs) > 0 {
-		airlineCode = bestFlight.Legs[0].AirlineCode
-	}
-
-	allIn, _ := baggage.AllInCost(
-		bestFlight.Price,
-		airlineCode,
-		input.NeedCheckedBag,
-		!input.CarryOnOnly, // needCarryOn = opposite of carryOnOnly
-		ffStatuses,
-	)
-
-	c.bagCost = allIn - bestFlight.Price
-	if c.bagCost < 0 {
-		c.bagCost = 0
-	}
-
-	// FF savings: difference between cost without FF and cost with FF.
-	allInNoFF, _ := baggage.AllInCost(
-		bestFlight.Price,
-		airlineCode,
-		input.NeedCheckedBag,
-		!input.CarryOnOnly,
-		nil, // no FF statuses
-	)
-	c.ffSavings = allInNoFF - allIn
-	if c.ffSavings < 0 {
-		c.ffSavings = 0
-	}
-
-	// All-in = base + bags - FF savings + transfer cost
-	c.allInCost = allIn + c.transferCost
+	// priceBaggage sets bagCost, ffSavings, bagTermsUnknown and allInCost.
+	priceBaggage(c, bestFlight, input)
 }
 
 // rankCandidates sorts by all-in cost and returns the top N options.
@@ -757,6 +727,61 @@ func cheapestFlight(flts []models.FlightResult) models.FlightResult {
 		}
 	}
 	return best
+}
+
+// priceBaggage sets the candidate's checked-bag cost from the verdict the
+// search already resolved for that flight, rather than recomputing one from the
+// airline alone. The search knows what the provider reported, what the table
+// says, and what the traveller's status grants; a second calculation here would
+// only drift from it — and this number decides which trip gets recommended.
+//
+// The floor of the range is used, so the ranking compares best cases; the
+// spread is visible in the flight's own all-in fields. Terms nobody reports are
+// flagged rather than priced at zero, which is what previously let an uncovered
+// airline rank as though its bag were free.
+func priceBaggage(c *candidate, f models.FlightResult, input OptimizeInput) {
+	est := f.BagEstimate
+	if est == nil {
+		c.bagTermsUnknown = true
+		c.allInCost = f.Price + c.transferCost
+		return
+	}
+
+	// Carry-on is a separate concern from the checked bag and still comes from
+	// the airline table, which is the only thing that models it.
+	carryOnTotal, _, _ := baggage.AllInCost(f.Price, firstLegAirline(f), false, !input.CarryOnOnly, convertFFStatuses(input.FFStatuses))
+	carryOnFee := carryOnTotal - f.Price
+	if carryOnFee < 0 {
+		carryOnFee = 0
+	}
+
+	checkedFee := 0.0
+	if input.NeedCheckedBag && !est.Included && f.AllInMin > 0 {
+		checkedFee = f.AllInMin - f.Price
+	}
+	if input.NeedCheckedBag && est.Source == models.BagSourceUnknown {
+		c.bagTermsUnknown = true
+	}
+
+	// What the same bag would have cost without the traveller's status.
+	if input.NeedCheckedBag {
+		withoutFF := baggage.ResolveCheckedBag(f.CheckedBagsIncluded, firstLegAirline(f), nil)
+		if est.Included && !withoutFF.Included && withoutFF.AmountMin > 0 {
+			c.ffSavings = withoutFF.AmountMin
+		}
+	}
+
+	c.bagCost = carryOnFee + checkedFee
+	c.allInCost = f.Price + c.bagCost + c.transferCost
+}
+
+// firstLegAirline returns the operating airline of the first leg, matching how
+// the rest of the codebase attributes a flight.
+func firstLegAirline(f models.FlightResult) string {
+	if len(f.Legs) > 0 {
+		return f.Legs[0].AirlineCode
+	}
+	return ""
 }
 
 // convertFFStatuses converts optimizer FFStatus to baggage.FFStatus.

@@ -116,8 +116,8 @@ func buildBaggageSummaryOne(ab baggage.AirlineBaggage) string {
 
 	if ab.CheckedIncluded > 0 {
 		sb.WriteString(fmt.Sprintf("  Checked bags: %d included (23 kg)\n", ab.CheckedIncluded))
-	} else if ab.CheckedFee > 0 {
-		sb.WriteString(fmt.Sprintf("  Checked bags: not included, from EUR %.0f\n", ab.CheckedFee))
+	} else if label := baggage.CheckedFeeLabel(ab); label != "" {
+		sb.WriteString("  Checked bags: not included, " + label + "\n")
 	} else {
 		sb.WriteString("  Checked bags: not included\n")
 	}
@@ -143,8 +143,8 @@ func buildBaggageSummaryAll(airlines []baggage.AirlineBaggage) string {
 		checked := "not included"
 		if ab.CheckedIncluded > 0 {
 			checked = fmt.Sprintf("%dx23kg included", ab.CheckedIncluded)
-		} else if ab.CheckedFee > 0 {
-			checked = fmt.Sprintf("~EUR%.0f", ab.CheckedFee)
+		} else if label := baggage.CheckedFeeLabel(ab); label != "" {
+			checked = label
 		}
 		lccMark := ""
 		if ab.OverheadOnly {

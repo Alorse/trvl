@@ -47,3 +47,6 @@ Thumbs.db
 __pycache__/
 docs/distribution/
 docs/plans/
+
+# Local-only ops/deploy notes (server host/paths) — never committed
+CLAUDE.local.md
