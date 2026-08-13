@@ -591,14 +591,15 @@ func printFlightsTable(ctx context.Context, origin, destination, targetCurrency 
 
 	models.FormatTable(os.Stdout, headers, rows)
 
-	// Summary: cheapest flight
-	if len(result.Flights) > 0 {
-		cheapest := result.Flights[0]
-		for _, f := range result.Flights[1:] {
-			if f.Price > 0 && f.Price < cheapest.Price {
-				cheapest = f
-			}
-		}
+	// Summary: cheapest flight.
+	//
+	// The seed has to be a PRICED flight. Providers routinely return results
+	// with no price — around a quarter of a typical response — and the default
+	// sort puts a zero first, so seeding with Flights[0] seeded the summary with
+	// zero. Nothing could then beat it: the loop's own guard requires
+	// f.Price < cheapest.Price, and no real fare is below zero. The line
+	// reported "Cheapest: 0" while the table underneath it listed real fares.
+	if cheapest, ok := cheapestPriced(result.Flights); ok {
 		airline := ""
 		if len(cheapest.Legs) > 0 {
 			airline = cheapest.Legs[0].Airline
@@ -701,6 +702,24 @@ func formatDuration(minutes int) string {
 		return fmt.Sprintf("%dm", m)
 	}
 	return fmt.Sprintf("%dh %dm", h, m)
+}
+
+// cheapestPriced returns the lowest-priced flight, ignoring the results that
+// carry no price at all. ok is false when nothing in the set is priced, in
+// which case there is no cheapest flight to report and the caller must say
+// nothing rather than name a zero.
+func cheapestPriced(flights []models.FlightResult) (models.FlightResult, bool) {
+	var best models.FlightResult
+	found := false
+	for _, f := range flights {
+		if f.Price <= 0 {
+			continue
+		}
+		if !found || f.Price < best.Price {
+			best, found = f, true
+		}
+	}
+	return best, found
 }
 
 // bagLabel is the short parenthetical describing where a checked-bag verdict
