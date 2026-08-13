@@ -142,3 +142,37 @@ func TestResolveCheckedBagCitesInclusion(t *testing.T) {
 		t.Errorf("source = %q, want table_unsourced — Turkish publishes no table", tk.Source)
 	}
 }
+
+// TestResolveCheckedBagJapanRoutes covers the carriers that dominate Europe-Japan
+// and were absent from the table, so the bag filter discarded every one of them
+// as "unknown" rather than on their merits. Two of the five genuinely carry no
+// bag on their cheapest brand, which is why adding them wholesale as "includes"
+// would have been the same mistake in the other direction.
+func TestResolveCheckedBagJapanRoutes(t *testing.T) {
+	cases := []struct {
+		airline  string
+		wantIncl bool
+		why      string
+	}{
+		{"JL", true, "JAL gives 2 pieces on every international economy fare; it publishes no zero-bag brand"},
+		{"NH", true, "ANA Light/Value carry 1 piece ex-Japan to Europe"},
+		{"OZ", true, "Asiana is 1 piece on all non-US routes, Europe included"},
+		{"MU", false, "China Eastern Basic Economy carries none on Europe routes"},
+		{"UX", false, "Air Europa LITE carries none"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.airline, func(t *testing.T) {
+			got := ResolveCheckedBag(nil, tc.airline, nil)
+			if got.Included != tc.wantIncl {
+				t.Errorf("Included = %v, want %v — %s", got.Included, tc.wantIncl, tc.why)
+			}
+			if got.Source != models.BagSourceTableSourced {
+				t.Errorf("Source = %q, want table_sourced — each was read off the airline's own page", got.Source)
+			}
+			if got.Verified == "" {
+				t.Error("a sourced claim must carry the date it was checked")
+			}
+		})
+	}
+}
