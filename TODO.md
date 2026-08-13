@@ -308,6 +308,36 @@ now cost more than it saves.
 
 ---
 
+## Multi-city open-jaw: investigated, not reproduced
+
+Reported as a hard bug — open-jaw legs (arrive FUK, depart HND) failing with
+"no flight data at indices [2] or [3]" while chained legs (arrive FUK, depart
+FUK) worked. Measured on v1.6.8, it does not hold:
+
+- 6 of 6 open-jaw runs succeeded locally, 2 of 3 on the server. The one failure
+  came with Google returning 429 and a context deadline, and the chained variant
+  is not immune — the error is what `batchexec.ExtractFlightData` returns for any
+  empty payload, whatever caused it.
+- Leg 2 is genuinely in the request. Changing **only** the second leg's date
+  moves the price (COP 4,636,663 → 4,854,473). If the leg were being dropped the
+  two would be identical.
+
+What made it look deterministic is real and worth fixing separately: on a
+multi-city search Google returns **leg-1 itineraries priced at the whole trip's
+total**, so the Route column shows only `BER -> ... -> FUK` and the second leg is
+invisible. An open-jaw result can even route *through* the second leg's origin
+(`BER -> MUC -> HND -> FUK`), which reads exactly like the legs were merged.
+
+**Worth doing:** render multi-city results so the trip total is distinguishable
+from a one-way fare, and say that the displayed routing covers leg 1 only. The
+data is right; the presentation invites the wrong conclusion, and it cost
+somebody an afternoon.
+
+**Also worth doing:** `ExtractFlightData`'s message names array indices. A
+message that distinguished "Google returned an error or empty page" from "the
+payload had an unexpected shape" would have pointed at rate limiting
+immediately.
+
 ## Pre-existing test failures
 
 Three tests fail on `main` and predate the baggage work — each confirmed by
