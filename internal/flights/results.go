@@ -55,7 +55,7 @@ func searchResultFrom(flights []models.FlightResult, opts SearchOptions, tripTyp
 // codebase attributes a flight. That is the wrong rule for interline
 // itineraries, where the governing carrier may be neither the first nor the one
 // the user sees, but changing it belongs with the other first-leg call sites.
-func annotateBagEstimates(flights []models.FlightResult, ffStatuses []baggage.FFStatus) {
+func annotateBagEstimates(flights []models.FlightResult, ffStatuses []baggage.FFStatus, directions int) {
 	for i := range flights {
 		code := ""
 		if len(flights[i].Legs) > 0 {
@@ -63,18 +63,18 @@ func annotateBagEstimates(flights []models.FlightResult, ffStatuses []baggage.FF
 		}
 		est := baggage.ResolveCheckedBag(flights[i].CheckedBagsIncluded, code, ffStatuses)
 		flights[i].BagEstimate = &est
-		flights[i].AllInMin, flights[i].AllInMax = allInRange(flights[i].Price, flights[i].Currency, est)
+		flights[i].AllInMin, flights[i].AllInMax = allInRange(flights[i].Price, flights[i].Currency, est, directions)
 	}
 }
 
-// allInRange bounds the fare plus a checked bag.
+// allInRange bounds the fare plus a checked bag, charged once per direction.
 //
 // Returns zeroes when no total can be stated honestly: an airline whose terms
 // nobody reports, a carrier that publishes no figure, or a fee quoted in a
 // currency we cannot convert into the fare's. Emitting the bare fare in those
 // cases would be the same mistake the baggage table used to make — an unpriced
 // bag reading as a free one, and the flight ranking cheaper than it is.
-func allInRange(price float64, currency string, est models.BagEstimate) (float64, float64) {
+func allInRange(price float64, currency string, est models.BagEstimate, directions int) (float64, float64) {
 	if price <= 0 {
 		return 0, 0
 	}
@@ -91,14 +91,22 @@ func allInRange(price float64, currency string, est models.BagEstimate) (float64
 	if max < est.AmountMin {
 		max = est.AmountMin
 	}
-	return price + est.AmountMin, price + max
+	// The fee is charged per direction — Finnair and SWISS both state this on
+	// their own fee pages — so a round trip without an included bag pays twice.
+	// An included bag is not multiplied: a fare that carries one carries it
+	// both ways, which is why this only applies below the Included branch.
+	if directions < 1 {
+		directions = 1
+	}
+	n := float64(directions)
+	return price + est.AmountMin*n, price + max*n
 }
 
 func filterFlightResults(flights []models.FlightResult, opts SearchOptions) []models.FlightResult {
 	if len(flights) == 0 {
 		return nil
 	}
-	annotateBagEstimates(flights, opts.FFStatuses)
+	annotateBagEstimates(flights, opts.FFStatuses, opts.directionsFlown())
 
 	filtered := make([]models.FlightResult, 0, len(flights))
 	for _, f := range flights {

@@ -157,7 +157,7 @@ func TestAllInRangeFromBagEstimate(t *testing.T) {
 		{Price: 121, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "JU"}}}, // not in the table
 	}
 
-	annotateBagEstimates(flights, nil)
+	annotateBagEstimates(flights, nil, 1)
 
 	// Bag included: all-in is just the fare, with no spread.
 	if flights[0].AllInMin != 129 || flights[0].AllInMax != 129 {
@@ -176,5 +176,41 @@ func TestAllInRangeFromBagEstimate(t *testing.T) {
 	// fare for a complete one.
 	if flights[3].AllInMin != 0 || flights[3].AllInMax != 0 {
 		t.Errorf("unknown terms must not produce a total, got %v-%v", flights[3].AllInMin, flights[3].AllInMax)
+	}
+}
+
+// TestAllInChargesTheBagPerDirection pins that a bag fee is multiplied by the
+// number of directions flown. Airlines charge it per direction — Finnair and
+// SWISS both state this on their own fee pages — so a round trip without an
+// included bag pays twice. Charging once understated every round-trip total by
+// roughly half, in the direction that gets cached and never corrected.
+//
+// An included bag is not multiplied: a fare that carries one carries it both
+// ways.
+func TestAllInChargesTheBagPerDirection(t *testing.T) {
+	oneWay := []models.FlightResult{
+		{Price: 1000, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LX"}}}, // EUR 70-105
+	}
+	annotateBagEstimates(oneWay, nil, 1)
+	if oneWay[0].AllInMin != 1070 || oneWay[0].AllInMax != 1105 {
+		t.Errorf("one way: all-in = %v-%v, want 1070-1105", oneWay[0].AllInMin, oneWay[0].AllInMax)
+	}
+
+	roundTrip := []models.FlightResult{
+		{Price: 1000, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LX"}}},
+	}
+	annotateBagEstimates(roundTrip, nil, 2)
+	if roundTrip[0].AllInMin != 1140 || roundTrip[0].AllInMax != 1210 {
+		t.Errorf("round trip: all-in = %v-%v, want 1140-1210 (the bag paid each way)",
+			roundTrip[0].AllInMin, roundTrip[0].AllInMax)
+	}
+
+	// An included bag costs nothing extra however many directions are flown.
+	included := []models.FlightResult{
+		{Price: 900, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LH"}}},
+	}
+	annotateBagEstimates(included, nil, 3)
+	if included[0].AllInMin != 900 || included[0].AllInMax != 900 {
+		t.Errorf("included bag: all-in = %v-%v, want 900-900", included[0].AllInMin, included[0].AllInMax)
 	}
 }

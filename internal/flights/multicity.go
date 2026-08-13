@@ -83,6 +83,7 @@ func duffelSlicesForLegs(legs []Leg) []DuffelSlice {
 // combined itinerary total. Requires at least 2 legs. Google-only in v1.
 func SearchMultiCity(ctx context.Context, legs []Leg, opts SearchOptions) (*models.FlightSearchResult, error) {
 	opts.defaults()
+	opts.MultiCityLegs = len(legs)
 
 	if len(legs) < 2 {
 		return &models.FlightSearchResult{

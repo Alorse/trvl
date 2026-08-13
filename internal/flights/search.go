@@ -62,6 +62,11 @@ type SearchOptions struct {
 	// runs, not after.
 	FFStatuses []baggage.FFStatus
 
+	// MultiCityLegs is the number of one-way journeys in a multi-city
+	// itinerary. Set by the multi-city search path so a bag fee is charged once
+	// per leg rather than once per ticket.
+	MultiCityLegs int
+
 	// Client-side post-filters (applied after server response).
 	RequireCheckedBag bool // Only show flights with ≥1 free checked bag
 	FirstResult       bool // Return only the first flight with Price > 0 after sorting
@@ -73,6 +78,19 @@ type SearchOptions struct {
 	// source (gating is bypassed) and their results are merged. Used by the CLI
 	// --provider flag to isolate a single provider.
 	Providers []string
+}
+
+// directionsFlown reports how many one-way journeys the fare covers, which is
+// how many times a checked-bag fee is charged. Multi-city searches set
+// MultiCityLegs; a return date makes it two; anything else is one.
+func (o SearchOptions) directionsFlown() int {
+	if o.MultiCityLegs > 1 {
+		return o.MultiCityLegs
+	}
+	if o.ReturnDate != "" {
+		return 2
+	}
+	return 1
 }
 
 // defaults fills in zero-value fields with sensible defaults.

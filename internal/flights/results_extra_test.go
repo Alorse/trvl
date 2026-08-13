@@ -387,7 +387,7 @@ func TestFilterFlightsWithCheckedBag_IncludesBag(t *testing.T) {
 		{CheckedBagsIncluded: &bags, Price: 200},
 		{Price: 150}, // no bag info and no airline to fall back on
 	}
-	annotateBagEstimates(flights, nil)
+	annotateBagEstimates(flights, nil, 1)
 	got := filterFlightsWithCheckedBag(flights)
 	if len(got) != 1 || got[0].Price != 200 {
 		t.Fatalf("expected only the confirmed flight, got %+v", got)
