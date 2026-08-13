@@ -151,7 +151,7 @@ func TestBagEstimateDrivesTheFilter(t *testing.T) {
 // on; the ceiling is what the traveller might actually pay.
 func TestAllInRangeFromBagEstimate(t *testing.T) {
 	flights := []models.FlightResult{
-		{Price: 129, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LO"}}}, // bag included
+		{Price: 129, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LH"}}}, // bag included, and cited so it survives the staleness guard
 		{Price: 87, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "FR"}}},  // EUR 9.49-60
 		{Price: 114, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "U2"}}}, // range is GBP, fare is EUR
 		{Price: 121, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "JU"}}}, // not in the table

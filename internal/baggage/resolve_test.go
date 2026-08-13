@@ -2,6 +2,7 @@ package baggage
 
 import (
 	"testing"
+	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
@@ -136,11 +137,16 @@ func TestResolveCheckedBagCitesInclusion(t *testing.T) {
 		t.Errorf("a sourced claim must carry its reference and date, got %q / %q", cx.Reference, cx.Verified)
 	}
 
-	// Singapore Airlines has never been researched, so its figure stays
-	// explicitly uncited rather than passing itself off as verified.
+	// Singapore Airlines has never been researched. An uncited claim that an
+	// airline INCLUDES a bag is the exact shape that proved wrong for Iberia,
+	// KLM, British Airways and SWISS, so it carries no date, never counts as
+	// fresh, and is reported as unknown rather than asserted.
 	sq := ResolveCheckedBag(nil, "SQ", nil)
-	if sq.Source != models.BagSourceTableUnsourced {
-		t.Errorf("source = %q, want table_unsourced — SQ has no citation yet", sq.Source)
+	if sq.Included {
+		t.Error("an uncited positive claim must not assert a bag")
+	}
+	if sq.Source != models.BagSourceUnknown {
+		t.Errorf("source = %q, want unknown", sq.Source)
 	}
 }
 
@@ -246,5 +252,53 @@ func TestResolveCheckedBagEuropeanNetworkCarriers(t *testing.T) {
 				t.Errorf("Source = %q, want table_sourced — all six now carry a citation", got.Source)
 			}
 		})
+	}
+}
+
+// TestResolveCheckedBagDecaysWithAge covers the staleness guard. Baggage
+// unbundling is a ratchet: every change we have documented removed an
+// allowance, none restored one, so a stale entry drifts toward claiming a bag
+// that no longer exists. Downstream that is the expensive direction — a fare
+// without a bag passes the filter, gets cached as the day's price, and a
+// ratcheting cache pins it there.
+//
+// Only positive claims decay. A stale "no bag" cannot cause that failure.
+func TestResolveCheckedBagDecaysWithAge(t *testing.T) {
+	orig := nowFunc
+	defer func() { nowFunc = orig }()
+
+	fresh := AirlineBaggage{Code: "XX", CheckedIncluded: 1, CheckedSource: "https://example.test/bags", CheckedVerified: "2026-08"}
+
+	at := func(ym string) { nowFunc = func() time.Time { t, _ := time.Parse("2006-01", ym); return t } }
+
+	at("2026-10") // 2 months on — still trusted
+	if got := resolveFromTable(fresh); got.Source != models.BagSourceTableSourced || !got.Included {
+		t.Errorf("a recent claim must stand: %+v", got)
+	}
+
+	at("2027-08") // 12 months on — past its shelf life, still believed but no longer cited
+	got := resolveFromTable(fresh)
+	if !got.Included {
+		t.Error("a year on, the claim is doubted but not yet discarded")
+	}
+	if got.Source != models.BagSourceTableUnsourced {
+		t.Errorf("Source = %q, want the citation to lapse", got.Source)
+	}
+
+	at("2028-06") // ~22 months on — no longer good enough to pass a bag filter
+	got = resolveFromTable(fresh)
+	if got.Included {
+		t.Error("an expired positive claim must stop asserting a bag")
+	}
+	if got.Source != models.BagSourceUnknown {
+		t.Errorf("Source = %q, want unknown", got.Source)
+	}
+
+	// A negative claim never expires: it cannot cause the cached-price failure,
+	// and airlines do not quietly start including bags again.
+	none := AirlineBaggage{Code: "YY", CheckedIncluded: 0, CheckedSource: "https://example.test/none", CheckedVerified: "2020-01"}
+	at("2028-06")
+	if got := resolveFromTable(none); got.Included || got.Source != models.BagSourceTableSourced {
+		t.Errorf("a negative claim must survive unchanged: %+v", got)
 	}
 }

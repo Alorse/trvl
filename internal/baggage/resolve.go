@@ -4,6 +4,7 @@ package baggage
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
 )
@@ -49,23 +50,75 @@ func ResolveCheckedBag(providerChecked *int, airlineCode string, ffStatuses []FF
 			Reference: "airline not covered by the baggage table"}
 	}
 
-	if ab.CheckedIncluded >= 1 {
-		return models.BagEstimate{
-			Included:  true,
-			Source:    inclusionSource(ab),
-			Reference: inclusionReference(ab),
-			Verified:  ab.CheckedVerified,
-		}
-	}
+	return resolveFromTable(ab)
+}
 
+// nowFunc is the clock the staleness guard reads. Indirected for tests.
+var nowFunc = time.Now
+
+// Baggage allowances only ever shrink. Every change we have documented removed
+// an allowance — ANA cut Europe fares from two pieces to one in November 2024,
+// and nine carriers unbundled their cheapest long-haul brand to zero — and none
+// restored one. So a table entry does not go stale in a random direction: it
+// drifts toward claiming a bag the airline no longer gives.
+//
+// Downstream that is the expensive direction. A fare without a bag passes the
+// filter, gets stored as the day's price, and a cache that only ratchets
+// upward pins it there. A stale entry therefore manufactures exactly the
+// failure the filter exists to prevent.
+//
+// Positive claims are doubted after bagClaimStaleAfter and stop being asserted
+// after bagClaimExpiresAfter. Negative claims never expire: they cannot cause
+// that failure, and airlines do not quietly start including bags again.
+const (
+	bagClaimStaleAfter   = 9 * 30 * 24 * time.Hour  // ~9 months: citation lapses
+	bagClaimExpiresAfter = 18 * 30 * 24 * time.Hour // ~18 months: claim is dropped
+)
+
+// resolveFromTable turns a table entry into a verdict, applying the staleness
+// guard to positive claims.
+func resolveFromTable(ab AirlineBaggage) models.BagEstimate {
 	est := models.BagEstimate{
-		Included:  false,
+		Included:  ab.CheckedIncluded >= 1,
 		Source:    inclusionSource(ab),
 		Reference: inclusionReference(ab),
 		Verified:  ab.CheckedVerified,
 	}
-	applyFee(&est, ab)
+
+	if est.Included {
+		switch age := claimAge(ab.CheckedVerified); {
+		case age > bagClaimExpiresAfter:
+			return models.BagEstimate{
+				Included: false,
+				Source:   models.BagSourceUnknown,
+				Verified: ab.CheckedVerified,
+				Reference: fmt.Sprintf("%s: allowance last verified %s and no longer relied on; allowances only shrink",
+					ab.Code, ab.CheckedVerified),
+			}
+		case age > bagClaimStaleAfter:
+			est.Source = models.BagSourceTableUnsourced
+			est.Reference += fmt.Sprintf(" — verified %s, past its shelf life", ab.CheckedVerified)
+		}
+	}
+
+	if !est.Included {
+		applyFee(&est, ab)
+	}
 	return est
+}
+
+// claimAge reports how long ago a YYYY-MM verification stamp was taken. An
+// absent or unparseable stamp counts as infinitely old, so an uncited positive
+// claim is never treated as fresh.
+func claimAge(verified string) time.Duration {
+	if verified == "" {
+		return 1<<62 - 1
+	}
+	t, err := time.Parse("2006-01", verified)
+	if err != nil {
+		return 1<<62 - 1
+	}
+	return nowFunc().Sub(t)
 }
 
 // inclusionSource reports whether the airline's allowance figure was read from
