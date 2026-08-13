@@ -462,6 +462,35 @@ func TestResolveCheckedBagAustrian(t *testing.T) {
 	}
 }
 
+// TestResolveCheckedBagAmerican covers the carrier whose answer depends on
+// region so strongly that it flips: American gives Basic Economy a free checked
+// bag to Asia, Qatar and Australia, charges USD 70 to South America and USD 85
+// across the Atlantic.
+//
+// The Europe figure is encoded because American's own table applies that row to
+// anything "connecting via Europe to another destination", which is nearly
+// every itinerary a Europe-origin search surfaces. It is the clearest argument
+// yet for keying this table by (carrier, region) rather than by carrier.
+func TestResolveCheckedBagAmerican(t *testing.T) {
+	aa := ResolveCheckedBag(nil, "AA", nil)
+	if aa.HasBag() {
+		t.Error("American's Basic Economy pays for the first bag on Europe routes")
+	}
+	if aa.Source != models.BagSourceTableSourced {
+		t.Errorf("Source = %q, want table_sourced", aa.Source)
+	}
+	if aa.Currency != "USD" || aa.AmountMin != 85 || aa.AmountMax != 85 {
+		t.Errorf("fee = %s %v-%v, want the single published USD 85", aa.Currency, aa.AmountMin, aa.AmountMax)
+	}
+
+	// A provider verdict still overrides the table, which is what rescues the
+	// regions where American does include a bag.
+	one := 1
+	if got := ResolveCheckedBag(&one, "AA", nil); !got.HasBag() || got.Source != models.BagSourceProvider {
+		t.Errorf("hard provider data must win over a region-averaged table entry: %+v", got)
+	}
+}
+
 // TestResolveCheckedBagLufthansaGroup pins the correction that cost the most.
 //
 // Lufthansa's entry asserted an included bag on the strength of an inference —

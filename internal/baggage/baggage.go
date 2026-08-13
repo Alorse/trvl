@@ -589,6 +589,22 @@ var database = map[string]AirlineBaggage{
 		Notes:             "No weight limit on carry-on; 1 personal item free. Checked bag from USD 35 (Blue Basic: no carry-on overhead).",
 	},
 
+	"AA": {
+		Code:              "AA",
+		Name:              "American Airlines",
+		CarryOnDimensions: "56x36x23 cm (22x14x9 in)",
+		PersonalItem:      true,
+		CheckedIncluded:   0,
+		CheckedSource:     "https://www.aa.com/i18n/travel-info/baggage/checked-baggage-policy.html first-bag table, row \"Between Europe, Israel and U.S., Puerto Rico, U.S. Virgin Islands, Canada, Mexico, Caribbean (including Haiti), Central America, South America / Or connecting via Europe to another destination\": Basic Economy USD 85, Main Cabin USD 0. The cheapest brand pays; every brand above it does not",
+		CheckedVerified:   "2026-08",
+		CheckedFeeMin:     85,
+		CheckedFeeMax:     85,
+		FeeCurrency:       "USD",
+		FeeSource:         "Same table: \"Basic Economy: $85 for tickets issued on / after May 18, 2026 and $75 for tickets issued on / before May 17, 2026\". A single published figure, not a range — the USD 5 online discount is stated only for travel within and between the US, Canada, Mexico, the Caribbean and Central America, so it does not apply to a Europe itinerary",
+		FeeVerified:       "2026-08",
+		Notes:             "Region-dependent to the point of flipping the verdict, and this entry is right only for the Europe case. American gives Basic Economy a FREE first bag to and from India, China, Japan, South Korea, Hong Kong, Qatar, Australia and New Zealand, and charges USD 70 to South America, USD 55 domestically. The Europe row is encoded because it also covers anything \"connecting via Europe to another destination\", which is nearly every itinerary a Europe-origin search surfaces. The floor is 85 rather than the lower regional figures for the reason the KLM entry gives: a floor that understates the relevant route ranks the flight cheaper than it is. Main Plus adds one free bag on top of Main Cabin.",
+	},
+
 	// --- Added 2026-08: the carriers that fly intra-Asia, where the table had
 	// no coverage at all. On KIX-ICN two thirds of priced results resolved to
 	// unknown and the cheapest flight was unknown on every route measured, so a
