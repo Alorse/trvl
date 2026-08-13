@@ -109,9 +109,9 @@ func TestMergeFlightResults_SortsCheapestAndFiltersStops(t *testing.T) {
 func TestBagEstimateDrivesTheFilter(t *testing.T) {
 	zero := 0
 	flights := []models.FlightResult{
-		{Price: 100, Legs: []models.FlightLeg{{AirlineCode: "LH"}}},                  // silent → table says included
-		{Price: 200, Legs: []models.FlightLeg{{AirlineCode: "FR"}}},                  // silent → table says none
-		{Price: 300, Legs: []models.FlightLeg{{AirlineCode: "TG"}}},                  // silent → not covered
+		{Price: 100, Legs: []models.FlightLeg{{AirlineCode: "LH"}}},                             // silent → table says included
+		{Price: 200, Legs: []models.FlightLeg{{AirlineCode: "FR"}}},                             // silent → table says none
+		{Price: 300, Legs: []models.FlightLeg{{AirlineCode: "JU"}}},                             // silent → not covered
 		{Price: 400, Legs: []models.FlightLeg{{AirlineCode: "LH"}}, CheckedBagsIncluded: &zero}, // provider overrides table
 	}
 
@@ -123,8 +123,8 @@ func TestBagEstimateDrivesTheFilter(t *testing.T) {
 	if got[0].BagEstimate == nil {
 		t.Fatal("every result must carry a bag estimate")
 	}
-	if got[0].BagEstimate.Source != models.BagSourceTableUnsourced {
-		t.Errorf("source = %q, want the table to be credited", got[0].BagEstimate.Source)
+	if got[0].BagEstimate.Source != models.BagSourceTableSourced {
+		t.Errorf("source = %q, want the cited table entry to be credited", got[0].BagEstimate.Source)
 	}
 
 	// Unfiltered searches still get the annotation, so consumers can price it.
@@ -151,10 +151,10 @@ func TestBagEstimateDrivesTheFilter(t *testing.T) {
 // on; the ceiling is what the traveller might actually pay.
 func TestAllInRangeFromBagEstimate(t *testing.T) {
 	flights := []models.FlightResult{
-		{Price: 129, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LO"}}},  // bag included
-		{Price: 87, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "FR"}}},   // EUR 9.49-60
-		{Price: 114, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "U2"}}},  // range is GBP, fare is EUR
-		{Price: 121, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "JU"}}},  // not in the table
+		{Price: 129, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "LO"}}}, // bag included
+		{Price: 87, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "FR"}}},  // EUR 9.49-60
+		{Price: 114, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "U2"}}}, // range is GBP, fare is EUR
+		{Price: 121, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "JU"}}}, // not in the table
 	}
 
 	annotateBagEstimates(flights, nil)

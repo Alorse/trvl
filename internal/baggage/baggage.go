@@ -13,8 +13,18 @@ type AirlineBaggage struct {
 	CarryOnMaxKg      float64 `json:"carry_on_max_kg"`     // Max carry-on weight in kg (0 = no weight limit)
 	CarryOnDimensions string  `json:"carry_on_dimensions"` // e.g. "55x35x25 cm"
 	PersonalItem      bool    `json:"personal_item"`       // True if extra personal/handbag item allowed
-	CheckedIncluded   int     `json:"checked_included"`    // Number of checked bags included (0 = none)
-	CheckedFee        float64 `json:"checked_fee_eur"`     // EUR for first checked bag (0 = included or unknown)
+	// CheckedIncluded is the number of checked bags included in the CHEAPEST
+	// long-haul economy brand — Light/Basic/Saver — because that is the fare a
+	// search surfaces. Encoding the standard brand instead reads as "bag
+	// included" for fares that carry none: Air France Light and Finnair Light
+	// both include zero while their standard brands include one.
+	CheckedIncluded int `json:"checked_included"`
+	// CheckedSource cites the airline page the inclusion figure was read from,
+	// and CheckedVerified dates that reading. Empty means the figure has no
+	// citation and is reported as an unsourced estimate.
+	CheckedSource   string  `json:"checked_source,omitempty"`
+	CheckedVerified string  `json:"checked_verified,omitempty"` // YYYY-MM
+	CheckedFee      float64 `json:"checked_fee_eur"`            // EUR for first checked bag (0 = included or unknown)
 	// Published fees are a range, not a point: route, booking channel, timing
 	// and weight tier move them 3x to 9.5x within one carrier and fare brand
 	// (Lufthansa Economy Light is EUR 15-100 for the same 23 kg bag). Min/Max
@@ -49,9 +59,11 @@ var database = map[string]AirlineBaggage{
 		CarryOnMaxKg:      8,
 		CarryOnDimensions: "55x40x23 cm",
 		PersonalItem:      true,
-		CheckedIncluded:   1,
+		CheckedIncluded:   0,
 		CheckedFee:        0,
-		Notes:             "1x23kg checked bag included on most fares; personal item allowed.",
+		Notes:             "Economy Light/Superlight include NO checked bag. Classic/Flex include 1x23kg, or 2 on Japan-Europe.",
+		CheckedSource:     "https://www.finnair.com/us-en/baggage-on-finnair-flights/checked-baggage (Light and Superlight: 0 PC on every band; Classic/Flex: 1 PC, 2 PC Japan-Europe)",
+		CheckedVerified:   "2026-08",
 	},
 	"AF": {
 		Code:              "AF",
@@ -59,9 +71,11 @@ var database = map[string]AirlineBaggage{
 		CarryOnMaxKg:      12,
 		CarryOnDimensions: "55x35x25 cm",
 		PersonalItem:      true,
-		CheckedIncluded:   1,
+		CheckedIncluded:   0,
 		CheckedFee:        0,
-		Notes:             "1x23kg checked bag included; personal item in addition to cabin bag.",
+		Notes:             "Economy Light includes NO checked bag; standard brands include 1x23kg. Air France publishes no fixed excess-bag fee.",
+		CheckedSource:     "https://wwws.airfrance.co.uk/information/bagages/bagage-cabine-soute (Light fare: no checked baggage; standard brands include 1)",
+		CheckedVerified:   "2026-08",
 	},
 	"LH": {
 		Code:              "LH",
@@ -76,7 +90,9 @@ var database = map[string]AirlineBaggage{
 		PersonalItem:      true,
 		CheckedIncluded:   1,
 		CheckedFee:        0,
-		Notes:             "1x23kg checked bag included on most fares.",
+		Notes:             "1x23kg on long-haul Economy. The zero-bag Light brand is confined to Scandinavia-US routes.",
+		CheckedSource:     "https://www.lufthansa.com/us/en/baggage-and-other-fees (Economy 1x23kg; the zero-bag Light brand is sold only ex-DK/NO/SE to the US) - INFERRED: no per-brand row published",
+		CheckedVerified:   "2026-08",
 	},
 	"BA": {
 		Code:              "BA",
@@ -106,7 +122,7 @@ var database = map[string]AirlineBaggage{
 		PersonalItem:      true,
 		CheckedIncluded:   1,
 		CheckedFee:        0,
-		Notes:             "1x23kg checked bag included on most fares.",
+		Notes:             "1x23kg verified only on US routes (swiss.com/us/en/current-fees). Economy Light is sold internationally and likely includes none, but SWISS publishes no intercontinental brand table - UNVERIFIED.",
 	},
 	"OS": {
 		Code:              "OS",
@@ -167,9 +183,9 @@ var database = map[string]AirlineBaggage{
 		CarryOnMaxKg:      8,
 		CarryOnDimensions: "55x40x23 cm",
 		PersonalItem:      true,
-		CheckedIncluded:   1,
+		CheckedIncluded:   0,
 		CheckedFee:        0,
-		Notes:             "1x23kg checked bag included on most fares.",
+		Notes:             "Turkish publishes no route allowance table and no fixed fee. Its own text confirms EcoFly fares exist with no free checked bag, without naming the routes - UNVERIFIED, assumed none.",
 	},
 
 	// --- Long-haul Gulf/Asia carriers ---
@@ -191,7 +207,9 @@ var database = map[string]AirlineBaggage{
 		PersonalItem:      true,
 		CheckedIncluded:   1,
 		CheckedFee:        0,
-		Notes:             "1x30kg checked bag included on most economy fares.",
+		Notes:             "Economy Special: 20kg on weight-concept routes, 1x23kg to/from the Americas and Africa. Saver and above carry more.",
+		CheckedSource:     "https://www.emirates.com/us/english/before-you-fly/baggage/checked-baggage/ (Economy Special: 20kg weight-concept routes, 1x23kg piece-concept routes)",
+		CheckedVerified:   "2026-08",
 	},
 	"SQ": {
 		Code:              "SQ",
@@ -202,6 +220,86 @@ var database = map[string]AirlineBaggage{
 		CheckedIncluded:   1,
 		CheckedFee:        0,
 		Notes:             "1x30kg checked bag included on most fares.",
+	},
+
+	// --- Added 2026-08 from primary sources; figures are for the CHEAPEST
+	// long-haul economy brand, which is what a flight search surfaces. ---
+	"CX": {
+		Code:              "CX",
+		Name:              "Cathay Pacific",
+		CarryOnMaxKg:      7,
+		CarryOnDimensions: "56x36x23 cm",
+		PersonalItem:      true,
+		CheckedIncluded:   1,
+		CheckedSource:     "https://www.cathaypacific.com/cx/en_US/book-a-trip/book-flights/new-economy-fares.html (Economy Light: 1 piece 23kg; Essential and Flex: 2x23kg)",
+		CheckedVerified:   "2026-08",
+		Notes:             "Even the Light fare includes 1x23kg. Essential and Flex include two.",
+	},
+	"AC": {
+		Code:              "AC",
+		Name:              "Air Canada",
+		CarryOnDimensions: "23x40x55 cm",
+		PersonalItem:      true,
+		CheckedIncluded:   0,
+		CheckedSource:     "https://www.aircanada.com/ca/en/aco/home/plan/baggage/checked.html (calculator, YYZ-LHR Economy, no status: Basic 0 bags, Standard/Flex 1, Comfort/Latitude 2)",
+		CheckedVerified:   "2026-08",
+		CheckedFeeMin:     90,
+		CheckedFeeMax:     90,
+		FeeCurrency:       "USD",
+		FeeSource:         "https://www.aircanada.com/ca/en/aco/home/plan/baggage/checked.html (CA/US$90 first bag on Economy Basic; varies by direction and ticketing date)",
+		FeeVerified:       "2026-08",
+		Notes:             "Economy Basic includes no checked bag. Comfort and Latitude include two.",
+	},
+	"AI": {
+		Code:            "AI",
+		Name:            "Air India",
+		CheckedIncluded: 1,
+		CheckedSource:   "https://www.airindia.com/in/en/travel-information/baggage-guidelines/checked-baggage-allowance/europe-uk-israel.html (Economy Value: 1x23kg; Classic and Flex: 2x23kg)",
+		CheckedVerified: "2026-08",
+		Notes:           "Directional: Value is 2 pieces leaving India for the US/Canada, 1 piece inbound and on Europe/Asia/Gulf routes. Air India's own US/Canada page contradicts itself on the inbound case.",
+	},
+	"EY": {
+		Code:              "EY",
+		Name:              "Etihad Airways",
+		CarryOnMaxKg:      7,
+		CarryOnDimensions: "56x36x23 cm",
+		PersonalItem:      true,
+		CheckedIncluded:   0,
+		CheckedSource:     "https://www.etihad.com/en/help/baggage-information (Economy Basic: cabin bag only, no checked allowance; Value: 1x25kg to Europe, 2x23kg to the USA)",
+		CheckedVerified:   "2026-08",
+		FeeVaries:         true,
+		FeeSource:         "https://www.etihad.com/en/help/baggage-information (extra baggage priced per region in 5kg increments, e.g. Europe/Asia USD 44-125 per 5kg)",
+		FeeVerified:       "2026-08",
+		Notes:             "Economy Basic includes no checked bag. Value switches between weight and piece concepts by region.",
+	},
+	"KE": {
+		Code:            "KE",
+		Name:            "Korean Air",
+		CheckedIncluded: 1,
+		CheckedSource:   "https://www.koreanair.com/contents/plan-your-travel/baggage/checked-baggage/free-baggage (Economy Saver: 1x23kg; non-Saver: 2x23kg to/from the Americas)",
+		CheckedVerified: "2026-08",
+		Notes:           "Korean sells no zero-bag economy fare. Non-Saver Economy carries two bags to/from the Americas.",
+	},
+	"TG": {
+		Code:            "TG",
+		Name:            "Thai Airways",
+		CheckedIncluded: 1,
+		CheckedSource:   "https://www.thaiairways.com/en-th/content/baggage/checked-baggage/ (Economy Saver W/L and Standard K/S/V: 1x23kg; Flexi and Full Flex: 2x23kg)",
+		CheckedVerified: "2026-08",
+		Notes:           "Piece concept since 02 Mar 2026 travel. Thai footnotes that some Saver destinations carry no allowance at all, without naming them.",
+	},
+	"UA": {
+		Code:            "UA",
+		Name:            "United Airlines",
+		CheckedIncluded: 0,
+		CheckedSource:   "https://www.united.com/en/us/checked-bag-fee-calculator/any-flights (Basic Economy: 0 bags transatlantic EWR-LHR, 1 bag transpacific SFO-NRT; standard Economy: 1 and 2)",
+		CheckedVerified: "2026-08",
+		CheckedFeeMin:   90,
+		CheckedFeeMax:   90,
+		FeeCurrency:     "USD",
+		FeeSource:       "https://www.united.com/en/us/checked-bag-fee-calculator/any-flights (Basic Economy EWR-LHR first bag USD 90; four regional increases during 2026 make this ticketing-date sensitive)",
+		FeeVerified:     "2026-08",
+		Notes:           "Route-dependent and the route flips the answer: Basic Economy carries no bag transatlantic but one transpacific. The conservative transatlantic figure is used.",
 	},
 
 	// --- Low-cost carriers (LCC) ---
