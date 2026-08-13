@@ -8,9 +8,16 @@ import (
 	"github.com/MikkoParkkola/trvl/internal/baggage"
 	"github.com/MikkoParkkola/trvl/internal/batchexec"
 	"github.com/MikkoParkkola/trvl/internal/models"
+
+	"github.com/MikkoParkkola/trvl/internal/fx"
 )
 
 const flightTimeLayout = "2006-01-02T15:04"
+
+// fxRates converts a bag fee into the fare's currency. Indirected through a
+// package var so tests pin a known rate instead of depending on what the ECB
+// published today.
+var fxRates = fx.Default
 
 func mergeFlightResults(googleFlights, kiwiFlights []models.FlightResult, opts SearchOptions) []models.FlightResult {
 	merged := make([]models.FlightResult, 0, len(googleFlights)+len(kiwiFlights))
@@ -62,34 +69,59 @@ func annotateBagEstimates(flights []models.FlightResult, ffStatuses []baggage.FF
 			code = flights[i].Legs[0].AirlineCode
 		}
 		est := baggage.ResolveCheckedBag(flights[i].CheckedBagsIncluded, code, ffStatuses)
+		min, max, rate := allInRange(flights[i].Price, flights[i].Currency, est, directions)
+		if rate != nil {
+			est.ConversionRate, est.ConversionAsOf = rate.Rate, rate.AsOf
+			est.Reference += " — converted at " + rate.String()
+		}
 		flights[i].BagEstimate = &est
-		flights[i].AllInMin, flights[i].AllInMax = allInRange(flights[i].Price, flights[i].Currency, est, directions)
+		flights[i].AllInMin, flights[i].AllInMax = min, max
 	}
 }
 
 // allInRange bounds the fare plus a checked bag, charged once per direction.
+// The third return is the FX rate used, or nil when no conversion was needed.
 //
 // Returns zeroes when no total can be stated honestly: an airline whose terms
 // nobody reports, a carrier that publishes no figure, or a fee quoted in a
-// currency we cannot convert into the fare's. Emitting the bare fare in those
-// cases would be the same mistake the baggage table used to make — an unpriced
-// bag reading as a free one, and the flight ranking cheaper than it is.
-func allInRange(price float64, currency string, est models.BagEstimate, directions int) (float64, float64) {
+// currency we have no rate for. Emitting the bare fare in those cases would be
+// the same mistake the baggage table used to make — an unpriced bag reading as
+// a free one, and the flight ranking cheaper than it is.
+//
+// Where a rate IS available the fee is converted rather than the flight
+// dropped. Dropping was the safe-looking choice and turned out to be the
+// expensive one: a flight with no all-in falls out of price comparison
+// entirely, and a downstream cache substitutes a costlier one in its place —
+// the precise failure the all-in total exists to prevent. British Airways
+// publishes in GBP and Peach in yen; neither is a reason to lose the flight.
+func allInRange(price float64, currency string, est models.BagEstimate, directions int) (float64, float64, *fx.Rate) {
 	if price <= 0 {
-		return 0, 0
+		return 0, 0, nil
 	}
 	if est.HasBag() {
-		return price, price
+		return price, price, nil
 	}
 	if est.AmountMin <= 0 {
-		return 0, 0 // fee varies, or the airline is not covered at all
+		return 0, 0, nil // fee varies, or the airline is not covered at all
 	}
+
+	feeMin, feeMax := est.AmountMin, est.AmountMax
+	var used *fx.Rate
 	if est.Currency != "" && currency != "" && !strings.EqualFold(est.Currency, currency) {
-		return 0, 0
+		convMin, rate, ok := fxRates.Convert(feeMin, est.Currency, currency)
+		if !ok {
+			return 0, 0, nil // no rate: state no total rather than a wrong one
+		}
+		convMax, _, ok := fxRates.Convert(feeMax, est.Currency, currency)
+		if !ok {
+			return 0, 0, nil
+		}
+		feeMin, feeMax, used = convMin, convMax, &rate
 	}
-	max := est.AmountMax
-	if max < est.AmountMin {
-		max = est.AmountMin
+
+	max := feeMax
+	if max < feeMin {
+		max = feeMin
 	}
 	// The fee is charged per direction — Finnair and SWISS both state this on
 	// their own fee pages — so a round trip without an included bag pays twice.
@@ -99,7 +131,7 @@ func allInRange(price float64, currency string, est models.BagEstimate, directio
 		directions = 1
 	}
 	n := float64(directions)
-	return price + est.AmountMin*n, price + max*n
+	return price + feeMin*n, price + max*n, used
 }
 
 func filterFlightResults(flights []models.FlightResult, opts SearchOptions) []models.FlightResult {

@@ -78,16 +78,16 @@ func TestSearchProvider_ExtendedFilters(t *testing.T) {
 	reg, cfg := makeSearchRegistry(t, srv, func(c *ProviderConfig) {
 		c.Endpoint = srv.URL + "/search"
 		c.QueryParams = map[string]string{
-			"bedrooms":    "${min_bedrooms}",
-			"bathrooms":   "${min_bathrooms}",
-			"beds":        "${min_beds}",
-			"room_type":   "${room_type}",
-			"superhost":   "${superhost}",
-			"instant":     "${instant_book}",
-			"dist":        "${max_distance_m}",
-			"eco":         "${sustainable}",
-			"meal":        "${meal_plan}",
-			"soldout":     "${include_sold_out}",
+			"bedrooms":  "${min_bedrooms}",
+			"bathrooms": "${min_bathrooms}",
+			"beds":      "${min_beds}",
+			"room_type": "${room_type}",
+			"superhost": "${superhost}",
+			"instant":   "${instant_book}",
+			"dist":      "${max_distance_m}",
+			"eco":       "${sustainable}",
+			"meal":      "${meal_plan}",
+			"soldout":   "${include_sold_out}",
 		}
 	})
 
@@ -301,7 +301,7 @@ func TestSearchProvider_SkipsEmptyPurePlaceholderQueryParam(t *testing.T) {
 		Method:   "GET",
 		QueryParams: map[string]string{
 			"q":    "hotels",
-			"sort": "${sort}",    // pure placeholder — should be skipped when empty
+			"sort": "${sort}",     // pure placeholder — should be skipped when empty
 			"loc":  "${location}", // will be substituted
 		},
 		ResponseMapping: ResponseMapping{
@@ -795,58 +795,6 @@ func TestRunTestPreflight_InvalidRegex(t *testing.T) {
 	}
 	if !strings.Contains(tr.Error, "bad") {
 		t.Logf("error = %q", tr.Error)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// normalizePrice — FX conversion with httptest mock
-// ---------------------------------------------------------------------------
-
-// TestNormalizePrice_FXConversion verifies that normalizePrice correctly
-// delegates to the FX cache for known currency conversions.
-func TestNormalizePrice_FXConversion(t *testing.T) {
-	// Inject a fresh FX cache with a mock server so we don't hit the real API.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		base := r.URL.Query().Get("from")
-		switch base {
-		case "EUR":
-			json.NewEncoder(w).Encode(frankfurterResponse{Base: "EUR", Rates: map[string]float64{"USD": 1.10, "GBP": 0.87}})
-		case "USD":
-			json.NewEncoder(w).Encode(frankfurterResponse{Base: "USD", Rates: map[string]float64{"EUR": 0.91, "GBP": 0.79}})
-		case "GBP":
-			json.NewEncoder(w).Encode(frankfurterResponse{Base: "GBP", Rates: map[string]float64{"EUR": 1.15, "USD": 1.27}})
-		default:
-			w.WriteHeader(http.StatusBadRequest)
-		}
-	}))
-	defer srv.Close()
-
-	// Override the package-level FX cache with a test version.
-	origCache := defaultFXCache
-	defer func() { defaultFXCache = origCache }()
-	defaultFXCache = &fxCache{
-		rates:   make(map[string]map[string]float64),
-		ttl:     24 * time.Hour,
-		client:  srv.Client(),
-		baseURL: srv.URL,
-	}
-
-	// EUR→USD at 1.10
-	got := normalizePrice(100, "EUR", "USD")
-	if got < 109 || got > 111 {
-		t.Errorf("normalizePrice(100, EUR, USD) = %v, want ~110", got)
-	}
-
-	// Same currency: no conversion
-	got = normalizePrice(100, "USD", "USD")
-	if got != 100 {
-		t.Errorf("normalizePrice(100, USD, USD) = %v, want 100", got)
-	}
-
-	// Unknown pair returns original
-	got = normalizePrice(100, "JPY", "CHF")
-	if got != 100 {
-		t.Errorf("normalizePrice(100, JPY, CHF) = %v, want 100 (unknown pair)", got)
 	}
 }
 

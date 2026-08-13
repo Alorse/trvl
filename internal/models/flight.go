@@ -259,6 +259,14 @@ type BagEstimate struct {
 	Currency  string    `json:"currency,omitempty"`
 	Reference string    `json:"reference,omitempty"` // where the figure came from, or why there is none
 	Verified  string    `json:"verified,omitempty"`  // YYYY-MM the reference was checked
+
+	// AmountMin/AmountMax stay in the currency the airline publishes. When that
+	// is not the fare's currency, the all-in total is built from a converted
+	// figure, and these record the conversion so the derived number can be
+	// audited rather than taken on faith. ConversionAsOf is empty when the rate
+	// was an offline approximation — which is itself worth knowing.
+	ConversionRate float64 `json:"conversion_rate,omitempty"`
+	ConversionAsOf string  `json:"conversion_as_of,omitempty"` // YYYY-MM-DD the rate was published
 }
 
 // HasBag reports whether a free checked bag is affirmatively included. Unknown

@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"golang.org/x/time/rate"
+
+	"github.com/MikkoParkkola/trvl/internal/fx"
 )
 
 func TestSubstituteVars(t *testing.T) {
@@ -868,7 +870,7 @@ func TestResolvePropertyType(t *testing.T) {
 		{"APARTMENT", "201"},
 		{"hostel", "203"},
 		{"  Hotel  ", "204"},
-		{"resort", ""},  // not in lookup
+		{"resort", ""}, // not in lookup
 		{"", ""},
 	}
 	for _, tt := range tests {
@@ -1132,7 +1134,7 @@ func TestUnwrapNiobe(t *testing.T) {
 								"results": map[string]any{
 									"searchResults": []any{
 										map[string]any{
-											"title":       "Apartment in Kamppi",
+											"title":              "Apartment in Kamppi",
 											"avgRatingLocalized": "4.69 (127)",
 										},
 									},
@@ -1188,10 +1190,9 @@ func TestUnwrapNiobePassthrough(t *testing.T) {
 
 func TestNormalizePrice(t *testing.T) {
 	// Use a cache with known fallback rates (unreachable server forces fallback).
-	old := defaultFXCache
-	defer func() { defaultFXCache = old }()
-	defaultFXCache = newFXCache()
-	defaultFXCache.baseURL = "http://127.0.0.1:1" // force fallback
+	old := fxRates
+	defer func() { fxRates = old }()
+	fxRates = fx.NewAt("http://127.0.0.1:1", nil) // unreachable: force fallback
 
 	tests := []struct {
 		name  string

@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/MikkoParkkola/trvl/internal/models"
+
+	"github.com/MikkoParkkola/trvl/internal/fx"
 )
 
 // substituteVars replaces all ${var} placeholders in s with values from vars.
@@ -656,11 +658,15 @@ func normalizePrice(price float64, fromCurrency, toCurrency string) float64 {
 	if fromCurrency == toCurrency || fromCurrency == "" || toCurrency == "" {
 		return price
 	}
-	if r := defaultFXCache.getRate(fromCurrency, toCurrency); r > 0 {
-		return price * r
+	if converted, _, ok := fxRates.Convert(price, fromCurrency, toCurrency); ok {
+		return converted
 	}
 	return price
 }
+
+// fxRates is the conversion cache normalizePrice reads. Indirected through a
+// package var so tests can point it at a stub server.
+var fxRates = fx.Default
 
 func toFloat64(v any) float64 {
 	switch n := v.(type) {

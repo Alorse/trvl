@@ -157,6 +157,8 @@ func TestAllInRangeFromBagEstimate(t *testing.T) {
 		{Price: 121, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "JU"}}}, // not in the table
 	}
 
+	defer stubFXRates(t, map[string]float64{"GBP": 0.80}, "2026-08-12")()
+
 	annotateBagEstimates(flights, nil, 1)
 
 	// Bag included: all-in is just the fare, with no spread.
@@ -167,10 +169,24 @@ func TestAllInRangeFromBagEstimate(t *testing.T) {
 	if flights[1].AllInMin != 96.49 || flights[1].AllInMax != 147 {
 		t.Errorf("Ryanair: all-in = %v-%v, want 96.49-147", flights[1].AllInMin, flights[1].AllInMax)
 	}
-	// A GBP fee cannot be added to a EUR fare without a rate we do not have.
-	// Leaving it unset is honest; inventing a conversion is not.
-	if flights[2].AllInMin != 0 || flights[2].AllInMax != 0 {
-		t.Errorf("currency mismatch must not produce a total, got %v-%v", flights[2].AllInMin, flights[2].AllInMax)
+	// A GBP fee against a EUR fare is converted rather than dropped. Dropping
+	// was the old behaviour and it was the expensive one: no all-in means the
+	// flight leaves price comparison, and something dearer takes its place.
+	// easyJet publishes GBP 6.99-60; at 1 GBP = 1.25 EUR that is EUR 8.7375-75.
+	if !approx(flights[2].AllInMin, 114+8.7375) || !approx(flights[2].AllInMax, 114+75) {
+		t.Errorf("converted fee: all-in = %v-%v, want %v-%v",
+			flights[2].AllInMin, flights[2].AllInMax, 114+8.7375, 114+75)
+	}
+	// The conversion has to be auditable: a derived number must say so.
+	est := flights[2].BagEstimate
+	if est.ConversionRate != 1.25 {
+		t.Errorf("conversion rate = %v, want the 1.25 the stub published", est.ConversionRate)
+	}
+	if est.ConversionAsOf != "2026-08-12" {
+		t.Errorf("conversion date = %q, want the day the rate was published", est.ConversionAsOf)
+	}
+	if est.Currency != "GBP" || est.AmountMin != 6.99 {
+		t.Errorf("the published figure must survive in the airline's own currency, got %s %v", est.Currency, est.AmountMin)
 	}
 	// Unknown terms: no total either, so a consumer cannot mistake the bare
 	// fare for a complete one.
@@ -212,5 +228,33 @@ func TestAllInChargesTheBagPerDirection(t *testing.T) {
 	annotateBagEstimates(included, nil, 3)
 	if included[0].AllInMin != 900 || included[0].AllInMax != 900 {
 		t.Errorf("included bag: all-in = %v-%v, want 900-900", included[0].AllInMin, included[0].AllInMax)
+	}
+}
+
+// TestAllInWithoutAnyRateStaysSilent pins the limit of the conversion. Being
+// able to convert most currencies is not a licence to invent the rest: when no
+// rate exists for the pair, the total stays unset exactly as it did before,
+// and the flight carries its published fee in the airline's own currency for a
+// consumer to interpret.
+func TestAllInWithoutAnyRateStaysSilent(t *testing.T) {
+	// The stub publishes a EUR table without GBP, so easyJet's GBP fee has no
+	// route to EUR.
+	defer stubFXRates(t, map[string]float64{"USD": 1.10}, "2026-08-12")()
+
+	flights := []models.FlightResult{
+		{Price: 114, Currency: "EUR", Legs: []models.FlightLeg{{AirlineCode: "U2"}}},
+	}
+	annotateBagEstimates(flights, nil, 1)
+
+	if flights[0].AllInMin != 0 || flights[0].AllInMax != 0 {
+		t.Errorf("no rate for GBP→EUR: all-in = %v-%v, want no total rather than a guessed one",
+			flights[0].AllInMin, flights[0].AllInMax)
+	}
+	est := flights[0].BagEstimate
+	if est.ConversionRate != 0 || est.ConversionAsOf != "" {
+		t.Errorf("nothing was converted, so no conversion may be reported: %+v", est)
+	}
+	if est.AmountMin != 6.99 || est.Currency != "GBP" {
+		t.Errorf("the published fee must still be reported, got %v %s", est.AmountMin, est.Currency)
 	}
 }
