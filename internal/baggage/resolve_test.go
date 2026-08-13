@@ -176,3 +176,41 @@ func TestResolveCheckedBagJapanRoutes(t *testing.T) {
 		})
 	}
 }
+
+// TestResolveCheckedBagLatinAmerica covers the carriers that dominate Europe to
+// Peru, Costa Rica and Colombia. The expectation going in was that adding them
+// would rescue cheap bagged options the filter was discarding as unknown. It
+// does the opposite for the two flag carriers: LATAM and Avianca both sell
+// their cheapest long-haul brands with no checked bag at all, so the higher
+// prices those routes were showing are real, not an artefact of missing data.
+func TestResolveCheckedBagLatinAmerica(t *testing.T) {
+	cases := []struct {
+		airline  string
+		wantIncl bool
+		why      string
+	}{
+		{"LA", false, "LATAM lists Basic and Light under 'fares that do not include checked bags'"},
+		{"AV", false, "Avianca Basic and Light pay from EUR 95; only Classic and Flex include one"},
+		{"WK", true, "Edelweiss publishes 1x23 kg for Economy and sells no long-haul Light brand"},
+		{"BR", true, "EVA gives 2 pieces on every named long-haul brand, Basic included"},
+		{"TS", false, "Air Transat Eco Budget includes a carry-on to Europe but no checked bag"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.airline, func(t *testing.T) {
+			got := ResolveCheckedBag(nil, tc.airline, nil)
+			if got.Included != tc.wantIncl {
+				t.Errorf("Included = %v, want %v — %s", got.Included, tc.wantIncl, tc.why)
+			}
+			if got.Source != models.BagSourceTableSourced {
+				t.Errorf("Source = %q, want table_sourced", got.Source)
+			}
+		})
+	}
+
+	// LATAM's fee is a wide published range, not a point, and must survive as one.
+	la := ResolveCheckedBag(nil, "LA", nil)
+	if la.AmountMin != 35 || la.AmountMax != 150 {
+		t.Errorf("LATAM fee = %v-%v, want the published 35-150", la.AmountMin, la.AmountMax)
+	}
+}

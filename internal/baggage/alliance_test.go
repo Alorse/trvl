@@ -519,8 +519,9 @@ func TestAllianceTierBenefits_ConsistentKeys(t *testing.T) {
 // same as "bags are free". Returning the base fare with a silent ok made the
 // optimizer rank such flights as though a checked bag cost nothing.
 func TestAllInCostUnknownAirlineIsNotFree(t *testing.T) {
-	// LATAM is not in the table and publishes no fixed fee.
-	total, breakdown, known := AllInCost(500, "LA", true, true, nil)
+	// Air Serbia is not in the table. (LATAM used to serve as this example, until
+	// it was added — pick a code the table genuinely does not cover.)
+	total, breakdown, known := AllInCost(500, "JU", true, true, nil)
 	if known {
 		t.Error("an airline absent from the table must report unknown")
 	}
